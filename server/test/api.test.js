@@ -79,6 +79,8 @@ test('app suggestions replace earlier unconfirmed suggestions only', async () =>
   await post([{ action: 'dig', t: 9, hint: 'gap' }, { action: 'set', t: 10, hint: 'bogus' }]);
   bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
   assert.deepEqual(bundle.events.map((e) => [e.action, e.status, e.hint]), [['serve', 'confirmed', null], ['dig', 'suggested', 'gap'], ['set', 'suggested', null]]);
+  // A re-run does not suggest the saved serve at t=3 again, but brings back the others.
+  assert.equal((await post([{ action: 'serve', t: 3.1 }, { action: 'dig', t: 9 }])).json().inserted, 1);
   await app.close();
 });
 

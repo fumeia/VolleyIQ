@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, type ActionCode } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
-import { groupRallies, guessServing, isOurs, outcome, type Serving } from '../lib/rallyReview';
+import { groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
@@ -62,6 +62,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   const stopAt = useRef<number | null>(null);
   const passed = useRef<Set<number>>(new Set());
   const jumpTo = useRef<number | null>(null);
+  const selectAt = useRef<number | null>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const lineup = r ? match.lineups?.[String(r.set)] : undefined;
@@ -87,6 +88,13 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     setCourt(null);
     playRally();
   }, [r?.key, r?.start]);
+
+  // A touch just added by hand: open it for editing.
+  useEffect(() => {
+    if (selectAt.current == null || !r) return;
+    const e = r.events.find((x) => x.t != null && Math.abs(x.t - selectAt.current!) < 0.02);
+    if (e) { setSel(e.id); selectAt.current = null; }
+  }, [rallies]);
 
   // Follow the video: highlight the touch being played, stop after the rally, optional pause at each touch.
   useEffect(() => {
@@ -138,6 +146,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     return (
       <div className="pad">
         <p>All rallies reviewed. 🎉</p>
+        <button className="btn wide" disabled={busy} onClick={() => addAt(true)}>+ Rally the analysis missed, at the current video time</button>
         {last && <button className="btn wide" onClick={() => runUndo()}>↶ Undo: {last.text}</button>}
         <button className="btn btn-primary wide" onClick={onExit}>Back to tagging</button>
       </div>
@@ -237,6 +246,33 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     try { await last.undo(); setLast(null); } finally { setBusy(false); }
   }
 
+  /**
+   * A touch (or a whole rally) the analysis missed or that was deleted: added at the
+   * current video time as a suggestion, so it is saved with the rest of its rally.
+   */
+  async function addAt(newRally: boolean) {
+    const t = player.current?.time();
+    if (t == null || busy || (!r && !newRally)) return;
+    setBusy(true);
+    try {
+      player.current?.pause();
+      const at = Math.round(t * 100) / 100;
+      const numbered = !r || /^\d+$/.test(r.key);
+      // Kept as ours: possession parity matching who served (0 = the serve).
+      const rally = numbered ? (newRally || !r ? 900000 + Math.round(at * 10) : Number(r.key)) : null;
+      const poss = newRally ? 0 : serving === 'them' ? 1 : 2;
+      await api.addEvent(match.id, {
+        t: at, action: newRally ? 'serve' : 'dig', status: 'suggested', source: 'auto',
+        rally, poss: rally == null ? null : poss, set_no: newRally || !r ? setAt(match.calibration, at) : r.set,
+      });
+      if (newRally) jumpTo.current = at;
+      selectAt.current = at;
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function select(e: VEvent) {
     setSel(e.id === sel ? null : e.id);
     setCourt(null);
@@ -302,6 +338,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
           <span className="speed">
             {SPEEDS.map((s) => <button key={s} className={`chip ${speed === s ? 'on' : ''}`} onClick={() => setSpeedTo(s)}>{s}×</button>)}
           </span>
+          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(false)}>+ Touch{now != null ? ` at ${fmtTime(now)}` : ''}</button>
+          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(true)}>+ New rally here</button>
           <label className="toggle small"><input type="checkbox" checked={stepPause}
             onChange={(e) => { setStepPause(e.target.checked); store('viq:stepPause', e.target.checked ? '1' : '0'); }} /> pause at touches</label>
         </div>

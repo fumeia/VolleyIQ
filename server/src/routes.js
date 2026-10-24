@@ -20,6 +20,8 @@ function num(v) {
 
 /** Normalizes an incoming event body; returns [event, error]. */
 const HINTS = ['quiet', 'gap'];
+/** Seconds: a suggestion this close to a saved event is the same touch. */
+const DUPLICATE_WINDOW = 0.35;
 
 function cleanEvent(body) {
   if (!ACTIONS.includes(body.action)) return [null, `Unknown action ${body.action}`];
@@ -334,10 +336,17 @@ export function registerRoutes(app, { db }) {
     const save = db.transaction(() => {
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
       if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
+      // A new run skips touches already saved (reviewed or tagged), so it only brings back what is missing.
+      const saved = db.prepare("SELECT t FROM events WHERE match_id = ? AND status = 'confirmed' AND t IS NOT NULL ORDER BY t").all(match.id).map((r) => r.t);
+      const isSaved = (t) => {
+        let lo = 0, hi = saved.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (saved[mid] < t) lo = mid + 1; else hi = mid; }
+        return [lo - 1, lo].some((i) => i >= 0 && i < saved.length && Math.abs(saved[i] - t) < DUPLICATE_WINDOW);
+      };
       let n = 0;
       for (const raw of events) {
         const [ev] = cleanEvent({ ...raw, source: 'auto', status: 'suggested', client_id: null });
-        if (!ev) continue;
+        if (!ev || (ev.t != null && isSaved(ev.t))) continue;
         q.insertEvent.run({ ...attachPlayer(match, ev), match_id: match.id });
         n++;
       }
