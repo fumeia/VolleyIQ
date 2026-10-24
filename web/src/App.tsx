@@ -6,7 +6,7 @@ import { Login } from './pages/Login';
 import { MatchPage } from './pages/MatchPage';
 import { NewMatch } from './pages/NewMatch';
 import { Reports } from './pages/Reports';
-import { SharePage } from './pages/SharePage';
+import { SharePage, TeamSharePage } from './pages/SharePage';
 import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
 
@@ -32,7 +32,12 @@ export function App() {
   }, [isShare]);
 
   if (isShare) {
-    return <Routes><Route path="/s/:token" element={<SharePage />} /></Routes>;
+    return (
+      <Routes>
+        <Route path="/s/t/:token" element={<TeamSharePage />} />
+        <Route path="/s/:token" element={<SharePage />} />
+      </Routes>
+    );
   }
   if (auth === 'loading') return <div className="center muted">Loading…</div>;
   if (auth === 'out') return <Login onLogin={() => setAuth('in')} />;

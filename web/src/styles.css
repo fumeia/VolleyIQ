@@ -344,3 +344,13 @@ button.court-zone:active { background: #2a2f3a; }
 .calib-status { justify-content: space-between; }
 .progress .indeterminate { width: 30% !important; animation: slide 1.2s linear infinite; }
 @keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+
+/* ---------- report cards ---------- */
+.report { display: flex; flex-direction: column; gap: 12px; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.report-card { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.report-svg svg { width: 100%; height: auto; display: block; border-radius: 14px; }
+.report-card figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; color: var(--ink2, #c3c2b7); }
+.small-btn { min-height: 36px; padding: 6px 14px; }
+.share-hero { display: flex; flex-direction: column; gap: 4px; }

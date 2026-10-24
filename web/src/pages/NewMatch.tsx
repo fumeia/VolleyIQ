@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { parseYouTubeId } from '../components/VideoPlayer';
-import { api, type Team } from '../lib/api';
+import { api, isApp, type Team } from '../lib/api';
+import { describeLink } from '../lib/native';
 
 export function NewMatch() {
   const [params] = useSearchParams();
@@ -24,8 +25,12 @@ export function NewMatch() {
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    const ytId = yt ? parseYouTubeId(yt) : null;
-    if (yt && !ytId) return setError('That does not look like a YouTube link.');
+    const link = yt.trim();
+    const ytId = link ? parseYouTubeId(link) : null;
+    if (link && !/^https?:\/\//i.test(link) && !ytId) return setError('Paste the full link, starting with https://');
+    if (link && !ytId && !isApp() && !/\.(mp4|mov|m4v|webm)(\?|$)/i.test(link)) {
+      return setError(`${describeLink(link)} links are downloaded by the Android app. Create the match in the app, or use a YouTube link here.`);
+    }
     const m = await api.createMatch({
       team_id: teamId === '' ? null : teamId,
       label: label.trim() || `${opponent ? `vs ${opponent}` : 'Match'} ${date}`,
@@ -35,6 +40,8 @@ export function NewMatch() {
       video_type: ytId ? 'youtube' : null,
       video_ref: ytId,
     });
+    // Non-YouTube links (WeTransfer, Drive, …) and, in the app, YouTube too are downloaded to the phone on the next screen.
+    if (link && (isApp() || !ytId)) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
     nav(`/m/${m.id}`);
   }
 
@@ -59,8 +66,12 @@ export function NewMatch() {
         <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="League round 4" />
         {mode === 'video' && (
           <>
-            <label className="field-label">YouTube link (optional, you can also pick a file on the next screen)</label>
-            <input className="input" value={yt} onChange={(e) => setYt(e.target.value)} placeholder="https://youtu.be/…" />
+            <label className="field-label">
+              Video link (optional): {isApp() ? 'WeTransfer, YouTube, Google Drive, Dropbox, Vimeo…' : 'YouTube or a direct video link'}
+            </label>
+            <input className="input" type="url" inputMode="url" autoCapitalize="off" value={yt} onChange={(e) => setYt(e.target.value)}
+              placeholder={isApp() ? 'https://we.tl/… or https://youtu.be/…' : 'https://youtu.be/…'} />
+            <p className="muted small">You can also pick a video file on the next screen.</p>
           </>
         )}
         {error && <p className="error">{error}</p>}

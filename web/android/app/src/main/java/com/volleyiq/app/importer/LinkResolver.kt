@@ -36,6 +36,7 @@ object LinkResolver {
         val host = uri.host?.lowercase()?.removePrefix("www.") ?: throw IllegalArgumentException("Not a link: $link")
         val path = uri.path ?: ""
         return when {
+            host == "we.tl" -> throw IllegalArgumentException("Short we.tl links must be expanded first (use resolve)")
             host == "wetransfer.com" || host.endsWith(".wetransfer.com") -> {
                 // /downloads/<transfer_id>/<security_hash> or /downloads/<transfer_id>/<recipient_id>/<security_hash>
                 val parts = path.split('/').filter { it.isNotEmpty() }.dropWhile { it != "downloads" }.drop(1)
@@ -86,7 +87,14 @@ object LinkResolver {
             }
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
             if (conn.responseCode !in 200..299) {
-                throw IOException("WeTransfer refused the download (HTTP ${conn.responseCode}). The link may have expired.")
+                val reply = conn.errorStream?.bufferedReader()?.use { it.readText() }?.take(200).orEmpty()
+                throw IOException(
+                    when (conn.responseCode) {
+                        404 -> "WeTransfer says this transfer does not exist or has expired"
+                        403 -> "WeTransfer refused the download (password-protected or expired?)"
+                        else -> "WeTransfer error HTTP ${conn.responseCode}: $reply"
+                    },
+                )
             }
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             return json.optString("direct_link").ifEmpty { throw IOException("WeTransfer did not return a download link") }
@@ -178,9 +186,11 @@ object LinkResolver {
     private fun finalUrl(url: String): String {
         var current = url
         repeat(8) {
+            // GET, not HEAD: some short-link services answer HEAD with an error.
             val conn = (URL(current).openConnection() as HttpURLConnection).apply {
                 instanceFollowRedirects = false
-                requestMethod = "HEAD"
+                connectTimeout = 20_000
+                readTimeout = 20_000
                 setRequestProperty("User-Agent", USER_AGENT)
             }
             val loc = if (conn.responseCode in 300..399) conn.getHeaderField("Location") else null

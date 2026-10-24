@@ -76,6 +76,16 @@ test('password protection and share links', async () => {
   const shared = (await app.inject({ url: `/api/share/${share_token}` })).json();
   assert.equal(shared.events.length, 1);
 
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', headers: { cookie }, payload: { name: 'T' } })).json();
+  await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, headers: { cookie }, payload: { team_id: team.id } });
+  const ts = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, headers: { cookie }, payload: {} })).json();
+  const season = (await app.inject({ url: `/api/share/team/${ts.share_token}` })).json();
+  assert.equal(season.team.name, 'T');
+  assert.equal(season.team.share_token, undefined);
+  assert.equal(season.events.length, 1);
+  await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, headers: { cookie }, payload: { revoke: true } });
+  assert.equal((await app.inject({ url: `/api/share/team/${ts.share_token}` })).statusCode, 404);
+
   // The Android app uses the session as a bearer token from its own origin.
   const { token } = login.json();
   const viaBearer = await app.inject({ url: '/api/teams', headers: { authorization: `Bearer ${token}` } });

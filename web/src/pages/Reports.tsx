@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StatsView } from '../components/StatsView';
-import { api, type Match, type Player, type Team, type VEvent } from '../lib/api';
+import { api, publicBase, type Match, type Player, type Team, type VEvent } from '../lib/api';
+import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 import { dec, pct, playerStats, type StatLine } from '../lib/stats';
 
 const BOARDS: { label: string; v: (s: StatLine) => number | null; fmt: (n: number | null) => string; min?: (s: StatLine) => boolean }[] = [
@@ -19,7 +20,7 @@ export function Reports() {
   const [teamId, setTeamId] = useState<number | null>(null);
   const [data, setData] = useState<{ players: Player[]; matches: Match[]; events: VEvent[] } | null>(null);
   const [matchId, setMatchId] = useState<number | 'all'>('all');
-  const [view, setView] = useState<'stats' | 'board'>('stats');
+  const [view, setView] = useState<'report' | 'stats' | 'board'>('report');
 
   useEffect(() => {
     api.teams().then((t) => {
@@ -56,10 +57,18 @@ export function Reports() {
         )}
       </div>
       <div className="segmented">
+        <button className={view === 'report' ? 'on' : ''} onClick={() => setView('report')}>Report images</button>
         <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Stats & heatmaps</button>
         <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Leaderboard</button>
       </div>
       {!teams.length && <p className="muted">Create a team first.</p>}
+      {data && view === 'report' && (matchId === 'all' ? (
+        <SeasonReportView title={teams.find((t) => t.id === teamId)?.name ?? 'Team'} matches={data.matches} players={data.players} events={events}
+          actions={teamId != null && <SeasonShareButton teamId={teamId} />} />
+      ) : (
+        <MatchReportView match={{ ...data.matches.find((m) => m.id === matchId)!, team_name: teams.find((t) => t.id === teamId)?.name }}
+          players={data.players} events={events} />
+      ))}
       {data && view === 'stats' && <StatsView players={data.players} events={events} />}
       {data && view === 'board' && (
         <div className="boards">
@@ -87,5 +96,26 @@ export function Reports() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Read-only season link for teammates (no login needed), revocable. */
+function SeasonShareButton({ teamId }: { teamId: number }) {
+  const [token, setToken] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    api.team(teamId).then((t) => setToken(t.share_token ?? null)).catch(() => setToken(null));
+  }, [teamId]);
+  if (token === undefined) return null;
+  const url = token ? `${publicBase()}/s/t/${token}` : null;
+  return url ? (
+    <>
+      <button className="btn" onClick={async () => {
+        if (navigator.share) navigator.share({ title: 'Season report', url }).catch(() => {});
+        else { await navigator.clipboard.writeText(url); alert('Link copied'); }
+      }}>🔗 Share season link</button>
+      <button className="btn-ghost small" onClick={async () => setToken((await api.shareTeam(teamId, true)).share_token)}>Revoke</button>
+    </>
+  ) : (
+    <button className="btn" onClick={async () => setToken((await api.shareTeam(teamId)).share_token)}>🔗 Create season link</button>
   );
 }

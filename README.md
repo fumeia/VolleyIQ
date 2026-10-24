@@ -28,7 +28,8 @@ tags and shows stats, heatmaps and court plots and shares reports.
 | Review | Each suggestion plays as a short clip. One tap on a jersey fixes the player and confirms. **"Ours / Theirs"** settles a whole rally at once, because possessions alternate. |
 | Stats | Attack (K, E, TA, K%, efficiency), serve (aces, errors, in %), pass (avg, perfect %, errors), digs, blocks, setting, points, +/−, per player and per role. |
 | Heatmaps & plots | Zone heatmaps, plus **court plots** of exact landing spots: attacks and serves colored by outcome, receives colored by grade. Filter by player. |
-| Reports | Per match or per season, leaderboards, CSV export (including x/y in meters), read-only share links. |
+| Reports | Per match or per season, leaderboards, CSV export (including x/y in meters). |
+| Share images | **Report** tab per match and per season: chat-ready 1080×1350 images (match summary, score flow, how points were won/lost, attack/serve/reception maps, box score, one card per player, season trends and leaderboard). Share them straight to WhatsApp & co., or send teammates a read-only link (`/s/…` for a match, `/s/t/…` for the season) that shows the same images plus interactive stats. |
 | Offline | Tags are queued on the phone without a connection, and analysis results upload when it is back online. |
 
 ## Install the Android app

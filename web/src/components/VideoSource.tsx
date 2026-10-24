@@ -11,6 +11,7 @@ import { parseYouTubeId } from './VideoPlayer';
 export function useImport(matchId: number, onDone: (v: LocalVideo) => void) {
   const key = `viq:import:${matchId}`;
   const [work, setWork] = useState<WorkState | null>(null);
+  const [lastUrl, setLastUrl] = useState<string | null>(() => localStorage.getItem(`${key}:url`));
   const [id, setId] = useState<string | null>(() => localStorage.getItem(key));
   const done = useRef(onDone);
   done.current = onDone;
@@ -35,11 +36,14 @@ export function useImport(matchId: number, onDone: (v: LocalVideo) => void) {
 
   return {
     work,
+    lastUrl,
     running: !!id,
     async start(url: string) {
       await Native.requestNotifications().catch(() => {});
       const { id: newId } = await Native.importLink({ url });
       localStorage.setItem(key, newId);
+      localStorage.setItem(`${key}:url`, url);
+      setLastUrl(url);
       setWork(null);
       setId(newId);
     },
@@ -70,6 +74,16 @@ export function VideoSource({ match, onLocal, onMatch }: Props) {
   }
 
   const imp = useImport(match.id, useLocal);
+
+  // A link entered when the match was created starts downloading right away.
+  useEffect(() => {
+    const key = `viq:pendingLink:${match.id}`;
+    const pending = localStorage.getItem(key);
+    if (!pending) return;
+    localStorage.removeItem(key);
+    if (app && !imp.running) imp.start(pending).catch((e) => setErr((e as Error).message));
+    else if (!app) setLink(pending);
+  }, [match.id]);
 
   async function submitLink() {
     setErr('');
@@ -116,7 +130,17 @@ export function VideoSource({ match, onLocal, onMatch }: Props) {
           <span className="small">{imp.work?.message ?? 'Starting download…'} <button className="btn-ghost small" onClick={imp.cancel}>Cancel</button></span>
         </div>
       )}
-      {imp.work?.state === 'failed' && <p className="error small">Import failed: {imp.work.error}</p>}
+      {imp.work?.state === 'failed' && (
+        <div className="card notice small">
+          <span className="error">Import failed: {imp.work.error}</span>
+          {imp.lastUrl && (
+            <span>
+              Fallback: <a href={imp.lastUrl} target="_blank" rel="noreferrer">open the link in your browser</a>, download the
+              video there, then use “Pick video from this phone”.
+            </span>
+          )}
+        </div>
+      )}
       <p className="muted small">
         {app
           ? 'Videos stay on this phone (nothing is uploaded). Imports keep running in the background with a notification.'

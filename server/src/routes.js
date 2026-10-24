@@ -208,6 +208,25 @@ export function registerRoutes(app, { db }) {
     return { ...bundle, events: bundle.events.filter((e) => e.status === 'confirmed') };
   });
 
+  app.post('/api/teams/:id/share', coach, async (req, reply) => {
+    const t = q.team.get(req.params.id);
+    if (!t) return bad(reply, 'Not found', 404);
+    const token = req.body?.revoke ? null : (t.share_token ?? crypto.randomBytes(12).toString('base64url'));
+    db.prepare('UPDATE teams SET share_token = ? WHERE id = ?').run(token, t.id);
+    return { share_token: token };
+  });
+
+  // Public season report: confirmed tags only; no tokens or calibration data leak out.
+  app.get('/api/share/team/:token', async (req, reply) => {
+    const team = db.prepare('SELECT id, name FROM teams WHERE share_token = ?').get(req.params.token);
+    if (!team) return bad(reply, 'Not found', 404);
+    const matches = db.prepare('SELECT id, label, opponent, played_on FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
+    const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.t, e.set_no, e.status
+                               FROM events e JOIN matches m ON m.id = e.match_id
+                               WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
+    return { team, players: q.players.all(team.id), matches, events };
+  });
+
   // Season / multi-match report: all confirmed events for a team.
   app.get('/api/teams/:id/report', coach, async (req, reply) => {
     const team = q.team.get(req.params.id);

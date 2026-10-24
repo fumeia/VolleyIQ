@@ -4,6 +4,7 @@ import { EventEditor } from '../components/EventEditor';
 import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { StatsView } from '../components/StatsView';
+import { MatchReportView } from '../report/ReportViews';
 import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
 import { Calibration } from '../components/Calibration';
@@ -16,7 +17,7 @@ import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 
-type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
+type Tab = 'tag' | 'events' | 'review' | 'stats' | 'report' | 'ai';
 
 
 function loadSettings(): TagSettings {
@@ -209,6 +210,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </button>
             )}
             <button className={`tab ${tab === 'stats' ? 'on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
+            <button className={`tab ${tab === 'report' ? 'on' : ''}`} onClick={() => setTab('report')}>Report</button>
             {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto ✨</button>}
           </nav>
 
@@ -255,6 +257,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <ShareButton match={match} onChange={setMatch} />
                 </div>
               </>
+            )}
+            {tab === 'report' && (
+              <MatchReportView match={match} players={players} events={events}
+                actions={<ShareButton match={match} onChange={setMatch} />} />
             )}
             {tab === 'ai' && (
               <AutoPanel
