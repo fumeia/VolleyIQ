@@ -13,32 +13,77 @@ export interface VEvent {
   value: number | null; zone: number | null; x: number | null; y: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
 }
-export interface Job { id: number; match_id: number; status: 'queued' | 'running' | 'done' | 'failed'; progress: number; message: string | null }
-export interface MatchBundle { match: Match; players: Player[]; events: VEvent[]; jobs?: Job[] }
+export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+/**
+ * The website talks to its own origin with a cookie. The Android app bundles
+ * the UI, so it needs the server address and sends the session as a bearer token.
+ */
+const SERVER_KEY = 'viq:server';
+const TOKEN_KEY = 'viq:token';
+
+function store(key: string, value?: string | null) {
+  try {
+    if (value === undefined) return localStorage.getItem(key);
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch { /* storage unavailable */ }
+  return null;
+}
+
+export const isApp = () => !!(window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+export const serverBase = () => (isApp() ? (store(SERVER_KEY) ?? '').replace(/\/+$/, '') : '');
+export const setServerBase = (url: string) => store(SERVER_KEY, url.trim().replace(/\/+$/, ''));
+export const publicBase = () => serverBase() || location.origin;
+const token = () => store(TOKEN_KEY);
+
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method,
-    headers: body !== undefined ? { 'content-type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  });
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const t = token();
+  if (t) headers.authorization = `Bearer ${t}`;
+  let res: Response;
+  try {
+    res = await fetch(serverBase() + url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: isApp() ? 'omit' : 'same-origin',
+    });
+  } catch (err) {
+    // Offline: show the last copy we saw, so the app still opens courtside.
+    const cached = method === 'GET' ? store(`viq:cache:${url}`) : null;
+    if (cached) return JSON.parse(cached);
+    throw new ApiError(0, 'No connection to the server');
+  }
   if (res.status === 401 && !url.startsWith('/api/login')) window.dispatchEvent(new Event('viq:unauthorized'));
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
-  return res.json();
+  const data = await res.json();
+  if (method === 'GET' && isApp()) {
+    try { localStorage.setItem(`viq:cache:${url}`, JSON.stringify(data)); } catch { /* full */ }
+  }
+  return data;
 }
 
 export const api = {
   me: () => req<{ authenticated: boolean; passwordRequired: boolean }>('GET', '/api/me'),
-  login: (password: string) => req('POST', '/api/login', { password }),
-  logout: () => req('POST', '/api/logout', {}),
+  async login(password: string) {
+    const r = await req<{ token: string }>('POST', '/api/login', { password });
+    if (isApp()) store(TOKEN_KEY, r.token);
+    return r;
+  },
+  async logout() {
+    store(TOKEN_KEY, null);
+    await req('POST', '/api/logout', {}).catch(() => {});
+  },
+  token,
 
   teams: () => req<Team[]>('GET', '/api/teams'),
   team: (id: number) => req<Team & { players: Player[] }>('GET', `/api/teams/${id}`),
@@ -63,25 +108,4 @@ export const api = {
   deleteEvent: (id: number) => req('DELETE', `/api/events/${id}`),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
-
-  analyze: (matchId: number, opts: { jersey_ocr?: boolean; replace_suggestions?: boolean } = {}) =>
-    req<Job>('POST', `/api/matches/${matchId}/analyze`, opts),
-  job: (id: number) => req<Job>('GET', `/api/jobs/${id}`),
-
-  uploadVideo(matchId: number, file: File, onProgress: (f: number) => void): Promise<Match> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const form = new FormData();
-      form.append('file', file);
-      xhr.open('POST', `/api/matches/${matchId}/video`);
-      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-      xhr.onload = () => {
-        const data = JSON.parse(xhr.responseText || '{}');
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-        else reject(new ApiError(xhr.status, data.error ?? 'Upload failed'));
-      };
-      xhr.onerror = () => reject(new ApiError(0, 'Network error during upload'));
-      xhr.send(form);
-    });
-  },
 };

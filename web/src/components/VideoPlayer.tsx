@@ -11,6 +11,8 @@ export interface PlayerHandle {
   seekBy(dt: number): void;
   setRate(r: number): void;
   ready(): boolean;
+  /** Width / height of the picture (for overlays on the letterboxed video). */
+  aspect(): number | null;
 }
 
 interface Props {
@@ -89,6 +91,11 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
 
   const handle: PlayerHandle = {
     ready: () => (source?.type === 'youtube' ? !!yt.current?.getCurrentTime : !!video.current),
+    aspect: () => {
+      if (source?.type === 'youtube') return 16 / 9;
+      const v = video.current;
+      return v && v.videoWidth ? v.videoWidth / v.videoHeight : null;
+    },
     play: () => (source?.type === 'youtube' ? yt.current?.playVideo?.() : video.current?.play().catch(() => {})),
     pause: () => (source?.type === 'youtube' ? yt.current?.pauseVideo?.() : video.current?.pause()),
     isPlaying: () => {

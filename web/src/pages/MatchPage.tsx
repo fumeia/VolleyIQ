@@ -5,9 +5,13 @@ import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { StatsView } from '../components/StatsView';
 import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
-import { parseYouTubeId, VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
+import { AutoPanel } from '../components/AutoPanel';
+import { Calibration } from '../components/Calibration';
+import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
+import { VideoSource } from '../components/VideoSource';
 import { actionLabel } from '../lib/actions';
-import { api, type Job, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { api, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
@@ -48,7 +52,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [showSettings, setShowSettings] = useState(false);
   const [editing, setEditing] = useState<VEvent | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
-  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  // A video file on this device (phone gallery, imported link, or a browser file).
+  const [local, setLocal] = useState<LocalVideo | null>(() => (isApp() ? localVideo(initial.match.id) : null));
+  const [calibrating, setCalibrating] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const [setNo, setSetNo] = useState(() => Math.max(1, ...initial.events.map((e) => e.set_no ?? 1)));
@@ -58,11 +64,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const isLive = match.mode === 'live';
   const source = useMemo(() => {
     if (isLive) return null;
-    if (localUrl) return { type: 'file' as const, url: localUrl };
+    if (local) return { type: 'file' as const, url: isApp() ? playableUrl(local.uri) : local.uri };
     if (match.video_type === 'youtube' && match.video_ref) return { type: 'youtube' as const, id: match.video_ref };
-    if (match.video_type === 'upload' && match.video_ref) return { type: 'file' as const, url: `/media/${match.video_ref}` };
     return null;
-  }, [isLive, localUrl, match.video_type, match.video_ref]);
+  }, [isLive, local, match.video_type, match.video_ref]);
 
   const suggested = events.filter((e) => e.status === 'suggested');
   const confirmed = events.filter((e) => e.status === 'confirmed');
@@ -156,7 +161,20 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <section className="ws-video">
             {source ? (
               <>
-                <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
+                <div className="video-wrap">
+                  <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
+                  {calibrating && (
+                    <Calibration
+                      aspect={player.current?.aspect() ?? 16 / 9}
+                      onCancel={() => setCalibrating(false)}
+                      onSave={async (corners, ourHalf) => {
+                        setMatch(await api.updateMatch(match.id, { calibration: { corners, ourHalf } }));
+                        setCalibrating(false);
+                        flash('Court calibrated');
+                      }}
+                    />
+                  )}
+                </div>
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -171,7 +189,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </div>
               </>
             ) : (
-              <VideoSource match={match} onLocal={setLocalUrl} onMatch={setMatch} />
+              <>
+                {match.video_type === 'local' && !local && (
+                  <p className="notice card small">This match's video ({match.video_ref}) is on another device. Load it here to watch and tag.</p>
+                )}
+                <VideoSource match={match} onLocal={setLocal} onMatch={setMatch} />
+              </>
             )}
           </section>
         )}
@@ -213,6 +236,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   player={player}
                   update={update}
                   remove={remove}
+                  removeMany={async (list) => { for (const e of list) await remove(e); }}
                   onEdit={setEditing}
                   onExit={() => setTab('tag')}
                   confirmAll={async () => {
@@ -232,7 +256,20 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </div>
               </>
             )}
-            {tab === 'ai' && <AutoPanel match={match} hasLocal={!!localUrl} onMatch={setMatch} onDone={async () => { await reload(); setTab('review'); }} />}
+            {tab === 'ai' && (
+              <AutoPanel
+                match={match}
+                players={players}
+                video={isApp() ? local : null}
+                onCalibrate={() => {
+                  if (!source) return flash('Load the video first');
+                  player.current?.pause();
+                  setCalibrating(true);
+                  window.scrollTo({ top: 0 });
+                }}
+                onDone={async () => { await reload(); setTab('review'); }}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -276,7 +313,21 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             <label className="field-label">Timestamp lead (reaction time): {settings.leadSeconds}s</label>
             <input type="range" min={0} max={3} step={0.5} value={settings.leadSeconds} onChange={(e) => setSettings({ ...settings, leadSeconds: Number(e.target.value) })} />
             {!isLive && source && (
-              <button className="btn wide" onClick={() => { setLocalUrl(null); setMatch({ ...match, video_type: null, video_ref: null }); setShowSettings(false); }}>
+              <button className="btn wide" onClick={() => {
+                player.current?.pause();
+                setShowSettings(false);
+                setCalibrating(true);
+              }}>
+                {match.calibration ? 'Recalibrate court corners' : 'Calibrate court (tap 4 corners)'}
+              </button>
+            )}
+            {!isLive && source && (
+              <button className="btn wide" onClick={() => {
+                setLocalVideo(match.id, null);
+                setLocal(null);
+                setMatch({ ...match, video_type: null, video_ref: null });
+                setShowSettings(false);
+              }}>
                 Change video
               </button>
             )}
@@ -292,35 +343,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   );
 }
 
-function VideoSource({ match, onLocal, onMatch }: { match: Match; onLocal: (url: string) => void; onMatch: (m: Match) => void }) {
-  const [yt, setYt] = useState('');
-  const [err, setErr] = useState('');
-  return (
-    <div className="video-source card">
-      <b>Load video</b>
-      <div className="row">
-        <input className="input" placeholder="YouTube URL or video ID" value={yt} onChange={(e) => setYt(e.target.value)} />
-        <button className="btn btn-primary" onClick={async () => {
-          const id = parseYouTubeId(yt);
-          if (!id) return setErr('Not a valid YouTube link');
-          onMatch(await api.updateMatch(match.id, { video_type: 'youtube', video_ref: id }));
-        }}>Load</button>
-      </div>
-      <label className="btn wide file-btn">
-        📁 Pick video from phone
-        <input type="file" accept="video/*" hidden onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onLocal(URL.createObjectURL(f));
-        }} />
-      </label>
-      <p className="muted small">Phone videos play locally and are not uploaded. To use auto-detection, upload it in the <b>Auto ✨</b> tab or use a YouTube link.</p>
-      {err && <p className="error small">{err}</p>}
-    </div>
-  );
-}
-
 function ShareButton({ match, onChange }: { match: Match; onChange: (m: Match) => void }) {
-  const url = match.share_token ? `${location.origin}/s/${match.share_token}` : null;
+  const url = match.share_token ? `${publicBase()}/s/${match.share_token}` : null;
   return url ? (
     <>
       <button className="btn" onClick={async () => {
@@ -334,75 +358,3 @@ function ShareButton({ match, onChange }: { match: Match; onChange: (m: Match) =
   );
 }
 
-function AutoPanel({ match, hasLocal, onMatch, onDone }: { match: Match; hasLocal: boolean; onMatch: (m: Match) => void; onDone: () => void }) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [upload, setUpload] = useState<number | null>(null);
-  const [ocr, setOcr] = useState(true);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    api.match(match.id).then((b) => {
-      const latest = b.jobs?.[0];
-      if (latest) setJob(latest);
-    });
-  }, [match.id]);
-
-  useEffect(() => {
-    if (!job || job.status === 'done' || job.status === 'failed') return;
-    const t = setInterval(async () => {
-      const j = await api.job(job.id);
-      setJob(j);
-      if (j.status === 'done') onDone();
-    }, 3000);
-    return () => clearInterval(t);
-  }, [job?.id, job?.status]);
-
-  const canAnalyze = match.video_type === 'youtube' || match.video_type === 'upload';
-  const running = job && (job.status === 'queued' || job.status === 'running');
-
-  return (
-    <div className="pad">
-      <p>
-        <b>Auto-detection</b> (first pass): the server finds rallies and ball contacts in the video, guesses the action
-        (serve, receive, set, attack…) and tries to read jersey numbers. Everything lands in <b>Review</b> as a
-        suggestion for you to confirm or correct with one tap.
-      </p>
-      {!canAnalyze && (
-        <div className="card notice">
-          {hasLocal
-            ? 'This video only lives on your phone. Upload it so the server can analyse it:'
-            : 'Load a YouTube link or upload a video first.'}
-          <label className="btn wide file-btn">
-            ⬆ Upload video {upload != null && `(${Math.round(upload * 100)}%)`}
-            <input type="file" accept="video/*" hidden disabled={upload != null} onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              setUpload(0);
-              setErr('');
-              try { onMatch(await api.uploadVideo(match.id, f, setUpload)); } catch (x) { setErr((x as Error).message); }
-              setUpload(null);
-            }} />
-          </label>
-        </div>
-      )}
-      <label className="toggle"><input type="checkbox" checked={ocr} onChange={(e) => setOcr(e.target.checked)} /> Read jersey numbers (slower)</label>
-      <button className="btn btn-primary wide" disabled={!canAnalyze || !!running} onClick={async () => {
-        setErr('');
-        try { setJob(await api.analyze(match.id, { jersey_ocr: ocr })); } catch (x) { setErr((x as Error).message); }
-      }}>
-        {running ? 'Analysing…' : '✨ Run auto-detection'}
-      </button>
-      {job && (
-        <div className="job">
-          <div className="progress"><div style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
-          <span className="small">{job.status} · {job.message ?? ''}</span>
-        </div>
-      )}
-      {err && <p className="error small">{err}</p>}
-      <p className="muted small">
-        Re-running replaces earlier suggestions you have not confirmed yet. Confirmed tags are never touched.
-        Detection is a helper, not a referee: expect to fix players and actions in the review pass.
-      </p>
-    </div>
-  );
-}

@@ -108,7 +108,7 @@ def assign_teams(rally: Rally, roster_numbers: set[int]) -> None:
 
 def to_events(rallies: list[Rally], drop_opponent: bool = True) -> list[dict]:
     events = []
-    for rally in rallies:
+    for ri, rally in enumerate(rallies, start=1):
         for touch in rally.touches:
             if drop_opponent and touch.team == "them":
                 continue
@@ -123,5 +123,7 @@ def to_events(rallies: list[Rally], drop_opponent: bool = True) -> list[dict]:
                 "action": touch.action,
                 "jersey": touch.jersey,
                 "confidence": round(min(conf, 0.95), 2),
+                "rally": ri,
+                "poss": touch.possession,
             })
     return events

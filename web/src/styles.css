@@ -324,3 +324,23 @@ button.court-zone:active { background: #2a2f3a; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 .field-label .btn-ghost.small { margin-left: 8px; padding: 0 6px; min-height: 0; }
 .receive-quick .act { min-height: 38px; font-size: 16px; }
+
+/* ---------- review side, calibration ---------- */
+.side-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.side-row > span { grid-column: 1 / -1; }
+.side-row small { color: var(--muted); font-weight: 400; }
+.video-wrap { position: relative; }
+.calib { position: absolute; inset: 0; z-index: 6; cursor: crosshair; touch-action: none; }
+.calib-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.calib-poly { fill: rgba(249,115,22,.12); stroke: var(--accent); stroke-width: 2; }
+.calib-poly.done { fill: rgba(34,197,94,.15); stroke: #22c55e; }
+.calib-dot { fill: var(--accent); stroke: #fff; stroke-width: 2; }
+.calib-label { fill: #fff; font-size: 14px; font-weight: 700; paint-order: stroke; stroke: #000; stroke-width: 3px; }
+.calib-bar {
+  position: absolute; left: 6px; right: 6px; top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between;
+  background: rgba(10,12,16,.85); border-radius: 10px; padding: 6px 8px; font-size: 13px;
+}
+.calib-bar .btn { min-height: 36px; padding: 6px 10px; }
+.calib-status { justify-content: space-between; }
+.progress .indeterminate { width: 30% !important; animation: slide 1.2s linear infinite; }
+@keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }

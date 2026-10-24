@@ -11,6 +11,7 @@ interface Props {
   player: React.RefObject<PlayerHandle | null>;
   update: (e: VEvent, patch: Partial<VEvent>) => Promise<void>;
   remove: (e: VEvent) => Promise<void>;
+  removeMany: (list: VEvent[]) => Promise<void>;
   confirmAll: () => void;
   onEdit: (e: VEvent) => void;
   onExit: () => void;
@@ -24,7 +25,7 @@ const QUICK_ACTIONS: ActionCode[] = ['serve', 'receive', 'set', 'attack', 'kill'
  * Second pass over auto-detected events: each suggestion plays a short clip
  * around its timestamp; one tap on a jersey fixes the player and confirms.
  */
-export function ReviewPanel({ events, players, player, update, remove, confirmAll, onEdit, onExit }: Props) {
+export function ReviewPanel({ events, players, player, update, remove, removeMany, confirmAll, onEdit, onExit }: Props) {
   const [idx, setIdx] = useState(0);
   const [loop, setLoop] = useState(true);
   const timer = useRef<number | undefined>(undefined);
@@ -56,6 +57,14 @@ export function ReviewPanel({ events, players, player, update, remove, confirmAl
   // After confirming/deleting, the list shrinks so the same index shows the next event.
   const confirm = (patch: Partial<VEvent> = {}) => update(ev, { ...patch, status: 'confirmed' });
 
+  // Possessions alternate within a rally, so knowing whose touch this is settles every touch of the rally.
+  const rally = ev.rally != null && ev.poss != null ? events.filter((e) => e.rally === ev.rally && e.poss != null) : [];
+  function decideSide(ours: boolean) {
+    const theirs = rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours);
+    removeMany(theirs);
+  }
+  const opponentCount = (ours: boolean) => rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours).length;
+
   return (
     <div className="pad review">
       <div className="pad-head">
@@ -76,6 +85,14 @@ export function ReviewPanel({ events, players, player, update, remove, confirmAl
           <button className="btn" disabled={idx >= events.length - 1} onClick={() => setIdx((i) => i + 1)}>▶</button>
         </div>
       </div>
+
+      {opponentCount(true) > 0 && opponentCount(false) > 0 && (
+        <div className="side-row">
+          <span className="small muted">Rally {ev.rally}: whose touch is this?</span>
+          <button className="btn" onClick={() => decideSide(true)}>Ours <small>(drops {opponentCount(true)})</small></button>
+          <button className="btn" onClick={() => decideSide(false)}>Theirs <small>(drops {opponentCount(false)})</small></button>
+        </div>
+      )}
 
       <span className="pad-group-label">Who touched it? (tap = fix + confirm)</span>
       <div className="pad-grid pad-players small-jerseys">
