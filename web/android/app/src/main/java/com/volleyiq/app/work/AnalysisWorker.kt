@@ -101,6 +101,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
                 }
                 if (requests.isNotEmpty()) {
+                    val started = System.nanoTime()
                     TouchVision(applicationContext, readJerseys).use { vision ->
                         try {
                             FrameSampler.sample(
@@ -108,16 +109,18 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                 onFrame = { targets, frame ->
                                     for (k in targets) {
                                         val ti = requests[k].first
-                                        vision.look(frame, roster, evidence.getOrPut(ti) { TouchVision.Evidence() }, sides.homography(touches[ti].t))
+                                        vision.look(frame, roster, evidence.getOrPut(ti) { TouchVision.Evidence() }, sides.homography(touches[ti].t),
+                                            zoom = touches[ti].kind != Rallies.HEARD)
                                         val left = framesLeft.getValue(ti) - 1
                                         framesLeft[ti] = left
                                         if (left == 0) finish(ti, vision)
                                     }
                                 },
                                 onProgress = { f ->
-                                    val n = resumed + (todo.size * f).toInt()
+                                    val now = (todo.size * f).toInt()
+                                    val n = resumed + now
                                     val note = if (resumed > 0) " ($resumed from before)" else ""
-                                    report(0.6 + 0.37 * n / touches.size, "Looking at players $n/${touches.size}$note")
+                                    report(0.6 + 0.37 * n / touches.size, "Looking at players $n/${touches.size}$note${speedNote(vision, now, started)}")
                                 },
                                 isStopped = ::isStopped,
                             )
@@ -175,6 +178,15 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
         }
         return if (size > 0) "$name|$size" else uri.toString()
+    }
+
+    /** Seconds per touch and where they go: " · 1.9 s/touch (players 0.8, numbers 0.7, video 0.4)". */
+    private fun speedNote(v: TouchVision, done: Int, startedNs: Long): String {
+        if (done < 20) return ""
+        fun s(ns: Long) = "%.1f".format(ns / 1e9 / done)
+        val total = System.nanoTime() - startedNs
+        val video = total - v.detectNs - v.zoomNs - v.ocrNs
+        return " · ${s(total)} s/touch (players ${s(v.detectNs + v.zoomNs)}, numbers ${s(v.ocrNs)}, video ${s(video)})"
     }
 
     private fun report(fraction: Double, message: String) {

@@ -36,7 +36,14 @@ class TouchVision(context: Context, private val readJerseys: Boolean) : Closeabl
         internal var frames = 0
         /** Best [BallSearch.closeness] over the frames; null while the ball was not seen. */
         internal var ball: Double? = null
+        internal var zoomed = false
+        internal var readNearBall = false
     }
+
+    /** Time spent per part (ns), to show where a slow run spends it. */
+    var detectNs = 0L; private set
+    var zoomNs = 0L; private set
+    var ocrNs = 0L; private set
 
     private val detector: ObjectDetector = ObjectDetector.createFromOptions(
         context,
@@ -50,15 +57,25 @@ class TouchVision(context: Context, private val readJerseys: Boolean) : Closeabl
     )
     private val ocr: TextRecognizer? = if (readJerseys) TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) else null
 
-    /** [homography]: the court marking for this moment of the video (it can change per set), or null. */
-    fun look(frame: Bitmap, roster: Set<Int>, ev: Evidence, homography: Homography?) {
+    /**
+     * [homography]: the court marking for this moment of the video (it can change per set), or null.
+     * [zoom]: search a small ball in zoomed tiles when the full frame shows none (slow; worth it
+     * for quiet or guessed touches, whose confidence depends on it).
+     */
+    fun look(frame: Bitmap, roster: Set<Int>, ev: Evidence, homography: Homography?, zoom: Boolean) {
         ev.frames++
+        var t0 = System.nanoTime()
         val dets = detector.detect(BitmapImageBuilder(frame).build()).detections()
+        detectNs += System.nanoTime() - t0
         val people = dets.filter { it.categories().firstOrNull()?.categoryName() == "person" }.map { it.boundingBox() }
         if (people.isEmpty()) return
         val ball = dets.filter { it.categories().firstOrNull()?.categoryName() == "sports ball" }
             .maxByOrNull { it.categories()[0].score() }?.boundingBox()
-            ?: if (ev.ball == null) findBallZoomed(frame, people) else null
+            ?: if (zoom && !ev.zoomed && ev.ball == null) {
+                ev.zoomed = true
+                t0 = System.nanoTime()
+                findBallZoomed(frame, people).also { zoomNs += System.nanoTime() - t0 }
+            } else null
         if (ball != null) {
             val c = BallSearch.closeness(ball.centerX(), ball.centerY(), people.map { Box(it.left, it.top, it.right, it.bottom) })
             ev.ball = max(ev.ball ?: 0.0, c)
@@ -73,11 +90,15 @@ class TouchVision(context: Context, private val readJerseys: Boolean) : Closeabl
             val feet = candidates[0]
             ev.pos = homography.toCourt((feet.centerX() / frame.width).toDouble(), (feet.bottom / frame.height).toDouble())
         }
-        if (ocr != null) {
+        // A number read next to the ball is enough; later frames only try when there is none yet.
+        if (ocr != null && !ev.readNearBall) {
+            t0 = System.nanoTime()
             val weight = if (ball != null) doubleArrayOf(1.0, 0.5) else doubleArrayOf(0.5, 0.25)
             candidates.forEachIndexed { i, box ->
                 for (n in readNumbers(frame, box)) ev.votes[n] = (ev.votes[n] ?: 0.0) + weight[i] * (if (n in roster) 1.3 else 1.0)
             }
+            ocrNs += System.nanoTime() - t0
+            if (ball != null && ev.votes.isNotEmpty()) ev.readNearBall = true
         }
     }
 
