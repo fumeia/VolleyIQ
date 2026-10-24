@@ -62,6 +62,8 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     .also(checkpoints::saveFeatures)
             val whistles = Detection.whistles(feat)
             val contacts = Detection.contacts(feat, sensitivity, whistles = whistles)
+            // Faint sounds (mostly far-side touches): only used to fill holes in a rally's rhythm.
+            val quiet = Rallies.quietContacts(contacts, Detection.contacts(feat, sensitivity * Rallies.QUIET_BOOST, whistles = whistles))
 
             val cuts = if (detectCuts) {
                 val diffs = checkpoints.loadDiffs()?.also { report(0.6, "Edit cuts already found, continuing") }
@@ -71,13 +73,15 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             } else emptyList()
 
             val rallies = Rallies.segment(contacts, whistles, cuts)
-            rallies.forEach(Rallies::label)
+            val interval = Rallies.typicalInterval(rallies)
+            rallies.forEach { Rallies.fillGaps(it, quiet, interval) }
             val touches = rallies.flatMap { it.touches }
-            report(0.6, "${rallies.size} rallies, ${touches.size} touches")
+            val added = touches.count { it.kind != Rallies.HEARD }
+            report(0.6, "${rallies.size} rallies, ${touches.size} touches ($added filled in)")
 
             if ((readJerseys || homography != null) && touches.isNotEmpty()) {
                 // Results depend on these settings; a different variant starts its own checkpoint.
-                val variant = "jerseys=$readJerseys|roster=${roster.sorted()}|cal=${(calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
+                val variant = "v2|jerseys=$readJerseys|roster=${roster.sorted()}|cal=${(calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
                 val done = checkpoints.loadVision(variant)
                 val resumed = touches.count { CheckpointStore.touchKey(it.t) in done }
                 // Every frame still needed, in video order; touches already in the checkpoint are skipped.
@@ -89,7 +93,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 var unsaved = 0
                 fun finish(ti: Int, vision: TouchVision) {
                     val r = vision.result(evidence.remove(ti) ?: TouchVision.Evidence())
-                    done[CheckpointStore.touchKey(touches[ti].t)] = VisionResult(r.jersey, r.jerseyConf, r.pos)
+                    done[CheckpointStore.touchKey(touches[ti].t)] = VisionResult(r.jersey, r.jerseyConf, r.pos, r.ball)
                     if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
                 }
                 if (requests.isNotEmpty()) {
@@ -125,9 +129,13 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     t.jersey = r.jersey
                     t.jerseyConf = r.jerseyConf
                     t.pos = r.pos
+                    t.ball = r.ball
                 }
-                rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
+                rallies.forEach(Rallies::applyVision)
             }
+            // Labels come last: filled-in touches and dropped bounces change which touch is the serve, set, …
+            rallies.forEach(Rallies::label)
+            if (readJerseys || homography != null) rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
 
             val events = Rallies.toEvents(rallies, ourHalf).map { e ->
                 // Numbers not on our roster are opponents or misreads; keep the touch, drop the number.

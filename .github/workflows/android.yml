@@ -50,6 +50,9 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon testReleaseUnitTest assembleRelease
           cp app/build/outputs/apk/release/app-release.apk ../../VolleyIQ.apk
+          # Same file under a per-build name: a download can't be cut short by the next build replacing it.
+          cp ../../VolleyIQ.apk ../../VolleyIQ-0.${{ github.run_number }}.apk
+          echo "APK_MB=$(( $(stat -c %s ../../VolleyIQ.apk) / 1048576 ))" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -63,7 +66,19 @@ jobs:
           tag_name: android-latest
           name: VolleyIQ Android (latest build)
           prerelease: true
-          files: VolleyIQ.apk
+          files: |
+            VolleyIQ.apk
+            VolleyIQ-0.${{ github.run_number }}.apk
           body: |
-            Latest Android build from `${{ github.ref_name }}` (${{ github.sha }}), version 0.${{ github.run_number }}.
-            On your phone: tap **VolleyIQ.apk** below, open it, and allow installing from your browser if Android asks.
+            Latest Android build from `${{ github.ref_name }}` (${{ github.sha }}), version 0.${{ github.run_number }}, about ${{ env.APK_MB }} MB.
+            On your phone: tap **VolleyIQ-0.${{ github.run_number }}.apk** below, open it, and allow installing from your browser if Android asks.
+            If Android says the package is invalid, the download was incomplete: delete it and download again (it should be about ${{ env.APK_MB }} MB).
+
+      # Keeps the two newest, so a download of the previous build that is still running isn't cut off either.
+      - name: Remove older per-build APKs from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          old=$(gh release view android-latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' \
+            | { grep -E '^VolleyIQ-0\.[0-9]+\.apk$' || true; } | sort -t. -k2,2n | head -n -2)
+          for name in $old; do gh release delete-asset android-latest "$name" --repo "$GITHUB_REPOSITORY" --yes; done

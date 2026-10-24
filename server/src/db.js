@@ -89,6 +89,10 @@ const MIGRATIONS = [
   ALTER TABLE teams ADD COLUMN share_token TEXT;
   CREATE UNIQUE INDEX teams_share ON teams(share_token) WHERE share_token IS NOT NULL;
   `,
+  // v6: how an auto suggestion was found: NULL = heard clearly, 'quiet' = faint sound, 'gap' = guessed from the rally rhythm
+  `
+  ALTER TABLE events ADD COLUMN hint TEXT;
+  `,
 ];
 
 function migrate(db) {

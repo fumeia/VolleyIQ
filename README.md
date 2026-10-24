@@ -85,8 +85,10 @@ To see what an existing server already runs (read-only, prints a report):
 1. **Sound**: indoor ball contacts are short broadband "thuds", spikes in spectral flux. Referee whistles are long tones at 2–4.5 kHz.
 2. **Picture**: in edited videos a cut makes every player jump at once, a spike in frame-to-frame difference. Cuts and whistles bound the rallies. The audio splice at a cut is ignored.
 3. **Rally model**: serve, then up to three touches per side, alternating sides.
-4. **Vision (optional)**:
-   - Around each contact, an on-device detector (MediaPipe EfficientDet-Lite0) finds the players and the ball.
+4. **Gap fill**: far-side touches are often too quiet to hear. Where a rally has a hole longer than the match's own touch rhythm, a touch is added: at a quiet sound in that spot (`quiet`), or as a guess (`gap`). Review marks them, and they have their own remove button.
+5. **Vision (optional)**:
+   - Around each contact, an on-device detector (MediaPipe EfficientDet-Lite0) finds the players and the ball. When the full frame shows no ball, it searches again in zoomed tiles around the players, so a ball across the court is found too.
+   - The confidence mostly comes from the picture: the ball right at a player means a likely touch; the ball seen far from everyone (claps, a bounce in the corner) means likely noise. Quiet sounds with the ball elsewhere are dropped, and so are the server's bounces before the serve (with a calibration).
    - ML Kit reads the jersey number of the player nearest the ball.
    - With a **court calibration** (tap the 4 corners once per video), that player's feet are placed on the court, which tells our touches from theirs. The next touch's position gives the landing spot of passes and attacks.
 

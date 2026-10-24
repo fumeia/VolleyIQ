@@ -27,13 +27,15 @@ import kotlin.math.min
  */
 class TouchVision(context: Context, private val readJerseys: Boolean, private val homography: Homography?) : Closeable {
 
-    data class Result(val jersey: Int?, val jerseyConf: Double, val pos: P?)
+    data class Result(val jersey: Int?, val jerseyConf: Double, val pos: P?, val ball: Double?)
 
     /** Votes and position collected over the frames of one touch. */
     class Evidence {
         internal val votes = HashMap<Int, Double>()
         internal var pos: P? = null
         internal var frames = 0
+        /** Best [BallSearch.closeness] over the frames; null while the ball was not seen. */
+        internal var ball: Double? = null
     }
 
     private val detector: ObjectDetector = ObjectDetector.createFromOptions(
@@ -55,6 +57,11 @@ class TouchVision(context: Context, private val readJerseys: Boolean, private va
         if (people.isEmpty()) return
         val ball = dets.filter { it.categories().firstOrNull()?.categoryName() == "sports ball" }
             .maxByOrNull { it.categories()[0].score() }?.boundingBox()
+            ?: if (ev.ball == null) findBallZoomed(frame, people) else null
+        if (ball != null) {
+            val c = BallSearch.closeness(ball.centerX(), ball.centerY(), people.map { Box(it.left, it.top, it.right, it.bottom) })
+            ev.ball = max(ev.ball ?: 0.0, c)
+        }
         val candidates = if (ball != null) {
             people.sortedBy { distance(ball.centerX(), ball.centerY(), it) }.take(2)
         } else {
@@ -75,7 +82,32 @@ class TouchVision(context: Context, private val readJerseys: Boolean, private va
 
     fun result(ev: Evidence): Result {
         val best = ev.votes.maxByOrNull { it.value }
-        return Result(best?.key, min(1.0, (best?.value ?: 0.0) / maxOf(1, ev.frames)), ev.pos)
+        return Result(best?.key, min(1.0, (best?.value ?: 0.0) / maxOf(1, ev.frames)), ev.pos, ev.ball)
+    }
+
+    /** Second look for a small (far) ball: the detector again on zoomed tiles around the players. */
+    private fun findBallZoomed(frame: Bitmap, people: List<RectF>): RectF? {
+        var best: RectF? = null
+        var bestScore = 0f
+        for (tile in BallSearch.tiles(people.map { Box(it.left, it.top, it.right, it.bottom) }, frame.width, frame.height)) {
+            val x = tile.left.toInt()
+            val y = tile.top.toInt()
+            val w = tile.width.toInt().coerceAtMost(frame.width - x)
+            val h = tile.height.toInt().coerceAtMost(frame.height - y)
+            if (w < 16 || h < 16) continue
+            val crop = Bitmap.createBitmap(frame, x, y, w, h)
+            try {
+                for (d in detector.detect(BitmapImageBuilder(crop).build()).detections()) {
+                    val cat = d.categories().firstOrNull() ?: continue
+                    if (cat.categoryName() != "sports ball" || cat.score() <= bestScore) continue
+                    bestScore = cat.score()
+                    best = RectF(d.boundingBox()).apply { offset(x.toFloat(), y.toFloat()) }
+                }
+            } finally {
+                if (crop !== frame) crop.recycle() // a full-size "crop" is the frame itself
+            }
+        }
+        return best
     }
 
     /** OCR on the torso (where the number is printed, front or back). */

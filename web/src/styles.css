@@ -369,4 +369,5 @@ button.court-zone:active { background: #2a2f3a; }
 .mini-cam { font-size: 9px; fill: #898781; }
 .calib-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ok-text { color: #22c55e; }
+.hint-note { margin: 6px 0 0; color: #93c5fd; }
 .bulk-row { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }

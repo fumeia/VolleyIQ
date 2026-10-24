@@ -56,3 +56,14 @@ def test_team_assignment_drops_opponent_possessions():
     events = rallies.to_events([r])
     assert [e["action"] for e in events] == ["serve", "dig"]
     assert events[0]["jersey"] == 7
+
+
+def test_gap_fill_guesses_unheard_touches():
+    r = rallies.Rally([rallies.Touch(0.0, 0.8), rallies.Touch(3.6, 0.8), rallies.Touch(4.7, 0.8)])
+    rallies.fill_gaps(r, [])
+    assert [t.kind for t in r.touches] == ["heard", "gap", "gap", "heard", "heard"]
+    rallies.label_rally(r)
+    assert [t.action for t in r.touches] == ["serve", "receive", "set", "attack", "dig"]
+    r = rallies.Rally([rallies.Touch(0.0, 0.8), rallies.Touch(1.1, 0.8), rallies.Touch(3.5, 0.8)])
+    rallies.fill_gaps(r, rallies.quiet_contacts([(0.0, 1), (1.1, 1)], [(1.15, 0.2), (2.5, 0.1), (2.2, 0.3)]))
+    assert [(t.t, t.kind) for t in r.touches] == [(0.0, "heard"), (1.1, "heard"), (2.2, "quiet"), (3.5, "heard")]

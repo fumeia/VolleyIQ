@@ -63,6 +63,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
     const theirs = rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours);
     removeMany(theirs);
   }
+  const filled = events.filter((e) => e.hint);
   const opponentCount = (ours: boolean) => rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours).length;
 
   return (
@@ -78,6 +79,13 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
           <span className="review-action">{actionLabel(ev)}</span>
           {ev.confidence != null && <span className="badge">AI {Math.round(ev.confidence * 100)}%</span>}
         </div>
+        {ev.hint && (
+          <p className="small hint-note">
+            {ev.hint === 'gap'
+              ? 'Not heard: the rally rhythm says a touch is missing around here (often the far side). Was there one?'
+              : 'Quiet sound where a touch was missing in the rally (often the far side).'}
+          </p>
+        )}
         <div className="review-nav">
           <button className="btn" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀</button>
           <button className="btn" onClick={() => playClip(ev)}>↻ Replay</button>
@@ -124,10 +132,11 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
         Confirm all remaining
       </button>
       <div className="bulk-row">
-        <span className="small muted">Clear out noise: remove suggestions with AI confidence below</span>
+        <span className="small muted">Clear out noise: remove heard sounds with AI confidence below</span>
         <div className="chips">
           {[40, 50, 60].map((p) => {
-            const weak = events.filter((e) => (e.confidence ?? 0) < p / 100);
+            // Filled-in touches score low by design; they have their own button below.
+            const weak = events.filter((e) => !e.hint && (e.confidence ?? 0) < p / 100);
             return (
               <button key={p} className="chip" disabled={!weak.length}
                 onClick={() => { if (confirm_(`Remove ${weak.length} suggestions below ${p}%?`)) removeMany(weak); }}>
@@ -136,6 +145,11 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
             );
           })}
         </div>
+        {filled.length > 0 && (
+          <button className="btn-ghost small" onClick={() => { if (confirm_(`Remove all ${filled.length} filled-in touches (quiet or guessed)?`)) removeMany(filled); }}>
+            Remove filled-in touches ({filled.length})
+          </button>
+        )}
       </div>
     </div>
   );

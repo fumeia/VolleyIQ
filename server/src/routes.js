@@ -19,6 +19,8 @@ function num(v) {
 }
 
 /** Normalizes an incoming event body; returns [event, error]. */
+const HINTS = ['quiet', 'gap'];
+
 function cleanEvent(body) {
   if (!ACTIONS.includes(body.action)) return [null, `Unknown action ${body.action}`];
   const value = int(body.value);
@@ -44,6 +46,7 @@ function cleanEvent(body) {
     source: body.source === 'auto' ? 'auto' : 'manual',
     status: body.status === 'suggested' ? 'suggested' : 'confirmed',
     confidence: num(body.confidence),
+    hint: HINTS.includes(body.hint) ? body.hint : null,
     client_id: body.client_id ? String(body.client_id).slice(0, 64) : null,
   }, null];
 }
@@ -65,8 +68,8 @@ export function registerRoutes(app, { db }) {
     events: db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     eventByClient: db.prepare('SELECT * FROM events WHERE match_id = ? AND client_id = ?'),
-    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, rally, poss, t, set_no, source, status, confidence, client_id)
-                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @rally, @poss, @t, @set_no, @source, @status, @confidence, @client_id)`),
+    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, rally, poss, t, set_no, source, status, confidence, hint, client_id)
+                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @rally, @poss, @t, @set_no, @source, @status, @confidence, @hint, @client_id)`),
   };
 
   const coach = { onRequest: requireCoach };
@@ -295,7 +298,7 @@ export function registerRoutes(app, { db }) {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Match not found', 404);
     const { events = [], replace = true } = req.body ?? {};
-    if (!Array.isArray(events) || events.length > 5000) return bad(reply, 'events must be an array (max 5000)');
+    if (!Array.isArray(events) || events.length > 10000) return bad(reply, 'events must be an array (max 10000)');
     const save = db.transaction(() => {
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
       if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
