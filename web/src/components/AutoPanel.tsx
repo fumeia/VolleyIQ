@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, serverBase, type Match, type Player } from '../lib/api';
+import { flatPoints } from '../lib/calibration';
 import { isApp, Native, type LocalVideo, type WorkState } from '../lib/native';
 
 interface Props {
@@ -74,7 +75,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onDone }: Props)
         detectCuts,
         sensitivity,
         ourHalf: cal?.ourHalf ?? null,
-        corners: cal ? cal.corners.flat() : null,
+        points: cal ? flatPoints(cal) : null,
       });
       setStatus({ analysis: { id: '', state: 'enqueued', progress: 0, message: 'Starting…' }, upload: null });
     } catch (e) {

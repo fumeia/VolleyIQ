@@ -89,7 +89,7 @@ class VolleyIQPlugin : Plugin() {
         val uri = call.getString("uri") ?: return call.reject("uri required")
         val apiBase = call.getString("apiBase") ?: return call.reject("apiBase required")
         val roster = call.getArray("roster")?.toList<Any>()?.map { (it as Number).toInt() }?.toIntArray() ?: IntArray(0)
-        val corners = call.getArray("corners")?.toList<Any>()?.map { (it as Number).toDouble() }?.toDoubleArray()
+        val points = call.getArray("points")?.toList<Any>()?.map { (it as Number).toDouble() }?.toDoubleArray()
 
         val analysis = OneTimeWorkRequestBuilder<AnalysisWorker>()
             .setInputData(
@@ -101,7 +101,7 @@ class VolleyIQPlugin : Plugin() {
                     AnalysisWorker.KEY_CUTS to (call.getBoolean("detectCuts") ?: true),
                     AnalysisWorker.KEY_SENSITIVITY to (call.getDouble("sensitivity") ?: 1.0),
                     AnalysisWorker.KEY_OUR_HALF to call.getString("ourHalf"),
-                    AnalysisWorker.KEY_CORNERS to corners,
+                    AnalysisWorker.KEY_POINTS to points,
                 ),
             )
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

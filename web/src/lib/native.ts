@@ -23,7 +23,7 @@ interface VolleyIQPlugin {
   cancelWork(o: { id: string }): Promise<void>;
   analyze(o: {
     matchId: number; uri: string; apiBase: string; token: string | null; roster: number[];
-    readJerseys: boolean; detectCuts: boolean; sensitivity?: number; ourHalf?: 'near' | 'far' | null; corners?: number[] | null;
+    readJerseys: boolean; detectCuts: boolean; sensitivity?: number; ourHalf?: 'near' | 'far' | null; points?: number[] | null;
   }): Promise<{ id: string; uploadId: string }>;
   analysisStatus(o: { matchId: number }): Promise<{ analysis: WorkState | null; upload: WorkState | null }>;
   cancelAnalysis(o: { matchId: number }): Promise<void>;

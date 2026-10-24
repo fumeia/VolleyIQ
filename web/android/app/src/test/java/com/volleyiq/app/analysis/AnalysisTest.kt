@@ -100,6 +100,42 @@ class AnalysisTest {
         }
     }
 
+    @Test
+    fun homographyFromLandmarksWithoutCorners() {
+        // Camera that sees the net ends and the near 3 m line, but not the near corners.
+        val truth = assertNotNullAndGet(Homography.fromCorners(listOf(P(-0.3, 1.4), P(1.3, 1.4), P(0.75, 0.25), P(0.25, 0.25))))
+        // Build image positions of 6 landmarks by inverting numerically: search the image point mapping to each court point.
+        val court = listOf(P(0.0, 9.0), P(9.0, 9.0), P(0.0, 6.0), P(9.0, 6.0), P(0.0, 12.0), P(9.0, 12.0))
+        val image = court.map { c -> invert(truth, c) }
+        val fit = assertNotNullAndGet(Homography.fromPoints(image, court))
+        val corner = fit.toCourt(invert(truth, P(0.0, 0.0)).x, invert(truth, P(0.0, 0.0)).y)
+        assertEquals(0.0, corner.x, 1e-3)
+        assertEquals(0.0, corner.y, 1e-3)
+        val mid = fit.toCourt(invert(truth, P(4.5, 3.0)).x, invert(truth, P(4.5, 3.0)).y)
+        assertEquals(4.5, mid.x, 1e-3)
+        assertEquals(3.0, mid.y, 1e-3)
+    }
+
+    /** Newton iteration: image point that [h] maps to court point [c]. */
+    private fun invert(h: Homography, c: P): P {
+        var u = 0.5
+        var v = 0.5
+        repeat(50) {
+            val p = h.toCourt(u, v)
+            val e = 1e-6
+            val pu = h.toCourt(u + e, v)
+            val pv = h.toCourt(u, v + e)
+            val a = (pu.x - p.x) / e; val b = (pv.x - p.x) / e
+            val cc = (pu.y - p.y) / e; val d = (pv.y - p.y) / e
+            val det = a * d - b * cc
+            val dx = c.x - p.x
+            val dy = c.y - p.y
+            u += (d * dx - b * dy) / det
+            v += (-cc * dx + a * dy) / det
+        }
+        return P(u, v)
+    }
+
     private fun <T> assertNotNullAndGet(v: T?): T {
         assertNotNull(v)
         return v!!

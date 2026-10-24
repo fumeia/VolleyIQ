@@ -177,11 +177,18 @@ export function registerRoutes(app, { db }) {
     let calibration = m.calibration;
     if ('calibration' in b) {
       const c = b.calibration;
-      const valid = c === null || (Array.isArray(c?.corners) && c.corners.length === 4
-        && c.corners.every((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(v) && v >= -0.5 && v <= 1.5))
-        && ['near', 'far'].includes(c.ourHalf));
-      if (!valid) return bad(reply, 'calibration needs 4 corners [u, v] in 0..1 and ourHalf near|far');
-      calibration = c === null ? null : JSON.stringify({ corners: c.corners, ourHalf: c.ourHalf });
+      const inImage = (v) => Number.isFinite(v) && v >= -0.5 && v <= 1.5;
+      const onCourt = (v) => Number.isFinite(v) && v >= -5 && v <= 23;
+      // New format: 4-10 tapped landmarks {id, u, v, x, y}; legacy: 4 corners [u, v].
+      const points = Array.isArray(c?.points) && c.points.length >= 4 && c.points.length <= 10
+        && c.points.every((p) => typeof p?.id === 'string' && p.id.length <= 16 && inImage(p.u) && inImage(p.v) && onCourt(p.x) && onCourt(p.y));
+      const corners = Array.isArray(c?.corners) && c.corners.length === 4
+        && c.corners.every((p) => Array.isArray(p) && p.length === 2 && p.every(inImage));
+      const valid = c === null || ((points || corners) && ['near', 'far'].includes(c.ourHalf));
+      if (!valid) return bad(reply, 'calibration needs 4-10 points {id, u, v, x, y} (or 4 corners) and ourHalf near|far');
+      calibration = c === null ? null : JSON.stringify(points
+        ? { points: c.points.map(({ id, u, v, x, y }) => ({ id, u, v, x, y })), ourHalf: c.ourHalf }
+        : { corners: c.corners, ourHalf: c.ourHalf });
     }
     db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ? WHERE id = ?`)
       .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, m.id);

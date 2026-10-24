@@ -354,3 +354,18 @@ button.court-zone:active { background: #2a2f3a; }
 .report-card figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; color: var(--ink2, #c3c2b7); }
 .small-btn { min-height: 36px; padding: 6px 14px; }
 .share-hero { display: flex; flex-direction: column; gap: 4px; }
+.calib-line { fill: none; stroke: var(--accent); stroke-width: 2; opacity: .8; }
+.calib-line.ok { stroke: #22c55e; }
+.calib-panel { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 8px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.calib-mini { width: 110px; height: auto; }
+.mini-court { fill: #2a2118; stroke: #8f8a80; stroke-width: 1.5; }
+.mini-line { stroke: #8f8a80; stroke-width: 1; }
+.mini-net { stroke: #f0efec; stroke-width: 2.5; }
+.mini-landmark { cursor: pointer; }
+.mini-landmark circle { fill: #1a1a19; stroke: #8f8a80; stroke-width: 1.5; }
+.mini-landmark circle.placed { fill: #22c55e; stroke: #22c55e; }
+.mini-landmark circle.active { stroke: var(--accent); stroke-width: 3.5; }
+.mini-landmark text { font-size: 10px; fill: #f0efec; font-weight: 700; pointer-events: none; }
+.mini-cam { font-size: 9px; fill: #898781; }
+.calib-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ok-text { color: #22c55e; }

@@ -7,7 +7,7 @@ import { StatsView } from '../components/StatsView';
 import { MatchReportView } from '../report/ReportViews';
 import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
-import { Calibration } from '../components/Calibration';
+import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { actionLabel } from '../lib/actions';
@@ -56,6 +56,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   // A video file on this device (phone gallery, imported link, or a browser file).
   const [local, setLocal] = useState<LocalVideo | null>(() => (isApp() ? localVideo(initial.match.id) : null));
   const [calibrating, setCalibrating] = useState(false);
+  const calib = useCalibration(initial.match.calibration);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const [setNo, setSetNo] = useState(() => Math.max(1, ...initial.events.map((e) => e.set_no ?? 1)));
@@ -164,18 +165,19 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <>
                 <div className="video-wrap">
                   <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
-                  {calibrating && (
-                    <Calibration
-                      aspect={player.current?.aspect() ?? 16 / 9}
-                      onCancel={() => setCalibrating(false)}
-                      onSave={async (corners, ourHalf) => {
-                        setMatch(await api.updateMatch(match.id, { calibration: { corners, ourHalf } }));
-                        setCalibrating(false);
-                        flash('Court calibrated');
-                      }}
-                    />
-                  )}
+                  {calibrating && <CalibrationOverlay session={calib} aspect={player.current?.aspect() ?? 16 / 9} />}
                 </div>
+                {calibrating ? (
+                  <CalibrationPanel
+                    session={calib}
+                    onCancel={() => setCalibrating(false)}
+                    onSave={async (c) => {
+                      setMatch(await api.updateMatch(match.id, { calibration: c }));
+                      setCalibrating(false);
+                      flash('Court calibrated');
+                    }}
+                  />
+                ) : (
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -188,6 +190,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     player.current?.setRate(next);
                   }}>{rate}×</button>
                 </div>
+                )}
               </>
             ) : (
               <>
@@ -324,7 +327,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 setShowSettings(false);
                 setCalibrating(true);
               }}>
-                {match.calibration ? 'Recalibrate court corners' : 'Calibrate court (tap 4 corners)'}
+                {match.calibration ? 'Recalibrate court' : 'Calibrate court (tap 4+ court points)'}
               </button>
             )}
             {!isLive && source && (

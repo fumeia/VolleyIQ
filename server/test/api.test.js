@@ -36,6 +36,12 @@ test('team, roster, match, events and jersey resolution', async () => {
   const cal = { corners: [[0.1, 0.9], [0.9, 0.9], [0.7, 0.3], [0.3, 0.3]], ourHalf: 'near' };
   assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } })).json().calibration, cal);
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { corners: [[0, 0]] } } })).statusCode, 400);
+  const landmarks = { points: [['netL', 0, 9], ['netR', 9, 9], ['attNL', 0, 6], ['attNR', 9, 6]].map(([id, x, y], i) => ({ id, u: 0.2 + i * 0.1, v: 0.5, x, y, extra: 1 })), ourHalf: 'far' };
+  const saved = (await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: landmarks } })).json().calibration;
+  assert.equal(saved.points.length, 4);
+  assert.equal(saved.points[0].extra, undefined);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { points: landmarks.points.slice(0, 3), ourHalf: 'near' } } })).statusCode, 400);
+  await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } });
 
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
   assert.deepEqual(bundle.match.calibration, cal);

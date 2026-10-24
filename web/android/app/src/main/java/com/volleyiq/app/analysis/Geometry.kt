@@ -20,17 +20,29 @@ class Homography private constructor(private val h: DoubleArray) {
         /** Corners in tap order: near-left, near-right, far-right, far-left. */
         val COURT_CORNERS = listOf(P(0.0, 0.0), P(9.0, 0.0), P(9.0, 18.0), P(0.0, 18.0))
 
-        fun fromCorners(image: List<P>): Homography? {
-            if (image.size != 4) return null
-            // Solve the 8 unknowns of H (h33 = 1) from the 4 correspondences.
-            val a = Array(8) { DoubleArray(9) }
-            for (i in 0 until 4) {
-                val (u, v) = image[i]
-                val (x, y) = COURT_CORNERS[i]
-                a[2 * i] = doubleArrayOf(u, v, 1.0, 0.0, 0.0, 0.0, -u * x, -v * x, x)
-                a[2 * i + 1] = doubleArrayOf(0.0, 0.0, 0.0, u, v, 1.0, -u * y, -v * y, y)
+        fun fromCorners(image: List<P>): Homography? = fromPoints(image, COURT_CORNERS)
+
+        /**
+         * Least-squares fit from 4+ tapped landmarks (image -> court). Any known court
+         * points work (net ends, 3 m lines, corners), so the corners need not be in view.
+         */
+        fun fromPoints(image: List<P>, court: List<P>): Homography? {
+            if (image.size < 4 || image.size != court.size) return null
+            // Normal equations (A^T A) h = A^T b, with h33 = 1.
+            val ata = Array(8) { DoubleArray(9) }
+            fun add(row: DoubleArray, b: Double) {
+                for (i in 0 until 8) {
+                    ata[i][8] += row[i] * b
+                    for (j in 0 until 8) ata[i][j] += row[i] * row[j]
+                }
             }
-            return solve(a)?.let { Homography(it) }
+            for (k in image.indices) {
+                val (u, v) = image[k]
+                val (x, y) = court[k]
+                add(doubleArrayOf(u, v, 1.0, 0.0, 0.0, 0.0, -u * x, -v * x), x)
+                add(doubleArrayOf(0.0, 0.0, 0.0, u, v, 1.0, -u * y, -v * y), y)
+            }
+            return solve(ata)?.let { Homography(it) }
         }
 
         private fun solve(a: Array<DoubleArray>): DoubleArray? {

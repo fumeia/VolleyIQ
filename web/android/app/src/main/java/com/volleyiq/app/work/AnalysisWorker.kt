@@ -38,8 +38,11 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val detectCuts = inputData.getBoolean(KEY_CUTS, true)
         val sensitivity = inputData.getDouble(KEY_SENSITIVITY, 1.0)
         val ourHalf = inputData.getString(KEY_OUR_HALF)
-        val homography = inputData.getDoubleArray(KEY_CORNERS)?.takeIf { it.size == 8 }
-            ?.let { c -> Homography.fromCorners((0 until 4).map { P(c[2 * it], c[2 * it + 1]) }) }
+        // Calibration: flat [u, v, x, y] per tapped landmark (image position -> court meters).
+        val homography = inputData.getDoubleArray(KEY_POINTS)?.takeIf { it.size >= 16 && it.size % 4 == 0 }?.let { a ->
+            val n = a.size / 4
+            Homography.fromPoints((0 until n).map { P(a[4 * it], a[4 * it + 1]) }, (0 until n).map { P(a[4 * it + 2], a[4 * it + 3]) })
+        }
 
         setForeground(getForegroundInfo())
         try {
@@ -105,7 +108,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_CUTS = "detectCuts"
         const val KEY_SENSITIVITY = "sensitivity"
         const val KEY_OUR_HALF = "ourHalf"
-        const val KEY_CORNERS = "corners"
+        const val KEY_POINTS = "calibrationPoints"
         const val KEY_PROGRESS = "progress"
         const val KEY_MESSAGE = "message"
         const val KEY_ERROR = "error"
