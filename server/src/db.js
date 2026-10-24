@@ -98,6 +98,10 @@ const MIGRATIONS = [
   ALTER TABLE events ADD COLUMN fx REAL;
   ALTER TABLE events ADD COLUMN fy REAL;
   `,
+  // v8: starting line-up per set, JSON { "1": { order: [6 player ids, position 1..6], libero, weServeFirst } }
+  `
+  ALTER TABLE matches ADD COLUMN lineups TEXT;
+  `,
 ];
 
 function migrate(db) {

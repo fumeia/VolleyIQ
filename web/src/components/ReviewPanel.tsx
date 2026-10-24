@@ -44,6 +44,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
   const [loop, setLoop] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
   const ev = events[Math.min(idx, events.length - 1)];
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const info = useMemo(() => rallyInfo(events), [events]);
@@ -102,7 +103,14 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
         </span>
       </div>
 
-      <div className="review-card">
+      <div className="review-card" onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }}
+        onPointerUp={(e) => {
+          // Swipe right = save as shown, left = not a touch.
+          const s0 = swipe.current;
+          swipe.current = null;
+          if (!s0 || Math.abs(e.clientX - s0.x) < 90 || Math.abs(e.clientY - s0.y) > 60) return;
+          if (e.clientX > s0.x) save(); else remove(ev);
+        }}>
         <div className="review-what">
           <span className="review-player">{playerLabel(players, { ...ev, ...d })}</span>
           <span className="review-action">{actionLabel(d)}</span>

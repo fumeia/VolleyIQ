@@ -3,6 +3,7 @@ import { ACTION_BY_CODE, type ActionCode } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { groupRallies, guessServing, isOurs, outcome, type Serving } from '../lib/rallyReview';
+import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
 import type { PlayerHandle } from './VideoPlayer';
@@ -10,6 +11,8 @@ import type { PlayerHandle } from './VideoPlayer';
 interface Props {
   match: Match;
   suggested: VEvent[];
+  /** Saved events: the points so far give the rotation. */
+  confirmed: VEvent[];
   players: Player[];
   player: React.RefObject<PlayerHandle | null>;
   update: (e: VEvent, patch: Partial<VEvent>) => Promise<void>;
@@ -18,8 +21,12 @@ interface Props {
   removeByClient: (clientId: string) => void;
   reload: () => Promise<unknown>;
   onTouchView: () => void;
+  onLineup: (set: number) => void;
   onExit: () => void;
 }
+
+// Positions in court order as seen from behind our baseline: front row, then back row.
+const COURT_ORDER = [4, 3, 2, 5, 6, 1];
 
 const ACTION_CHOICES: ActionCode[] = [
   'serve', 'receive', 'set', 'attack', 'dig', 'freeball', 'block_touch',
@@ -38,7 +45,7 @@ const store = (k: string, v: string) => { try { localStorage.setItem(k, v); } ca
  * chips, and one button settles it ("We won" / "They won" also records how the point
  * ended). Everything fits one screen; the next rally starts by itself.
  */
-export function RallyReview({ match, suggested, players, player, update, add, removeMany, removeByClient, reload, onTouchView, onExit }: Props) {
+export function RallyReview({ match, suggested, confirmed, players, player, update, add, removeMany, removeByClient, reload, onTouchView, onLineup, onExit }: Props) {
   const { rallies, info } = useMemo(() => groupRallies(suggested, match.calibration), [suggested, match.calibration]);
   const [idx, setIdx] = useState(0);
   const r = rallies[Math.min(idx, rallies.length - 1)];
@@ -57,6 +64,11 @@ export function RallyReview({ match, suggested, players, player, update, add, re
   const jumpTo = useRef<number | null>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  const lineup = r ? match.lineups?.[String(r.set)] : undefined;
+  const rotation = useMemo(
+    () => (r && lineup ? rotationAfter(lineup, pointsOfSet(confirmed, r.set, r.start), players) : null),
+    [r?.key, r?.start, lineup, confirmed, players],
+  );
 
   // After an undo, show the restored rally again.
   useEffect(() => {
@@ -70,7 +82,7 @@ export function RallyReview({ match, suggested, players, player, update, add, re
     if (!r) return;
     setDrafts({});
     setRemoved(new Set());
-    setServing(guessServing(r.events, info));
+    setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
     setSel(null);
     setCourt(null);
     playRally();
@@ -132,7 +144,16 @@ export function RallyReview({ match, suggested, players, player, update, add, re
     );
   }
 
-  const view = (e: VEvent): VEvent => ({ ...e, ...drafts[e.id] });
+  // With a line-up, the server and the setter are filled in when the app could not read the number.
+  const auto = (e: VEvent): Partial<VEvent> => {
+    if (!rotation || e.player_id != null || !isOurs(info.get(e.id), serving)) return {};
+    const action = drafts[e.id]?.action ?? e.action;
+    if (!['serve', 'ace', 'serve_error', 'set', 'assist'].includes(action)) return {};
+    const id = candidates(rotation, action, players).likely;
+    const p = players.find((x) => x.id === id);
+    return p ? { player_id: p.id, jersey: p.number } : {};
+  };
+  const view = (e: VEvent): VEvent => ({ ...e, ...auto(e), ...drafts[e.id] });
   const ours = (e: VEvent) => isOurs(info.get(e.id), serving) && !removed.has(e.id);
   const kept = r.events.filter(ours);
   const lastTouch = [...r.events].reverse().find((e) => !removed.has(e.id)) ?? null;
@@ -162,6 +183,7 @@ export function RallyReview({ match, suggested, players, player, update, add, re
         : {};
       const originals = kept.map((e) => ({ ...e }));
       await Promise.all(kept.map((e) => update(e, {
+        ...auto(e),
         ...drafts[e.id],
         ...(o.change?.id === e.id ? { action: o.change.action, ...(o.change.value !== undefined ? { value: o.change.value } : {}) } : {}),
         set_no: e.set_no ?? rally.set,
@@ -240,6 +262,15 @@ export function RallyReview({ match, suggested, players, player, update, add, re
 
   const sv = selected ? view(selected) : null;
   const def = sv ? ACTION_BY_CODE[sv.action] : null;
+  const eligible = rotation && sv ? candidates(rotation, sv.action, players).eligible : null;
+  // On-court players first (front row 4-3-2, back row 5-6-1), then the bench.
+  function playerRow(): (Player | 'divider')[] {
+    if (!rotation) return roster;
+    const court = COURT_ORDER.map((pos) => players.find((p) => p.id === rotation.positions[pos - 1])).filter((p): p is Player => !!p);
+    const bench = roster.filter((p) => !court.includes(p));
+    return bench.length ? [...court, 'divider', ...bench] : court;
+  }
+  const setterPos = rotation ? rotation.positions.findIndex((id) => players.find((p) => p.id === id)?.role === 'S') + 1 : 0;
 
   return (
     <div className="pad rally-review">
@@ -274,6 +305,11 @@ export function RallyReview({ match, suggested, players, player, update, add, re
           <label className="toggle small"><input type="checkbox" checked={stepPause}
             onChange={(e) => { setStepPause(e.target.checked); store('viq:stepPause', e.target.checked ? '1' : '0'); }} /> pause at touches</label>
         </div>
+        <div className="rotation-info">
+          {rotation
+            ? <>Rotation: setter in position {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
+            : <>No line-up for set {r.set}: <button className="link" onClick={() => onLineup(r.set)}>enter the starting six</button> to fill in servers and setters</>}
+        </div>
         <div className="serving">
           <span className="small muted">Who served?</span>
           <button className={`chip ${serving === 'us' ? 'on' : ''}`} onClick={() => setServing('us')}>We did</button>
@@ -285,8 +321,8 @@ export function RallyReview({ match, suggested, players, player, update, add, re
       {selected && sv && def && (ours(selected) ? (
         <div className="touch-editor">
           <div className="scroll-row">
-            {roster.map((p) => (
-              <button key={p.id} className={`jersey-mini role-${p.role} ${sv.player_id === p.id ? 'is-selected' : ''}`}
+            {playerRow().map((p, i) => p === 'divider' ? <span key={`d${i}`} className="court-divider" /> : (
+              <button key={p.id} className={`jersey-mini role-${p.role} ${sv.player_id === p.id ? 'is-selected' : ''} ${eligible && !eligible.has(p.id) ? 'dim' : ''}`}
                 onClick={() => patch(selected, { player_id: p.id, jersey: p.number })}>
                 {p.number ?? '–'}<small>{p.name.split(' ')[0]}</small>
               </button>

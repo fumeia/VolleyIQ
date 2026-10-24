@@ -4,6 +4,7 @@ import { EventEditor } from '../components/EventEditor';
 import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { RallyReview } from '../components/RallyReview';
+import { LineupSheet } from '../components/LineupSheet';
 import { StatsView } from '../components/StatsView';
 import { MatchReportView } from '../report/ReportViews';
 import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
@@ -17,6 +18,7 @@ import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
+import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import type { Calibration } from '../lib/calibration';
 
 type Tab = 'tag' | 'events' | 'review' | 'stats' | 'report' | 'ai';
@@ -53,6 +55,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
   useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
   const [editing, setEditing] = useState<VEvent | null>(null);
@@ -138,6 +141,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   const getTime = () => player.current?.time() ?? null;
 
+  // Line-up of the current set, rotated by the points tagged so far: on-court players come first.
+  const lineup = match.lineups?.[String(setNo)];
+  const rotationNow = lineup ? rotationAfter(lineup, pointsOfSet(confirmed, setNo, Infinity), players) : null;
+  const onCourt = rotationNow
+    ? [4, 3, 2, 5, 6, 1].map((pos) => rotationNow.positions[pos - 1]).filter((x): x is number => x != null)
+    : undefined;
+
   async function removeSuggestions(list: VEvent[]) {
     // Big clean-ups go to the server in one request; small ones stay optimistic.
     if (list.length > 5 && list.every((e) => e.id > 0)) {
@@ -157,6 +167,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       play={() => player.current?.play()}
       isPlaying={() => !!player.current?.isPlaying()}
       onCommit={commit}
+      onCourt={onCourt}
     />
   );
 
@@ -262,6 +273,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 <RallyReview
                   match={match}
                   suggested={suggested}
+                  confirmed={confirmed}
                   players={players}
                   player={player}
                   update={update}
@@ -270,6 +282,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   removeByClient={(cid) => { const ev = eventsRef.current.find((x) => x.client_id === cid); if (ev) remove(ev); }}
                   reload={reload}
                   onTouchView={() => setReviewMode('touch')}
+                  onLineup={(n) => setLineupSet(n)}
                   onExit={() => setTab('tag')}
                 />
               ) : (
@@ -348,6 +361,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         />
       )}
 
+      {lineupSet != null && (
+        <LineupSheet match={match} players={players} initialSet={lineupSet} onClose={() => setLineupSet(null)}
+          onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
+      )}
+
       {showSettings && (
         <div className="sheet-backdrop" onClick={() => setShowSettings(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -361,6 +379,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </button>
               ))}
             </div>
+            {settings.location !== 'off' && (
+              <div className="segmented">
+                <button className={settings.spotScope !== 'key' ? 'on' : ''} onClick={() => setSettings({ ...settings, spotScope: 'all' })}>All actions</button>
+                <button className={settings.spotScope === 'key' ? 'on' : ''} onClick={() => setSettings({ ...settings, spotScope: 'key' })}>Fast: serve, pass, attack</button>
+              </div>
+            )}
             {settings.location === 'points' && (
               <label className="toggle"><input type="checkbox" checked={settings.fromTap} onChange={(e) => setSettings({ ...settings, fromTap: e.target.checked })} /> Also tap where the ball was played from (2 taps)</label>
             )}
@@ -369,6 +393,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <button className={settings.receiveMode === 'court' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'court' })}>Tap where pass landed</button>
               <button className={settings.receiveMode === 'grade' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'grade' })}>Grade 0–3</button>
             </div>
+            <button className="btn wide" onClick={() => { setShowSettings(false); setLineupSet(setNo); }}>
+              Line-up for set {setNo}{lineup ? ' ✓' : ''} (on-court players first)
+            </button>
             <label className="field-label">Timestamp lead (reaction time): {settings.leadSeconds}s</label>
             <input type="range" min={0} max={3} step={0.5} value={settings.leadSeconds} onChange={(e) => setSettings({ ...settings, leadSeconds: Number(e.target.value) })} />
             {!isLive && source && (

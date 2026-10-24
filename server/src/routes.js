@@ -81,7 +81,7 @@ export function registerRoutes(app, { db }) {
   const coach = { onRequest: requireCoach };
 
   function withCalibration(m) {
-    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null };
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null };
   }
 
   function matchBundle(match) {
@@ -210,8 +210,18 @@ export function registerRoutes(app, { db }) {
         } : {}),
       });
     }
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, m.id);
+    let lineups = m.lineups;
+    if ('lineups' in b) {
+      const l = b.lineups;
+      const id = (v) => v === null || Number.isInteger(v);
+      const ok = l === null || (typeof l === 'object' && !Array.isArray(l) && Object.entries(l).length <= 5 && Object.entries(l).every(([k, v]) =>
+        /^[1-5]$/.test(k) && Array.isArray(v?.order) && v.order.length === 6 && v.order.every(id) && id(v.libero ?? null) && typeof v.weServeFirst === 'boolean'));
+      if (!ok) return bad(reply, 'lineups: { "1".."5": { order: [6 player ids or null], libero, weServeFirst } }');
+      lineups = l === null ? null : JSON.stringify(Object.fromEntries(Object.entries(l).map(([k, v]) =>
+        [k, { order: v.order, libero: v.libero ?? null, weServeFirst: v.weServeFirst }])));
+    }
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, m.id);
     return withCalibration(q.match.get(m.id));
   });
 

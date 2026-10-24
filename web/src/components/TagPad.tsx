@@ -9,11 +9,12 @@ export interface TagSettings {
   autoPause: boolean;                     // pause the video while a tag is being entered
   location: 'points' | 'zones' | 'off';   // how to record court spots (attacks, serves, digs, blocks)
   fromTap: boolean;                       // with points: also tap where the ball was played from
+  spotScope: 'all' | 'key';               // court spots for every action, or only serves, passes and attacks
   receiveMode: 'court' | 'grade';         // tap where the pass landed, or grade 0-3 directly
   leadSeconds: number;                    // shift the timestamp back (reaction time)
 }
 
-export const DEFAULT_TAG_SETTINGS: TagSettings = { autoPause: true, location: 'points', fromTap: true, receiveMode: 'court', leadSeconds: 1 };
+export const DEFAULT_TAG_SETTINGS: TagSettings = { autoPause: true, location: 'points', fromTap: true, spotScope: 'all', receiveMode: 'court', leadSeconds: 1 };
 
 interface Props {
   players: Player[];
@@ -23,6 +24,8 @@ interface Props {
   play?: () => void;
   isPlaying?: () => boolean;
   onCommit: (e: Partial<VEvent>) => void;
+  /** Player ids on court (from the line-up and rotation), shown first. */
+  onCourt?: number[];
 }
 
 interface Draft {
@@ -41,11 +44,12 @@ interface Draft {
  * where the ball went. The video pauses on the first tap and resumes once the
  * tag is stored, so no keyboard and no separate pause button is needed.
  */
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  const rank = (id: number) => { const i = onCourt?.indexOf(id) ?? -1; return i < 0 ? 99 : i; };
+  const roster = players.filter((p) => p.active).sort((a, b) => rank(a.id) - rank(b.id) || (a.number ?? 999) - (b.number ?? 999));
 
   function start(player: Player | null) {
     const t = getTime();
@@ -79,7 +83,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     const next: Draft = { ...d, action, value, stage: askFrom ? 'from' : 'to', from: null };
     const wantsLocation = action.code === 'receive'
       ? settings.receiveMode === 'court' && value == null
-      : !!action.court && settings.location !== 'off';
+      : !!action.court && settings.location !== 'off' && (settings.spotScope !== 'key' || KEY_SPOTS.includes(action.code));
     if (wantsLocation) setDraft(next);
     else finish(next);
   }
@@ -198,7 +202,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
       <div className="pad-head"><span className="muted">Tap the player who touched the ball</span></div>
       <div className="pad-grid pad-players">
         {roster.map((p) => (
-          <button key={p.id} className={`jersey role-${p.role}`} onClick={() => start(p)}>
+          <button key={p.id} className={`jersey role-${p.role} ${onCourt?.length && !onCourt.includes(p.id) ? 'bench' : ''}`} onClick={() => start(p)}>
             <span className="jersey-num">{p.number ?? '–'}</span>
             <span className="jersey-name">{p.name.split(' ')[0]}</span>
             <span className="jersey-role">{p.role}</span>
@@ -217,6 +221,9 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     </div>
   );
 }
+
+/** "Key actions only": the court spots that matter most for the stats. */
+const KEY_SPOTS: ActionCode[] = ['serve', 'ace', 'serve_error', 'receive', 'attack', 'kill', 'attack_error', 'attack_blocked'];
 
 const who = (p: Player | null) => (p ? `#${p.number ?? '?'} ${p.name}` : 'Unknown player');
 

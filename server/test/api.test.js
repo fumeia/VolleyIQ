@@ -45,6 +45,9 @@ test('team, roster, match, events and jersey resolution', async () => {
   const sets = { points: saved.points, ourHalf: 'far', switches: [{ t: 610.5, ourHalf: 'far' }, { t: 1300, ourHalf: 'near', points: saved.points }] };
   assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: sets } })).json().calibration, sets);
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { ...landmarks, switches: [{ t: -1, ourHalf: 'far' }] } } })).statusCode, 400);
+  const lineups = { 1: { order: [1, 2, 3, 4, 5, null], libero: 7, weServeFirst: true } };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { lineups } })).json().lineups, lineups);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { lineups: { 1: { order: [1, 2] } } } })).statusCode, 400);
   await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } });
 
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
