@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EventEditor } from '../components/EventEditor';
 import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
+import { RallyReview } from '../components/RallyReview';
 import { StatsView } from '../components/StatsView';
 import { MatchReportView } from '../report/ReportViews';
 import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
@@ -52,6 +53,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
+  useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
   const [editing, setEditing] = useState<VEvent | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
   // A video file on this device (phone gallery, imported link, or a browser file).
@@ -75,6 +78,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }, [isLive, local, match.video_type, match.video_ref]);
 
   const suggested = events.filter((e) => e.status === 'suggested');
+  // Keep the rally review open after its last rally, so its Undo stays reachable.
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => { if (tab === 'review' && suggested.length > 0) setReviewing(true); }, [tab, suggested.length > 0]);
   const confirmed = events.filter((e) => e.status === 'confirmed');
   const score = scoreBySet(confirmed).find((s) => s.set === setNo) ?? { us: 0, them: 0 };
 
@@ -131,6 +137,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }
 
   const getTime = () => player.current?.time() ?? null;
+
+  async function removeSuggestions(list: VEvent[]) {
+    // Big clean-ups go to the server in one request; small ones stay optimistic.
+    if (list.length > 5 && list.every((e) => e.id > 0)) {
+      await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
+      await reload();
+    } else {
+      await Promise.all(list.map((e) => remove(e)));
+    }
+  }
 
   const pad = (
     <TagPad
@@ -237,11 +253,25 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
             )}
             {tab === 'review' && (
-              suggested.length === 0 ? (
+              suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (
                 <div className="pad">
                   <p className="muted">No AI suggestions to review. Run <b>Auto ✨</b> to detect touches from the video automatically.</p>
                   <button className="btn wide" onClick={() => setTab('ai')}>Open auto-detection</button>
                 </div>
+              ) : reviewMode === 'rally' ? (
+                <RallyReview
+                  match={match}
+                  suggested={suggested}
+                  players={players}
+                  player={player}
+                  update={update}
+                  add={(e) => add(e)}
+                  removeMany={removeSuggestions}
+                  removeByClient={(cid) => { const ev = eventsRef.current.find((x) => x.client_id === cid); if (ev) remove(ev); }}
+                  reload={reload}
+                  onTouchView={() => setReviewMode('touch')}
+                  onExit={() => setTab('tag')}
+                />
               ) : (
                 <ReviewPanel
                   events={suggested}
@@ -249,16 +279,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   player={player}
                   update={update}
                   remove={remove}
-                  removeMany={async (list) => {
-                    // Big clean-ups go to the server in one request; small ones stay optimistic.
-                    if (list.length > 5 && list.every((e) => e.id > 0)) {
-                      await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
-                      await reload();
-                    } else {
-                      for (const e of list) await remove(e);
-                    }
-                  }}
+                  removeMany={removeSuggestions}
                   onEdit={setEditing}
+                  onRallyView={() => setReviewMode('rally')}
                   onExit={() => setTab('tag')}
                   confirmAll={async () => {
                     await api.bulkEvents(match.id, 'confirm', suggested.filter((e) => e.id > 0).map((e) => e.id));

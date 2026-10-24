@@ -18,6 +18,7 @@ interface Props {
   confirmAll: () => void;
   onEdit: (e: VEvent) => void;
   onExit: () => void;
+  onRallyView?: () => void;
 }
 
 const PRE_ROLL = 2;
@@ -38,7 +39,7 @@ type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'> & {
  * around its timestamp. Pick (or keep) the player and the action, then tap the
  * court where the ball went; only that saves the touch.
  */
-export function ReviewPanel({ events, players, player, update, remove, removeMany, confirmAll, onEdit, onExit }: Props) {
+export function ReviewPanel({ events, players, player, update, remove, removeMany, confirmAll, onEdit, onExit, onRallyView }: Props) {
   const [idx, setIdx] = useState(0);
   const [loop, setLoop] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -95,7 +96,10 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
     <div className="pad review">
       <div className="pad-head">
         <span>Review <b>{Math.min(idx, events.length - 1) + 1}</b>/{events.length} · {fmtTime(ev.t)}</span>
-        <button className="btn-ghost" onClick={onExit}>Done</button>
+        <span className="row">
+          {onRallyView && <button className="btn-ghost small" onClick={onRallyView}>Rally by rally</button>}
+          <button className="btn-ghost" onClick={onExit}>Done</button>
+        </span>
       </div>
 
       <div className="review-card">
