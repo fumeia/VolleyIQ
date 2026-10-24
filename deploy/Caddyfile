@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	encode gzip
+	# Phone videos can be large; Caddy streams uploads, the app enforces MAX_UPLOAD_MB.
+	request_body {
+		max_size 8GB
+	}
+	reverse_proxy app:3000
+}
