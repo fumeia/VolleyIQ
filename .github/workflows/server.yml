@@ -1,0 +1,28 @@
+name: Server
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths: ["server/**", "web/**", "Dockerfile", "docker-compose.yml", ".github/workflows/server.yml"]
+  workflow_dispatch:
+
+jobs:
+  test-and-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Server tests
+        working-directory: server
+        run: npm ci && npm test
+      - name: Build Docker image (same as the server install)
+        run: docker build -t volleyiq:ci .
+      - name: Smoke test the container
+        run: |
+          docker run -d --name viq -e APP_PASSWORD=ci-password -e SESSION_SECRET=x -p 3080:3000 volleyiq:ci
+          for i in $(seq 1 30); do curl -fsS localhost:3080/api/health && break; sleep 1; done
+          curl -fsS localhost:3080/ | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3080/api/teams)" = 401
+          docker image ls volleyiq:ci
