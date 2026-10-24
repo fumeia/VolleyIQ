@@ -8,8 +8,8 @@ android {
         applicationId "com.volleyiq.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.getenv("VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("VERSION_NAME") ?: "0.1-dev"
+        versionCode Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
+        versionName(System.getenv("VERSION_NAME") ?: "0.1-dev")
         ndk {
             // Modern phones only: keeps the APK small (yt-dlp/Python and ML models ship native code).
             abiFilters 'arm64-v8a'
