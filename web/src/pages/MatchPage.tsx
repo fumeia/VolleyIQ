@@ -12,6 +12,7 @@ import { AutoPanel } from '../components/AutoPanel';
 import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
+import { VideoClock } from '../components/VideoClock';
 import { actionLabel } from '../lib/actions';
 import { api, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
@@ -148,6 +149,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     ? [4, 3, 2, 5, 6, 1].map((pos) => rotationNow.positions[pos - 1]).filter((x): x is number => x != null)
     : undefined;
 
+  /** Deletes saved events; Undo puts them back. */
+  async function deleteEvents(list: VEvent[]) {
+    const copies = list.filter((e) => e.id > 0).map(({ id: _id, client_id: _c, ...rest }) => rest);
+    await removeSuggestions(list);
+    flash(`Deleted ${list.length} event${list.length === 1 ? '' : 's'}`, async () => {
+      for (const e of copies) await api.addEvent(match.id, e);
+      await reload();
+    });
+  }
+
   async function removeSuggestions(list: VEvent[]) {
     // Big clean-ups go to the server in one request; small ones stay optimistic.
     if (list.length > 5 && list.every((e) => e.id > 0)) {
@@ -195,6 +206,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <>
                 <div className="video-wrap">
                   <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
+                  <VideoClock player={player} />
                   {calibrating && <CalibrationOverlay session={calib} aspect={player.current?.aspect() ?? 16 / 9} />}
                 </div>
                 {calibrating ? (
@@ -261,7 +273,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </>
             )}
             {tab === 'events' && (
-              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
+              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} />
             )}
             {tab === 'review' && (
               suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (
