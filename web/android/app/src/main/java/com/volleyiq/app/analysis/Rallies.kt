@@ -185,7 +185,10 @@ object Rallies {
         for ((ri, rally) in rallies.withIndex()) {
             for ((i, t) in rally.touches.withIndex()) {
                 if (dropOpponent && t.team == "them") continue
-                val landing = landingSpot(rally, i, ourHalfAt(t.t))
+                val half = ourHalfAt(t.t)
+                val landing = landingSpot(rally, i, half)
+                // Where the touching player stood = where the ball was played from.
+                val from = t.pos?.let { p -> half?.let { toApp(p, it) } }
                 events += mapOf(
                     "t" to round2(max(0.0, t.t)),
                     "action" to t.action,
@@ -194,6 +197,8 @@ object Rallies {
                     "hint" to t.kind.takeIf { it != HEARD },
                     "x" to landing?.x?.let(::round2),
                     "y" to landing?.y?.let(::round2),
+                    "fx" to from?.x?.let(::round2),
+                    "fy" to from?.y?.let(::round2),
                     "rally" to ri + 1,
                     "poss" to t.possession,
                     "set_no" to setAt(t.t),
@@ -236,8 +241,11 @@ object Rallies {
         }
         val p = next.pos ?: return null
         if (!wanted) return null
-        return if (ourHalf == "near") p else P(9.0 - p.x, 18.0 - p.y)
+        return toApp(p, ourHalf)
     }
+
+    /** Camera court frame (near baseline y = 0) -> app frame (our baseline y = 0). */
+    private fun toApp(p: P, ourHalf: String) = if (ourHalf == "near") p else P(9.0 - p.x, 18.0 - p.y)
 
     private fun round2(v: Double) = round(v * 100) / 100
 }

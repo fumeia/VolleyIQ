@@ -16,8 +16,10 @@ function outcomeOf(e: VEvent): Outcome {
   return 'play';
 }
 
-const dotsFor = (events: VEvent[], actions: string[], players: Player[]): CourtDot[] =>
-  events.filter((e) => e.x != null && e.y != null && actions.includes(e.action)).map((e) => {
+/** Dots at where the ball went (x, y), or with [from] at where it was played from (fx, fy). */
+const dotsFor = (events: VEvent[], actions: string[], players: Player[], from = false): CourtDot[] =>
+  events.map((e) => (from ? { ...e, x: e.fx ?? null, y: e.fy ?? null } : e))
+    .filter((e) => e.x != null && e.y != null && actions.includes(e.action)).map((e) => {
     const p = players.find((x) => x.id === e.player_id);
     const label = `${p ? who(p) : 'Unknown'} · ${e.action.replace('_', ' ')}`;
     return e.action === 'receive'
@@ -176,7 +178,7 @@ export function ServeCard({ rep, players }: { rep: MatchReport; players: Player[
 export function NetDefenceCard({ rep, players }: { rep: MatchReport; players: Player[] }) {
   const blocks = dotsFor(rep.confirmed, ['block_point', 'block_touch', 'block_error'], players);
   const blocked = dotsFor(rep.confirmed, ['attack_blocked'], players);
-  const digs = dotsFor(rep.confirmed, ['dig', 'dig_error'], players);
+  const digs = dotsFor(rep.confirmed, ['dig', 'dig_error'], players, true);
   const t = rep.team;
   const s = 34;
   return (

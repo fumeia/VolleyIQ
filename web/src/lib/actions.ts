@@ -9,8 +9,11 @@ export type ActionCode =
 
 export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team';
 
-/** Which half to tap for the court spot: where the ball landed on their side, or where it happened on ours. */
-export type Spot = 'theirs' | 'ours';
+/**
+ * Court taps for an action: 'path' = where the ball was played from, then where it
+ * went (two taps, either can be skipped); 'at' = one spot (a block, along the net).
+ */
+export type CourtTaps = 'path' | 'at';
 
 export interface ActionDef {
   code: ActionCode;
@@ -18,29 +21,30 @@ export interface ActionDef {
   short: string;
   group: Group;
   key?: string;           // desktop hotkey, same layout as VolleyTag
-  spot?: Spot;            // ask for a court spot, on this half
-  spotPrompt?: string;
+  court?: CourtTaps;
+  fromPrompt?: string;    // 'path': first tap
+  toPrompt?: string;      // 'path': second tap; 'at': the one tap
   needsPlayer?: boolean;  // false for team-level actions
   score?: 'us' | 'them';  // effect on the scoreboard
 }
 
 export const ACTIONS: ActionDef[] = [
-  { code: 'attack_error', label: 'Attack Error', short: 'Att Err', group: 'errors', key: 'q', spot: 'theirs', spotPrompt: 'Where did the ball go?', score: 'them' },
-  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', spot: 'theirs', spotPrompt: 'Where did the ball go?', score: 'them' },
-  { code: 'dig_error', label: 'Dig Error', short: 'Dig Err', group: 'errors', key: 'e', spot: 'ours', spotPrompt: 'Where was the dig?', score: 'them' },
-  { code: 'attack_blocked', label: 'Attack Blocked', short: 'Blocked', group: 'errors', key: 'c', spot: 'ours', spotPrompt: 'Where along the net were they blocked?', score: 'them' },
-  { code: 'block_error', label: 'Block Error', short: 'Blk Err', group: 'errors', key: 'r', spot: 'ours', spotPrompt: 'Where along the net?', score: 'them' },
-  { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', spot: 'theirs', spotPrompt: 'Where did the ball land?' },
-  { code: 'serve', label: 'Serve', short: 'Serve', group: 'actions', key: 's', spot: 'theirs', spotPrompt: 'Where did the ball land?' },
-  { code: 'dig', label: 'Dig', short: 'Dig', group: 'actions', key: 'd', spot: 'ours', spotPrompt: 'Where was the dig?' },
-  { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', spot: 'ours', spotPrompt: 'Where along the net?' },
-  { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', spot: 'theirs', spotPrompt: 'Where did the ball land?', score: 'us' },
-  { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', spot: 'theirs', spotPrompt: 'Where did the ball land?', score: 'us' },
-  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', spot: 'ours', spotPrompt: 'Where along the net?', score: 'us' },
-  { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g' },
-  { code: 'assist', label: 'Assist', short: 'Assist', group: 'setting', key: 't' },
-  { code: 'assist_error', label: 'Assist Error', short: 'Ast Err', group: 'setting', key: 'y', score: 'them' },
-  { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', spot: 'ours', spotPrompt: 'Where did the pass land?' },
+  { code: 'attack_error', label: 'Attack Error', short: 'Att Err', group: 'errors', key: 'q', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it go (out / net)?', score: 'them' },
+  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it go (out / net)?', score: 'them' },
+  { code: 'dig_error', label: 'Dig Error', short: 'Dig Err', group: 'errors', key: 'e', court: 'path', fromPrompt: 'Where was the dig?', toPrompt: 'Where did it go?', score: 'them' },
+  { code: 'attack_blocked', label: 'Attack Blocked', short: 'Blocked', group: 'errors', key: 'c', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where was it blocked?', score: 'them' },
+  { code: 'block_error', label: 'Block Error', short: 'Blk Err', group: 'errors', key: 'r', court: 'at', toPrompt: 'Where along the net?', score: 'them' },
+  { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it go?' },
+  { code: 'serve', label: 'Serve', short: 'Serve', group: 'actions', key: 's', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?' },
+  { code: 'dig', label: 'Dig', short: 'Dig', group: 'actions', key: 'd', court: 'path', fromPrompt: 'Where was the dig?', toPrompt: 'Where did it go?' },
+  { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', court: 'at', toPrompt: 'Where along the net?' },
+  { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
+  { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
+  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
+  { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
+  { code: 'assist', label: 'Assist', short: 'Assist', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
+  { code: 'assist_error', label: 'Assist Error', short: 'Ast Err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
+  { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', court: 'path', fromPrompt: 'Where was it received?', toPrompt: 'Where did the pass go?' },
   { code: 'opp_error', label: 'Opponent Error', short: 'Opp Err', group: 'team', needsPlayer: false, score: 'us' },
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },
 ];

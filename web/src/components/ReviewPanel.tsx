@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, actionLabel, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
-import { spotFields } from '../lib/court';
+import { courtFields, type Pt } from '../lib/court';
 import { rallyInfo, sideToDrop } from '../lib/rallies';
-import { CourtHalf } from './CourtHalf';
+import { CourtFull } from './CourtFull';
 import type { PlayerHandle } from './VideoPlayer';
 import { playerLabel } from './EventList';
 import { fmtTime } from './TagPad';
@@ -27,7 +27,11 @@ const QUICK_ACTIONS: ActionCode[] = [
   'dig', 'block_touch', 'block_point',
 ];
 
-type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'>;
+type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'> & {
+  /** Where the ball was played from, and which court tap comes next. */
+  from: Pt | null;
+  stage: 'from' | 'to';
+};
 
 /**
  * Second pass over auto-detected events: each suggestion plays a short clip
@@ -67,11 +71,19 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
   }
 
   // Changes stay in the draft until the touch is saved (court tap or a save button).
-  const d: Draft = draft ?? { player_id: ev.player_id, jersey: ev.jersey, action: ev.action, value: ev.value };
+  const d: Draft = draft ?? {
+    player_id: ev.player_id, jersey: ev.jersey, action: ev.action, value: ev.value,
+    from: ev.fx != null && ev.fy != null ? { x: ev.fx, y: ev.fy } : null,
+    stage: ACTION_BY_CODE[ev.action]?.court === 'path' ? 'from' : 'to',
+  };
   const def = ACTION_BY_CODE[d.action];
   const point = ev.x != null && ev.y != null ? { x: ev.x, y: ev.y } : null;
+  const first = def?.court === 'path' && d.stage === 'from';
   // After saving/deleting, the list shrinks so the same index shows the next event.
-  const save = (patch: Partial<VEvent> = {}) => update(ev, { ...d, ...patch, status: 'confirmed' });
+  const save = (patch: Partial<VEvent> = {}) => {
+    const { from, stage: _s, ...fields } = d;
+    return update(ev, { ...fields, ...courtFields(d.action, from, point), value: d.value, ...patch, status: 'confirmed' });
+  };
 
   // Possessions alternate within a rally, so knowing whose touch this is settles every touch of the rally.
   const dropIfOurs = sideToDrop(events, info, ev, true);
@@ -134,16 +146,19 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
       <div className="chips">
         {QUICK_ACTIONS.map((code) => (
           <button key={code} className={`chip chip-${ACTION_BY_CODE[code].group} ${d.action === code ? 'on' : ''}`}
-            onClick={() => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null })}>
+            onClick={() => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null,
+              stage: ACTION_BY_CODE[code].court === 'path' && !d.from ? 'from' : 'to' })}>
             {ACTION_BY_CODE[code].short}
           </button>
         ))}
         <button className="chip" onClick={() => onEdit(ev)}>More…</button>
       </div>
 
-      {def?.spot ? (
+      {def?.court ? (
         <>
-          <span className="pad-group-label">3 · {def.spotPrompt} <small className="muted">(tap = save)</small></span>
+          <span className="pad-group-label">
+            {first ? `3 · ${def.fromPrompt} (tap)` : `${def.court === 'path' ? 4 : 3} · ${def.toPrompt}`} {!first && <small className="muted">(tap = save)</small>}
+          </span>
           {d.action === 'receive' && (
             <div className="pad-grid pad-grid-4 receive-quick">
               {[0, 1, 2, 3].map((v) => (
@@ -152,12 +167,17 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
             </div>
           )}
           <div className="review-court">
-            <CourtHalf half={def.spot} showTarget={d.action === 'receive'} marker={point} label={def.spotPrompt}
-              onPick={(p) => save(spotFields(d.action, p))} />
+            <CourtFull showTarget={d.action === 'receive' && !first} from={d.from} to={point} label={first ? def.fromPrompt : def.toPrompt}
+              onPick={(p) => (first ? setDraft({ ...d, from: p, stage: 'to' }) : save(courtFields(d.action, d.from, p)))} />
           </div>
+          {first && (
+            <button className="btn wide" onClick={() => setDraft({ ...d, stage: 'to' })}>
+              {d.from ? 'Keep the white spot' : 'Skip: not sure where from'}
+            </button>
+          )}
           <div className="review-actions">
             <button className="btn btn-danger" onClick={() => remove(ev)}>✕ Not a touch</button>
-            <button className="btn" onClick={() => save()}>{point ? '✓ Save with marked spot' : '✓ Save without spot'}</button>
+            <button className="btn" onClick={() => save()}>{point || d.from ? '✓ Save with marked spots' : '✓ Save without spot'}</button>
           </div>
         </>
       ) : (

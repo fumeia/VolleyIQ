@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { ACTIONS, ACTION_BY_CODE, GROUPS, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
-import { receiveGrade, zoneOf, type Pt } from '../lib/court';
-import { CourtHalf } from './CourtHalf';
+import { courtFields, receiveGrade, type Pt } from '../lib/court';
+import { CourtFull } from './CourtFull';
 import { ZoneCourt } from './ZoneCourt';
 
 export interface TagSettings {
   autoPause: boolean;                     // pause the video while a tag is being entered
   location: 'points' | 'zones' | 'off';   // how to record court spots (attacks, serves, digs, blocks)
+  fromTap: boolean;                       // with points: also tap where the ball was played from
   receiveMode: 'court' | 'grade';         // tap where the pass landed, or grade 0-3 directly
   leadSeconds: number;                    // shift the timestamp back (reaction time)
 }
 
-export const DEFAULT_TAG_SETTINGS: TagSettings = { autoPause: true, location: 'points', receiveMode: 'court', leadSeconds: 1 };
+export const DEFAULT_TAG_SETTINGS: TagSettings = { autoPause: true, location: 'points', fromTap: true, receiveMode: 'court', leadSeconds: 1 };
 
 interface Props {
   players: Player[];
@@ -29,6 +30,9 @@ interface Draft {
   t: number | null;
   action?: ActionDef;
   value?: number;
+  /** Which court tap comes next, and where the ball was played from once tapped. */
+  stage?: 'from' | 'to';
+  from?: Pt | null;
   resume: boolean;
 }
 
@@ -53,16 +57,16 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
   function finish(d: Draft, where: { zone?: number | null; point?: Pt | null } = {}) {
     if (!d.action) return;
     const point = where.point ?? null;
+    const spots = courtFields(d.action.code, d.from ?? null, point);
     let value = d.value ?? null;
     if (d.action.code === 'receive' && point && value == null) value = receiveGrade(point);
     onCommit({
       player_id: d.player?.id ?? null,
       jersey: d.player?.number ?? null,
       action: d.action.code,
+      ...spots,
       value,
-      zone: point ? zoneOf(point) : where.zone ?? null,
-      x: point?.x ?? null,
-      y: point?.y ?? null,
+      zone: spots.zone ?? where.zone ?? null,
       t: d.t,
     });
     setDraft(null);
@@ -71,10 +75,11 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
 
   function chooseAction(action: ActionDef, value?: number) {
     const d = draftRef.current ?? { player: null, t: getTime(), resume: false };
-    const next = { ...d, action, value };
+    const askFrom = action.court === 'path' && settings.location === 'points' && settings.fromTap;
+    const next: Draft = { ...d, action, value, stage: askFrom ? 'from' : 'to', from: null };
     const wantsLocation = action.code === 'receive'
       ? settings.receiveMode === 'court' && value == null
-      : !!action.spot && settings.location !== 'off';
+      : !!action.court && settings.location !== 'off';
     if (wantsLocation) setDraft(next);
     else finish(next);
   }
@@ -110,35 +115,42 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  if (draft?.action?.code === 'receive') {
+  if (draft?.action && settings.location === 'zones' && draft.action.code !== 'receive') {
     return (
       <div className="pad">
         <div className="pad-head">
-          <span>{who(draft.player)} · <b>Receive</b> → where did the pass go?</span>
+          <span>{who(draft.player)} · <b>{draft.action.label}</b> → zone?</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
-        <div className="pad-grid pad-grid-4 receive-quick">
-          {[0, 1, 2, 3].map((v) => (
-            <button key={v} className={`act act-receive r${v}`} onClick={() => finish({ ...draft, value: v })}>{v}</button>
-          ))}
-        </div>
-        <span className="muted small">Tap the court (circle = perfect pass, grade is set from the distance) or just pick a grade above.</span>
-        <CourtHalf half="ours" showTarget onPick={(p) => finish(draft, { point: p })} label="Tap where the pass landed" />
+        <ZoneCourt onPick={(z) => finish(draft, { zone: z })} />
+        <button className="btn wide" onClick={() => finish(draft)}>No location</button>
       </div>
     );
   }
 
   if (draft?.action) {
+    const a = draft.action;
+    const first = draft.stage === 'from';
+    const prompt = (first ? a.fromPrompt : a.toPrompt) ?? 'Where?';
+    const steps = a.court === 'path' && settings.fromTap ? ` (${first ? 1 : 2}/2)` : '';
     return (
       <div className="pad">
         <div className="pad-head">
-          <span>{who(draft.player)} · <b>{draft.action.label}</b> → {draft.action.spotPrompt?.toLowerCase() ?? 'where?'}</span>
+          <span>{who(draft.player)} · <b>{a.label}</b> → {prompt}{steps}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
-        {settings.location === 'points'
-          ? <CourtHalf half={draft.action.spot ?? 'theirs'} onPick={(p) => finish(draft, { point: p })} label={draft.action.spotPrompt} />
-          : <ZoneCourt onPick={(z) => finish(draft, { zone: z })} />}
-        <button className="btn wide" onClick={() => finish(draft)}>No location</button>
+        {a.code === 'receive' && (
+          <div className="pad-grid pad-grid-4 receive-quick">
+            {[0, 1, 2, 3].map((v) => (
+              <button key={v} className={`act act-receive r${v}`} onClick={() => finish({ ...draft, value: v })}>{v}</button>
+            ))}
+          </div>
+        )}
+        <CourtFull label={prompt} from={draft.from} showTarget={a.code === 'receive' && !first}
+          onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))} />
+        <button className="btn wide" onClick={() => (first ? setDraft({ ...draft, stage: 'to' }) : finish(draft))}>
+          {first ? 'Skip: not sure where from' : 'Skip: no landing spot'}
+        </button>
       </div>
     );
   }

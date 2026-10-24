@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { ROLES, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { dec, pct, playerStats, roleStats, statLine, zoneCounts, type StatLine } from '../lib/stats';
-import { CourtHalf, type PlotPoint } from './CourtHalf';
+import type { PlotPoint } from './CourtHalf';
+import { CourtFull, type PlotPath } from './CourtFull';
 import { ZoneCourt } from './ZoneCourt';
 
 const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
@@ -17,17 +18,19 @@ const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
-const PLOT_MODES: { id: string; label: string; half: 'ours' | 'theirs'; actions: ActionCode[] }[] = [
-  { id: 'attacks', label: 'Attacks', half: 'theirs', actions: ['kill', 'attack', 'attack_error'] },
-  { id: 'serves', label: 'Serves', half: 'theirs', actions: ['ace', 'serve', 'serve_error'] },
-  { id: 'receives', label: 'Receives', half: 'ours', actions: ['receive'] },
-  { id: 'digs', label: 'Digs', half: 'ours', actions: ['dig', 'dig_error'] },
-  { id: 'blocks', label: 'Our blocks', half: 'ours', actions: ['block_point', 'block_touch', 'block_error'] },
-  { id: 'blocked', label: 'Got blocked', half: 'ours', actions: ['attack_blocked'] },
+const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
+  { id: 'attacks', label: 'Attacks', actions: ['kill', 'attack', 'attack_error'] },
+  { id: 'serves', label: 'Serves', actions: ['ace', 'serve', 'serve_error'] },
+  { id: 'receives', label: 'Receives', actions: ['receive'] },
+  { id: 'sets', label: 'Sets', actions: ['set', 'assist', 'assist_error'] },
+  { id: 'digs', label: 'Digs', actions: ['dig', 'dig_error'] },
+  { id: 'blocks', label: 'Our blocks', actions: ['block_point', 'block_touch', 'block_error'] },
+  { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
 const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
   kill: '#22c55e', ace: '#22c55e', attack: '#60a5fa', serve: '#60a5fa', attack_error: '#ef4444', serve_error: '#ef4444',
+  set: '#60a5fa', assist: '#22c55e', assist_error: '#ef4444',
   dig: '#60a5fa', dig_error: '#ef4444', block_point: '#22c55e', block_touch: '#60a5fa', block_error: '#ef4444', attack_blocked: '#ef4444',
 };
 const GRADE_COLOR = ['#ef4444', '#f59e0b', '#60a5fa', '#22c55e'];
@@ -38,6 +41,7 @@ const LEGEND: Record<string, [string, string][]> = {
   digs: [['#60a5fa', 'Dig'], ['#ef4444', 'Error']],
   blocks: [['#22c55e', 'Block point'], ['#60a5fa', 'Touch'], ['#ef4444', 'Error']],
   blocked: [['#ef4444', 'Blocked']],
+  sets: [['#22c55e', 'Assist'], ['#60a5fa', 'Set'], ['#ef4444', 'Error']],
 };
 
 type Tab = 'overview' | 'attack' | 'serve' | 'pass' | 'block' | 'roles';
@@ -79,6 +83,7 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
   const [heatPlayer, setHeatPlayer] = useState<number | 'all'>('all');
   const [plot, setPlot] = useState(PLOT_MODES[0].id);
   const [density, setDensity] = useState(false);
+  const [plotView, setPlotView] = useState<'to' | 'from' | 'path'>('to');
 
   const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
   const roles = useMemo(() => roleStats(players, confirmed), [players, confirmed]);
@@ -86,13 +91,17 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
   const heatEvents = heatPlayer === 'all' ? confirmed : confirmed.filter((e) => e.player_id === heatPlayer);
   const counts = zoneCounts(heatEvents, HEAT_MODES.find((m) => m.id === heat)!.actions);
   const plotMode = PLOT_MODES.find((m) => m.id === plot)!;
-  const plotPoints: PlotPoint[] = heatEvents
-    .filter((e) => e.x != null && e.y != null && plotMode.actions.includes(e.action))
-    .map((e) => ({
-      key: e.id, x: e.x!, y: e.y!,
-      color: e.action === 'receive' ? GRADE_COLOR[e.value ?? 1] : OUTCOME_COLOR[e.action] ?? '#9ca3af',
-      title: `${playerName(players, e.player_id)} ${e.action.replace('_', ' ')}${e.value != null ? ' ' + e.value : ''}`,
-    }));
+  const colorOf = (e: VEvent) => (e.action === 'receive' ? GRADE_COLOR[e.value ?? 1] : OUTCOME_COLOR[e.action] ?? '#9ca3af');
+  const titleOf = (e: VEvent) => `${playerName(players, e.player_id)} ${e.action.replace('_', ' ')}${e.value != null ? ' ' + e.value : ''}`;
+  const modeEvents = heatEvents.filter((e) => plotMode.actions.includes(e.action));
+  // "Went to" = x, y; "played from" = fx, fy.
+  const plotPoints: PlotPoint[] = modeEvents
+    .map((e) => (plotView === 'from' ? { e, x: e.fx, y: e.fy } : { e, x: e.x, y: e.y }))
+    .filter((p) => p.x != null && p.y != null)
+    .map(({ e, x, y }) => ({ key: e.id, x: x!, y: y!, color: colorOf(e), title: titleOf(e) }));
+  const plotPaths: PlotPath[] = modeEvents
+    .filter((e) => e.x != null && e.y != null && e.fx != null && e.fy != null)
+    .map((e) => ({ key: e.id, from: { x: e.fx!, y: e.fy! }, to: { x: e.x!, y: e.y! }, color: colorOf(e), title: titleOf(e) }));
 
   if (!confirmed.length) return <p className="muted small">No confirmed tags yet. Start tagging to see stats.</p>;
 
@@ -161,16 +170,22 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
         ))}
       </div>
       <div className="segmented">
-        <button className={!density ? 'on' : ''} onClick={() => setDensity(false)}>Each touch</button>
-        <button className={density ? 'on' : ''} onClick={() => setDensity(true)}>Heatmap</button>
+        <button className={plotView === 'to' ? 'on' : ''} onClick={() => setPlotView('to')}>Went to</button>
+        <button className={plotView === 'from' ? 'on' : ''} onClick={() => setPlotView('from')}>Played from</button>
+        <button className={plotView === 'path' ? 'on' : ''} onClick={() => setPlotView('path')}>Paths</button>
       </div>
+      {plotView !== 'path' && (
+        <label className="toggle small"><input type="checkbox" checked={density} onChange={(e) => setDensity(e.target.checked)} /> Heatmap (count per 1.5 m square)</label>
+      )}
       <div className="plot-wrap">
-        <CourtHalf half={plotMode.half} points={plotPoints} showTarget={plotMode.id === 'receives'} heat={density} />
+        {plotView === 'path'
+          ? <CourtFull paths={plotPaths} showTarget={plotMode.id === 'receives'} />
+          : <CourtFull points={plotPoints} heat={density} showTarget={plotMode.id === 'receives'} />}
       </div>
       <div className="legend">
-        {!density && LEGEND[plot].map(([c, l]) => <span key={l}><i style={{ background: c }} />{l}</span>)}
-        {density && <span>Darker = more touches in that 1.5 m square</span>}
-        <span className="muted">{plotPoints.length} with a court spot{heatPlayer === 'all' ? '' : ' (filtered)'}</span>
+        {(plotView === 'path' || !density) && LEGEND[plot].map(([c, l]) => <span key={l}><i style={{ background: c }} />{l}</span>)}
+        {plotView !== 'path' && density && <span>Darker = more touches in that 1.5 m square</span>}
+        <span className="muted">{plotView === 'path' ? plotPaths.length : plotPoints.length} with {plotView === 'path' ? 'both spots' : 'this spot'}{heatPlayer === 'all' ? '' : ' (filtered)'}</span>
       </div>
     </div>
   );

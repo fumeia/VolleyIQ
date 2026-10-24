@@ -76,7 +76,7 @@ export function MatchReportView({ match, players, events, actions }: { match: Ma
     { id: 'attack', label: 'Attack map', node: <AttackCard rep={rep} players={players} /> },
     { id: 'serve', label: 'Serve map', node: <ServeCard rep={rep} players={players} /> },
     { id: 'reception', label: 'Reception', node: <ReceptionCard rep={rep} players={players} /> },
-    ...(rep.confirmed.some((e) => ['block_point', 'block_touch', 'block_error', 'attack_blocked', 'dig', 'dig_error'].includes(e.action) && e.x != null)
+    ...(rep.confirmed.some((e) => ['block_point', 'block_touch', 'block_error', 'attack_blocked', 'dig', 'dig_error'].includes(e.action) && (e.x != null || e.fx != null))
       ? [{ id: 'net-defence', label: 'Blocks & digs', node: <NetDefenceCard rep={rep} players={players} /> }] : []),
     { id: 'box-score', label: 'Box score', node: <BoxScoreCard rep={rep} /> },
     ...rep.rows.filter((r) => r.count >= 3).map((r) => ({

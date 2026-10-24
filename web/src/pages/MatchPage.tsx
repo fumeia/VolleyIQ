@@ -330,7 +330,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><b>Tagging settings</b><button className="btn-ghost" onClick={() => setShowSettings(false)}>✕</button></div>
             <label className="toggle"><input type="checkbox" checked={settings.autoPause} onChange={(e) => setSettings({ ...settings, autoPause: e.target.checked })} /> Pause video while tagging, resume afterwards</label>
-            <label className="field-label">Court spot (attacks, serves, digs, blocks)</label>
+            <label className="field-label">Court spots (serves, passes, sets, attacks, digs, blocks)</label>
             <div className="segmented">
               {(['points', 'zones', 'off'] as const).map((m) => (
                 <button key={m} className={settings.location === m ? 'on' : ''} onClick={() => setSettings({ ...settings, location: m })}>
@@ -338,6 +338,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </button>
               ))}
             </div>
+            {settings.location === 'points' && (
+              <label className="toggle"><input type="checkbox" checked={settings.fromTap} onChange={(e) => setSettings({ ...settings, fromTap: e.target.checked })} /> Also tap where the ball was played from (2 taps)</label>
+            )}
             <label className="field-label">Receive</label>
             <div className="segmented">
               <button className={settings.receiveMode === 'court' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'court' })}>Tap where pass landed</button>

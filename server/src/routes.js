@@ -27,13 +27,19 @@ function cleanEvent(body) {
   if (value !== null && (value < 0 || value > 3)) return [null, 'value must be 0..3'];
   const zone = int(body.zone);
   if (zone !== null && (zone < 1 || zone > 6)) return [null, 'zone must be 1..6'];
+  // x, y: where the ball went; fx, fy: where it was played from. Court meters, our baseline at y = 0.
   const x = num(body.x);
   const y = num(body.y);
-  if ((x === null) !== (y === null)) return [null, 'x and y go together'];
-  if (x !== null && (x < -6 || x > 15 || y < -6 || y > 24)) return [null, 'point is off the court area'];
+  const fx = num(body.fx);
+  const fy = num(body.fy);
+  const offCourt = (a, b) => a < -6 || a > 15 || b < -6 || b > 24;
+  if ((x === null) !== (y === null) || (fx === null) !== (fy === null)) return [null, 'x and y (fx and fy) go together'];
+  if ((x !== null && offCourt(x, y)) || (fx !== null && offCourt(fx, fy))) return [null, 'point is off the court area'];
   return [{
     x,
     y,
+    fx,
+    fy,
     rally: int(body.rally),
     poss: int(body.poss),
     player_id: int(body.player_id),
@@ -68,8 +74,8 @@ export function registerRoutes(app, { db }) {
     events: db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     eventByClient: db.prepare('SELECT * FROM events WHERE match_id = ? AND client_id = ?'),
-    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, rally, poss, t, set_no, source, status, confidence, hint, client_id)
-                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @rally, @poss, @t, @set_no, @source, @status, @confidence, @hint, @client_id)`),
+    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, fx, fy, rally, poss, t, set_no, source, status, confidence, hint, client_id)
+                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @fx, @fy, @rally, @poss, @t, @set_no, @source, @status, @confidence, @hint, @client_id)`),
   };
 
   const coach = { onRequest: requireCoach };
@@ -280,7 +286,7 @@ export function registerRoutes(app, { db }) {
     const [ev, err] = cleanEvent(merged);
     if (err) return bad(reply, err);
     db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone, x = @x, y = @y,
-                t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
+                fx = @fx, fy = @fy, t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
       .run({ ...ev, source: cur.source, id: cur.id });
     return q.event.get(cur.id);
   });

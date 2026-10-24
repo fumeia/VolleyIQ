@@ -68,6 +68,11 @@ test('app suggestions replace earlier unconfirmed suggestions only', async () =>
   assert.ok(bundle.events[0].player_id, 'jersey resolved to roster player');
 
   await app.inject({ method: 'PATCH', url: `/api/events/${bundle.events[0].id}`, payload: { status: 'confirmed' } });
+  // Two court spots: played from (fx, fy) and went to (x, y).
+  const two = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'attack', fx: 7.5, fy: 7, x: 1.2, y: 16 } })).json();
+  assert.deepEqual([two.fx, two.fy, two.x, two.y], [7.5, 7, 1.2, 16]);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'attack', fx: 7.5 } })).statusCode, 400);
+  await app.inject({ method: 'DELETE', url: `/api/events/${two.id}` });
   await post([{ action: 'dig', t: 9, hint: 'gap' }, { action: 'set', t: 10, hint: 'bogus' }]);
   bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
   assert.deepEqual(bundle.events.map((e) => [e.action, e.status, e.hint]), [['serve', 'confirmed', null], ['dig', 'suggested', 'gap'], ['set', 'suggested', null]]);

@@ -11,7 +11,9 @@ export interface Match {
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
-  value: number | null; zone: number | null; x: number | null; y: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
+  value: number | null; zone: number | null; x: number | null; y: number | null;
+  /** Where the ball was played from (x, y: where it went). */
+  fx?: number | null; fy?: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
   /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
   hint?: 'quiet' | 'gap' | null;

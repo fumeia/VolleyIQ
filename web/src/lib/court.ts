@@ -58,7 +58,19 @@ export function fromView(half: Half, v: Pt): Pt {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** Event fields for a tapped court spot: point, zone, and for a receive the grade it implies. */
-export function spotFields(action: string, p: Pt): { x: number; y: number; zone: number | null; value?: number } {
-  return { x: p.x, y: p.y, zone: zoneOf(p), ...(action === 'receive' ? { value: receiveGrade(p) } : {}) };
+/**
+ * Event fields for tapped court spots: [from] = where the ball was played from (fx, fy),
+ * [to] = where it went (x, y). The zone is where it went; a receive gets the grade its pass implies.
+ */
+export function courtFields(action: string, from: Pt | null, to: Pt | null) {
+  const at = to ?? from;
+  return {
+    fx: from?.x ?? null, fy: from?.y ?? null,
+    x: to?.x ?? null, y: to?.y ?? null,
+    zone: at ? zoneOf(at) : null,
+    ...(action === 'receive' && to ? { value: receiveGrade(to) } : {}),
+  };
 }
+
+/** Visible area of the full-court drawing (meters): run-off beside and behind both baselines. */
+export const FULL_VIEW = { x0: -2, x1: 11, y0: -3, y1: 21 };

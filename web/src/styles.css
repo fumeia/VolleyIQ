@@ -325,6 +325,13 @@ button.court-zone:active { background: #2a2f3a; }
 .court-heat-n { font-size: 0.45px; fill: #fff; text-anchor: middle; font-weight: 700; pointer-events: none; }
 .court-dot { stroke: rgba(0,0,0,.6); stroke-width: .05; }
 .court-marker { fill: var(--accent); stroke: #fff; stroke-width: .08; }
+.court-marker-from { fill: #fff; stroke: var(--accent); stroke-width: .12; }
+.court-full { max-width: 360px; max-height: 64vh; }
+.court-side { fill: var(--muted); font-size: .5px; font-weight: 700; letter-spacing: .08px; pointer-events: none; }
+.court-side.end { text-anchor: end; }
+.court-path { stroke-width: .09; opacity: .85; }
+.court-path-edit { stroke: #fff; stroke-dasharray: .3 .2; }
+.court-arrowhead { fill: #cfd6e0; }
 .plot-wrap, .editor-court { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; align-items: center; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }

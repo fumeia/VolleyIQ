@@ -93,6 +93,11 @@ const MIGRATIONS = [
   `
   ALTER TABLE events ADD COLUMN hint TEXT;
   `,
+  // v7: where the ball was played from (fx, fy); x, y stay where it went
+  `
+  ALTER TABLE events ADD COLUMN fx REAL;
+  ALTER TABLE events ADD COLUMN fy REAL;
+  `,
 ];
 
 function migrate(db) {
