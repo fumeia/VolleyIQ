@@ -4,7 +4,7 @@ import { EventEditor } from '../components/EventEditor';
 import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { StatsView } from '../components/StatsView';
-import { TagPad, type TagSettings } from '../components/TagPad';
+import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
 import { parseYouTubeId, VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { actionLabel } from '../lib/actions';
 import { api, type Job, type Match, type MatchBundle, type VEvent } from '../lib/api';
@@ -14,10 +14,14 @@ import { useEvents } from '../lib/useEvents';
 
 type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
 
-const DEFAULT_SETTINGS: TagSettings = { autoPause: true, askZone: true, leadSeconds: 1 };
 
 function loadSettings(): TagSettings {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('viq:tagSettings') ?? '{}') }; } catch { return DEFAULT_SETTINGS; }
+  try {
+    const { askZone: _old, ...saved } = JSON.parse(localStorage.getItem('viq:tagSettings') ?? '{}');
+    return { ...DEFAULT_TAG_SETTINGS, ...saved };
+  } catch {
+    return DEFAULT_TAG_SETTINGS;
+  }
 }
 
 export function MatchPage() {
@@ -256,7 +260,19 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><b>Tagging settings</b><button className="btn-ghost" onClick={() => setShowSettings(false)}>✕</button></div>
             <label className="toggle"><input type="checkbox" checked={settings.autoPause} onChange={(e) => setSettings({ ...settings, autoPause: e.target.checked })} /> Pause video while tagging, resume afterwards</label>
-            <label className="toggle"><input type="checkbox" checked={settings.askZone} onChange={(e) => setSettings({ ...settings, askZone: e.target.checked })} /> Ask for zone on attacks and serves</label>
+            <label className="field-label">Where attacks and serves landed</label>
+            <div className="segmented">
+              {(['points', 'zones', 'off'] as const).map((m) => (
+                <button key={m} className={settings.location === m ? 'on' : ''} onClick={() => setSettings({ ...settings, location: m })}>
+                  {m === 'points' ? 'Tap exact spot' : m === 'zones' ? 'Zone 1–6' : 'Skip'}
+                </button>
+              ))}
+            </div>
+            <label className="field-label">Receive</label>
+            <div className="segmented">
+              <button className={settings.receiveMode === 'court' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'court' })}>Tap where pass landed</button>
+              <button className={settings.receiveMode === 'grade' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'grade' })}>Grade 0–3</button>
+            </div>
             <label className="field-label">Timestamp lead (reaction time): {settings.leadSeconds}s</label>
             <input type="range" min={0} max={3} step={0.5} value={settings.leadSeconds} onChange={(e) => setSettings({ ...settings, leadSeconds: Number(e.target.value) })} />
             {!isLive && source && (

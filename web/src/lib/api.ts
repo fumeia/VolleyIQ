@@ -9,7 +9,7 @@ export interface Match {
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
-  value: number | null; zone: number | null; t: number | null; set_no: number | null;
+  value: number | null; zone: number | null; x: number | null; y: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
 }
 export interface Job { id: number; match_id: number; status: 'queued' | 'running' | 'done' | 'failed'; progress: number; message: string | null }

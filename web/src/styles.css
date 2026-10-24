@@ -305,3 +305,22 @@ button.court-zone:active { background: #2a2f3a; }
 @media (orientation: landscape) and (max-height: 600px) {
   .toast { top: 60px; bottom: auto; }
 }
+
+/* ---------- SVG court (point tagging & plots) ---------- */
+.court-svg { width: 100%; max-width: 440px; display: block; margin: 0 auto; touch-action: manipulation; user-select: none; }
+.court-svg.is-pickable { cursor: crosshair; }
+.court-runoff { fill: #14171d; }
+.court-floor { fill: #3b2a1a; }
+.court-grid { stroke: rgba(255,255,255,.12); stroke-width: .05; stroke-dasharray: .25 .25; }
+.court-attack { stroke: rgba(255,255,255,.55); stroke-width: .06; }
+.court-lines { fill: none; stroke: #f3f4f6; stroke-width: .08; }
+.court-netline { stroke: var(--accent); stroke-width: .16; stroke-dasharray: .35 .2; }
+.court-nettext { fill: var(--muted); font-size: .38px; text-anchor: middle; letter-spacing: .1px; }
+.court-target { fill: rgba(34,197,94,.12); stroke: rgba(34,197,94,.7); stroke-width: .06; stroke-dasharray: .2 .15; }
+.court-dot { stroke: rgba(0,0,0,.6); stroke-width: .05; }
+.court-marker { fill: var(--accent); stroke: #fff; stroke-width: .08; }
+.plot-wrap, .editor-court { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; align-items: center; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+.field-label .btn-ghost.small { margin-left: 8px; padding: 0 6px; min-height: 0; }
+.receive-quick .act { min-height: 38px; font-size: 16px; }

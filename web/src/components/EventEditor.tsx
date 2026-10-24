@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ACTIONS, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
+import { receiveGrade, zoneOf } from '../lib/court';
+import { CourtHalf } from './CourtHalf';
 import { ZoneCourt } from './ZoneCourt';
 
 interface Props {
@@ -17,8 +19,9 @@ interface Props {
 export function EventEditor({ event, players, getTime, onSave, onDelete, onClose }: Props) {
   const [d, setD] = useState<Partial<VEvent>>({
     player_id: event.player_id, jersey: event.jersey, action: event.action,
-    value: event.value, zone: event.zone, t: event.t,
+    value: event.value, zone: event.zone, x: event.x, y: event.y, t: event.t,
   });
+  const point = d.x != null && d.y != null ? { x: d.x, y: d.y } : null;
   const roster = players.filter((p) => p.active || p.id === event.player_id)
     .sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const set = (patch: Partial<VEvent>) => setD((x) => ({ ...x, ...patch }));
@@ -65,8 +68,19 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
           </>
         )}
 
-        <label className="field-label">Zone {d.zone ? `(${d.zone})` : ''}</label>
-        <ZoneCourt compact selected={d.zone} onPick={(z) => set({ zone: d.zone === z ? null : z })} />
+        <label className="field-label">
+          Location {d.zone ? `(zone ${d.zone})` : ''}
+          {(point || d.zone) && <button className="btn-ghost small" onClick={() => set({ x: null, y: null, zone: null })}>clear</button>}
+        </label>
+        <div className="editor-court">
+          <CourtHalf
+            half={d.action === 'receive' || d.action === 'dig' ? 'ours' : 'theirs'}
+            showTarget={d.action === 'receive'}
+            marker={point}
+            onPick={(p) => set({ x: p.x, y: p.y, zone: zoneOf(p), ...(d.action === 'receive' ? { value: receiveGrade(p) } : {}) })}
+          />
+        </div>
+        {!point && <ZoneCourt compact selected={d.zone} onPick={(z) => set({ zone: d.zone === z ? null : z })} />}
 
         <label className="field-label">Video time: {fmtTime(d.t ?? null)}</label>
         <div className="chips">

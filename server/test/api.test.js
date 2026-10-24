@@ -22,6 +22,10 @@ test('team, roster, match, events and jersey resolution', async () => {
   const again = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'kill', jersey: 7, client_id: 'c1' } })).json();
   assert.equal(again.id, e1.id, 'client_id makes posting idempotent');
 
+  const pt = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'receive', x: 6.1, y: 7.9, value: 3 } })).json();
+  assert.equal(pt.x, 6.1);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'kill', x: 4 } })).statusCode, 400);
+
   const badRes = await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'nope' } });
   assert.equal(badRes.statusCode, 400);
 
@@ -30,7 +34,7 @@ test('team, roster, match, events and jersey resolution', async () => {
   assert.equal(patched.zone, null);
 
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
-  assert.equal(bundle.events.length, 1);
+  assert.equal(bundle.events.length, 2);
   assert.equal(bundle.players.length, 1);
   await app.close();
 });

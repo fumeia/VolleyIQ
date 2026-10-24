@@ -24,10 +24,10 @@ export function exportEventsCsv(match: Match, players: Player[], events: VEvent[
   const byId = new Map(players.map((p) => [p.id, p]));
   const confirmed = events.filter((e) => e.status === 'confirmed');
   download(`${slug(match)}-events.csv`, toCsv([
-    ['time_s', 'set', 'jersey', 'player', 'role', 'action', 'grade', 'zone', 'source'],
+    ['time_s', 'set', 'jersey', 'player', 'role', 'action', 'grade', 'zone', 'x_m', 'y_m', 'source'],
     ...confirmed.map((e) => {
       const p = e.player_id != null ? byId.get(e.player_id) : undefined;
-      return [e.t?.toFixed(2), e.set_no, p?.number ?? e.jersey, p?.name, p?.role, actionLabel(e), e.value, e.zone, e.source];
+      return [e.t?.toFixed(2), e.set_no, p?.number ?? e.jersey, p?.name, p?.role, actionLabel(e), e.value, e.zone, e.x, e.y, e.source];
     }),
   ]));
 }

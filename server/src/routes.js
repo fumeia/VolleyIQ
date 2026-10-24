@@ -30,7 +30,13 @@ function cleanEvent(body) {
   if (value !== null && (value < 0 || value > 3)) return [null, 'value must be 0..3'];
   const zone = int(body.zone);
   if (zone !== null && (zone < 1 || zone > 6)) return [null, 'zone must be 1..6'];
+  const x = num(body.x);
+  const y = num(body.y);
+  if ((x === null) !== (y === null)) return [null, 'x and y go together'];
+  if (x !== null && (x < -6 || x > 15 || y < -6 || y > 24)) return [null, 'point is off the court area'];
   return [{
+    x,
+    y,
     player_id: int(body.player_id),
     jersey: int(body.jersey),
     action: body.action,
@@ -62,8 +68,8 @@ export function registerRoutes(app, { db, videosDir }) {
     events: db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     eventByClient: db.prepare('SELECT * FROM events WHERE match_id = ? AND client_id = ?'),
-    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, t, set_no, source, status, confidence, client_id)
-                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @t, @set_no, @source, @status, @confidence, @client_id)`),
+    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, t, set_no, source, status, confidence, client_id)
+                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @t, @set_no, @source, @status, @confidence, @client_id)`),
     jobsForMatch: db.prepare('SELECT * FROM jobs WHERE match_id = ? ORDER BY id DESC'),
     job: db.prepare('SELECT * FROM jobs WHERE id = ?'),
   };
@@ -226,7 +232,7 @@ export function registerRoutes(app, { db, videosDir }) {
     const merged = { ...cur, ...req.body };
     const [ev, err] = cleanEvent(merged);
     if (err) return bad(reply, err);
-    db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone,
+    db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone, x = @x, y = @y,
                 t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
       .run({ ...ev, source: cur.source, id: cur.id });
     return q.event.get(cur.id);

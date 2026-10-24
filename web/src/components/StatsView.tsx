@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ROLES, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { dec, pct, playerStats, roleStats, statLine, zoneCounts, type StatLine } from '../lib/stats';
+import { CourtHalf, type PlotPoint } from './CourtHalf';
 import { ZoneCourt } from './ZoneCourt';
 
 const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
@@ -11,6 +12,22 @@ const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'serves', label: 'Serves', actions: ['serve', 'ace'] },
   { id: 'aces', label: 'Aces', actions: ['ace'] },
 ];
+
+const PLOT_MODES: { id: string; label: string; half: 'ours' | 'theirs'; actions: ActionCode[] }[] = [
+  { id: 'attacks', label: 'Attacks', half: 'theirs', actions: ['kill', 'attack', 'attack_error'] },
+  { id: 'serves', label: 'Serves', half: 'theirs', actions: ['ace', 'serve', 'serve_error'] },
+  { id: 'receives', label: 'Receives', half: 'ours', actions: ['receive'] },
+];
+
+const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
+  kill: '#22c55e', ace: '#22c55e', attack: '#60a5fa', serve: '#60a5fa', attack_error: '#ef4444', serve_error: '#ef4444',
+};
+const GRADE_COLOR = ['#ef4444', '#f59e0b', '#60a5fa', '#22c55e'];
+const LEGEND: Record<string, [string, string][]> = {
+  attacks: [['#22c55e', 'Kill'], ['#60a5fa', 'In play'], ['#ef4444', 'Error']],
+  serves: [['#22c55e', 'Ace'], ['#60a5fa', 'In play'], ['#ef4444', 'Error']],
+  receives: [['#22c55e', '3'], ['#60a5fa', '2'], ['#f59e0b', '1'], ['#ef4444', '0']],
+};
 
 type Tab = 'overview' | 'attack' | 'serve' | 'pass' | 'block' | 'roles';
 
@@ -37,6 +54,11 @@ const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => st
   ],
 };
 
+const playerName = (players: Player[], id: number | null) => {
+  const p = players.find((x) => x.id === id);
+  return p ? `#${p.number} ${p.name}` : 'Unknown';
+};
+
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
 export function StatsView({ players, events }: { players: Player[]; events: VEvent[] }) {
@@ -44,12 +66,21 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
   const [tab, setTab] = useState<Tab>('overview');
   const [heat, setHeat] = useState(HEAT_MODES[0].id);
   const [heatPlayer, setHeatPlayer] = useState<number | 'all'>('all');
+  const [plot, setPlot] = useState(PLOT_MODES[0].id);
 
   const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
   const roles = useMemo(() => roleStats(players, confirmed), [players, confirmed]);
   const team = useMemo(() => statLine(confirmed.filter((e) => e.player_id != null)), [confirmed]);
   const heatEvents = heatPlayer === 'all' ? confirmed : confirmed.filter((e) => e.player_id === heatPlayer);
   const counts = zoneCounts(heatEvents, HEAT_MODES.find((m) => m.id === heat)!.actions);
+  const plotMode = PLOT_MODES.find((m) => m.id === plot)!;
+  const plotPoints: PlotPoint[] = heatEvents
+    .filter((e) => e.x != null && e.y != null && plotMode.actions.includes(e.action))
+    .map((e) => ({
+      key: e.id, x: e.x!, y: e.y!,
+      color: e.action === 'receive' ? GRADE_COLOR[e.value ?? 1] : OUTCOME_COLOR[e.action] ?? '#9ca3af',
+      title: `${playerName(players, e.player_id)} ${e.action.replace('_', ' ')}${e.value != null ? ' ' + e.value : ''}`,
+    }));
 
   if (!confirmed.length) return <p className="muted small">No confirmed tags yet. Start tagging to see stats.</p>;
 
@@ -110,6 +141,20 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
         {rows.map((r) => <option key={r.player.id} value={r.player.id}>#{r.player.number} {r.player.name}</option>)}
       </select>
       <ZoneCourt counts={counts} />
+
+      <h3 className="section-title">Court plot</h3>
+      <div className="chips">
+        {PLOT_MODES.map((m) => (
+          <button key={m.id} className={`chip ${plot === m.id ? 'on' : ''}`} onClick={() => setPlot(m.id)}>{m.label}</button>
+        ))}
+      </div>
+      <div className="plot-wrap">
+        <CourtHalf half={plotMode.half} points={plotPoints} showTarget={plotMode.id === 'receives'} />
+      </div>
+      <div className="legend">
+        {LEGEND[plot].map(([c, l]) => <span key={l}><i style={{ background: c }} />{l}</span>)}
+        <span className="muted">{plotPoints.length} with a court spot{heatPlayer === 'all' ? '' : ' (filtered)'}</span>
+      </div>
     </div>
   );
 }

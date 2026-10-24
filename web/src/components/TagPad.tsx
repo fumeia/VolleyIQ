@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { ACTIONS, ACTION_BY_CODE, GROUPS, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
+import { receiveGrade, zoneOf, type Pt } from '../lib/court';
+import { CourtHalf } from './CourtHalf';
 import { ZoneCourt } from './ZoneCourt';
 
 export interface TagSettings {
-  autoPause: boolean;   // pause the video while a tag is being entered
-  askZone: boolean;     // ask for a zone after attacks/serves
-  leadSeconds: number;  // shift the timestamp back (reaction time)
+  autoPause: boolean;                     // pause the video while a tag is being entered
+  location: 'points' | 'zones' | 'off';   // how to record where attacks/serves landed
+  receiveMode: 'court' | 'grade';         // tap where the pass landed, or grade 0-3 directly
+  leadSeconds: number;                    // shift the timestamp back (reaction time)
 }
+
+export const DEFAULT_TAG_SETTINGS: TagSettings = { autoPause: true, location: 'points', receiveMode: 'court', leadSeconds: 1 };
 
 interface Props {
   players: Player[];
@@ -28,8 +33,8 @@ interface Draft {
 }
 
 /**
- * Two-tap tagging for touch screens: tap the jersey, tap the action (and
- * optionally a zone). The video pauses on the first tap and resumes once the
+ * Two-tap tagging for touch screens: tap the jersey, tap the action, then tap
+ * where the ball went. The video pauses on the first tap and resumes once the
  * tag is stored, so no keyboard and no separate pause button is needed.
  */
 export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit }: Props) {
@@ -45,14 +50,19 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     setDraft({ player, t: t == null ? null : Math.max(0, t - settings.leadSeconds), resume: settings.autoPause && wasPlaying });
   }
 
-  function finish(d: Draft, zone: number | null) {
+  function finish(d: Draft, where: { zone?: number | null; point?: Pt | null } = {}) {
     if (!d.action) return;
+    const point = where.point ?? null;
+    let value = d.value ?? null;
+    if (d.action.code === 'receive' && point && value == null) value = receiveGrade(point);
     onCommit({
       player_id: d.player?.id ?? null,
       jersey: d.player?.number ?? null,
       action: d.action.code,
-      value: d.value ?? null,
-      zone,
+      value,
+      zone: point ? zoneOf(point) : where.zone ?? null,
+      x: point?.x ?? null,
+      y: point?.y ?? null,
       t: d.t,
     });
     setDraft(null);
@@ -62,8 +72,11 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
   function chooseAction(action: ActionDef, value?: number) {
     const d = draftRef.current ?? { player: null, t: getTime(), resume: false };
     const next = { ...d, action, value };
-    if (settings.askZone && action.zone) setDraft(next);
-    else finish(next, null);
+    const wantsLocation = action.code === 'receive'
+      ? settings.receiveMode === 'court' && value == null
+      : !!action.zone && settings.location !== 'off';
+    if (wantsLocation) setDraft(next);
+    else finish(next);
   }
 
   function teamAction(code: ActionCode) {
@@ -84,8 +97,9 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
       if (e.key === 'Escape') return cancel();
       if (draftRef.current.action) {
         const z = Number(e.key);
-        if (z >= 1 && z <= 6) finish(draftRef.current, z);
-        else if (e.key === 'Enter') finish(draftRef.current, null);
+        if (draftRef.current.action.code === 'receive' && z >= 0 && z <= 3) finish({ ...draftRef.current, value: z });
+        else if (z >= 1 && z <= 6) finish(draftRef.current, { zone: z });
+        else if (e.key === 'Enter') finish(draftRef.current);
         return;
       }
       if (/^[0-3]$/.test(e.key)) return chooseAction(ACTION_BY_CODE.receive, Number(e.key));
@@ -96,15 +110,35 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  if (draft?.action?.code === 'receive') {
+    return (
+      <div className="pad">
+        <div className="pad-head">
+          <span>{who(draft.player)} · <b>Receive</b> → where did the pass go?</span>
+          <button className="btn-ghost" onClick={cancel}>Cancel</button>
+        </div>
+        <div className="pad-grid pad-grid-4 receive-quick">
+          {[0, 1, 2, 3].map((v) => (
+            <button key={v} className={`act act-receive r${v}`} onClick={() => finish({ ...draft, value: v })}>{v}</button>
+          ))}
+        </div>
+        <span className="muted small">Tap the court (circle = perfect pass, grade is set from the distance) or just pick a grade above.</span>
+        <CourtHalf half="ours" showTarget onPick={(p) => finish(draft, { point: p })} label="Tap where the pass landed" />
+      </div>
+    );
+  }
+
   if (draft?.action) {
     return (
       <div className="pad">
         <div className="pad-head">
-          <span>{who(draft.player)} · <b>{draft.action.label}</b> → zone?</span>
+          <span>{who(draft.player)} · <b>{draft.action.label}</b> → where?</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
-        <ZoneCourt onPick={(z) => finish(draft, z)} />
-        <button className="btn wide" onClick={() => finish(draft, null)}>No zone</button>
+        {settings.location === 'points'
+          ? <CourtHalf half="theirs" onPick={(p) => finish(draft, { point: p })} label="Tap where the ball landed" />
+          : <ZoneCourt onPick={(z) => finish(draft, { zone: z })} />}
+        <button className="btn wide" onClick={() => finish(draft)}>No location</button>
       </div>
     );
   }
@@ -118,13 +152,17 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
         </div>
         <div className="pad-receive">
           <span className="pad-group-label g-receive">Receive</span>
-          <div className="pad-grid pad-grid-4">
-            {[0, 1, 2, 3].map((v) => (
-              <button key={v} className={`act act-receive r${v}`} onClick={() => chooseAction(ACTION_BY_CODE.receive, v)}>
-                {v}
-              </button>
-            ))}
-          </div>
+          {settings.receiveMode === 'court' ? (
+            <button className="act act-receive wide" onClick={() => chooseAction(ACTION_BY_CODE.receive)}>Receive → tap on court</button>
+          ) : (
+            <div className="pad-grid pad-grid-4">
+              {[0, 1, 2, 3].map((v) => (
+                <button key={v} className={`act act-receive r${v}`} onClick={() => chooseAction(ACTION_BY_CODE.receive, v)}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {GROUPS.map((g) => (
           <div key={g.id} className="pad-group">

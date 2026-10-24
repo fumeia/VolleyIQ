@@ -15,14 +15,14 @@ export interface ActionDef {
   short: string;
   group: Group;
   key?: string;           // desktop hotkey, same layout as VolleyTag
-  zone?: boolean;         // ask for a court zone after tagging
+  zone?: boolean;         // ask where the ball landed (opponent court)
   needsPlayer?: boolean;  // false for team-level actions
   score?: 'us' | 'them';  // effect on the scoreboard
 }
 
 export const ACTIONS: ActionDef[] = [
   { code: 'attack_error', label: 'Attack Error', short: 'Att Err', group: 'errors', key: 'q', zone: true, score: 'them' },
-  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', score: 'them' },
+  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', zone: true, score: 'them' },
   { code: 'dig_error', label: 'Dig Error', short: 'Dig Err', group: 'errors', key: 'e', score: 'them' },
   { code: 'block_error', label: 'Block Error', short: 'Blk Err', group: 'errors', key: 'r', score: 'them' },
   { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', zone: true },

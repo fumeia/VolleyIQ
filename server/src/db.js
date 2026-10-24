@@ -69,6 +69,11 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+  // v2: exact landing point on the court, in meters (see web/src/lib/court.ts)
+  `
+  ALTER TABLE events ADD COLUMN x REAL;
+  ALTER TABLE events ADD COLUMN y REAL;
+  `,
 ];
 
 function migrate(db) {
