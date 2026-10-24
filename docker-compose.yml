@@ -1,0 +1,18 @@
+# Only the small API + web app runs on the server (~80 MB RAM, a few MB of data).
+# Videos and auto-detection stay on the phone. Put it behind your existing
+# reverse proxy (see README), so no ports 80/443 are taken here.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      COOKIE_SECURE: "true"
+      # Inside the container the app always listens on 3000; PORT in .env only picks the host port.
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${PORT:-3080}:3000"
+    volumes:
+      - ./data:/data
+    mem_limit: 192m
+    cpus: 0.5

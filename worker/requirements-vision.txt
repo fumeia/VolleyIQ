@@ -1,0 +1,7 @@
+# Optional: jersey-number reading. Adds ~2 GB (PyTorch CPU) to the image.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+ultralytics>=8.3
+easyocr>=1.7
+opencv-python-headless>=4.9

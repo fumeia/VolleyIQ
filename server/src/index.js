@@ -1,0 +1,53 @@
+import Fastify from 'fastify';
+import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { openDb } from './db.js';
+import { registerAuth, registerCors } from './auth.js';
+import { registerRoutes } from './routes.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+// The server only stores tags and serves the web app. Videos stay on the phone
+// (or on YouTube) and analysis runs in the Android app, so this stays tiny.
+export async function buildApp(env = process.env) {
+  const dataDir = path.resolve(env.DATA_DIR ?? path.join(here, '../../data'));
+  const webDist = path.resolve(env.WEB_DIST ?? path.join(here, '../../web/dist'));
+
+  const db = openDb(dataDir);
+  const app = Fastify({ logger: env.NODE_ENV !== 'test', bodyLimit: 5 * 1024 * 1024, trustProxy: true });
+
+  await app.register(cookie);
+  registerCors(app, (env.CORS_ORIGINS ?? 'https://localhost,http://localhost,capacitor://localhost').split(',').map((s) => s.trim()));
+  registerAuth(app, {
+    password: env.APP_PASSWORD || null,
+    secret: env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+    secure: env.COOKIE_SECURE === 'true',
+  });
+
+  const hasWeb = fs.existsSync(path.join(webDist, 'index.html'));
+  if (hasWeb) await app.register(fastifyStatic, { root: webDist, wildcard: false });
+
+  registerRoutes(app, { db });
+
+  app.get('/api/health', async () => ({ ok: true }));
+
+  // SPA fallback: unknown non-API paths render the app shell.
+  app.setNotFoundHandler((req, reply) => {
+    if (hasWeb && req.method === 'GET' && !req.url.startsWith('/api/')) {
+      return reply.sendFile('index.html', webDist);
+    }
+    reply.code(404).send({ error: 'Not found' });
+  });
+
+  app.addHook('onClose', () => db.close());
+  return app;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const app = await buildApp();
+  await app.listen({ port: Number(process.env.PORT ?? 3000), host: process.env.HOST ?? '0.0.0.0' });
+}
