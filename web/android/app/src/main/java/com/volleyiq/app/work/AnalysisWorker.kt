@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.volleyiq.app.analysis.CheckpointStore
+import com.volleyiq.app.analysis.CourtSides
 import com.volleyiq.app.analysis.Detection
 import com.volleyiq.app.analysis.Homography
 import com.volleyiq.app.analysis.P
@@ -44,11 +45,14 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val ourHalf = inputData.getString(KEY_OUR_HALF)
         // Calibration: flat [u, v, x, y] per tapped landmark (image position -> court meters).
         val calibration = inputData.getDoubleArray(KEY_POINTS)?.takeIf { it.size >= 16 && it.size % 4 == 0 }
-        val homography = calibration?.let { a ->
+        val single = calibration?.let { a ->
             val n = a.size / 4
             Homography.fromPoints((0 until n).map { P(a[4 * it], a[4 * it + 1]) }, (0 until n).map { P(a[4 * it + 2], a[4 * it + 3]) })
         } ?: inputData.getDoubleArray(LEGACY_CORNERS)?.takeIf { it.size == 8 } // jobs queued by older app versions
             ?.let { c -> Homography.fromCorners((0 until 4).map { P(c[2 * it], c[2 * it + 1]) }) }
+        // Per set (teams switch sides): one court marking and side per stretch of the video.
+        val segmentsJson = inputData.getString(KEY_SEGMENTS)
+        val sides = CourtSides.parse(segmentsJson) ?: CourtSides.single(single, ourHalf)
 
         // Saved progress for this video: survives app updates, reboots and Android stopping the job.
         val cacheRoot = File(applicationContext.filesDir, "analysis-checkpoints")
@@ -79,9 +83,9 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val added = touches.count { it.kind != Rallies.HEARD }
             report(0.6, "${rallies.size} rallies, ${touches.size} touches ($added filled in)")
 
-            if ((readJerseys || homography != null) && touches.isNotEmpty()) {
+            if ((readJerseys || sides.hasCourt) && touches.isNotEmpty()) {
                 // Results depend on these settings; a different variant starts its own checkpoint.
-                val variant = "v2|jerseys=$readJerseys|roster=${roster.sorted()}|cal=${(calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
+                val variant = "v2|jerseys=$readJerseys|roster=${roster.sorted()}|cal=${segmentsJson ?: (calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
                 val done = checkpoints.loadVision(variant)
                 val resumed = touches.count { CheckpointStore.touchKey(it.t) in done }
                 // Every frame still needed, in video order; touches already in the checkpoint are skipped.
@@ -97,14 +101,14 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
                 }
                 if (requests.isNotEmpty()) {
-                    TouchVision(applicationContext, readJerseys, homography).use { vision ->
+                    TouchVision(applicationContext, readJerseys).use { vision ->
                         try {
                             FrameSampler.sample(
                                 applicationContext, uri, LongArray(requests.size) { requests[it].second }, 1920,
                                 onFrame = { targets, frame ->
                                     for (k in targets) {
                                         val ti = requests[k].first
-                                        vision.look(frame, roster, evidence.getOrPut(ti) { TouchVision.Evidence() })
+                                        vision.look(frame, roster, evidence.getOrPut(ti) { TouchVision.Evidence() }, sides.homography(touches[ti].t))
                                         val left = framesLeft.getValue(ti) - 1
                                         framesLeft[ti] = left
                                         if (left == 0) finish(ti, vision)
@@ -135,9 +139,9 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
             // Labels come last: filled-in touches and dropped bounces change which touch is the serve, set, …
             rallies.forEach(Rallies::label)
-            if (readJerseys || homography != null) rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
+            if (readJerseys || sides.hasCourt) rallies.forEach { Rallies.assignTeams(it, roster, sides.ourHalf(it.touches[0].t)) }
 
-            val events = Rallies.toEvents(rallies, ourHalf).map { e ->
+            val events = Rallies.toEvents(rallies, sides::ourHalf, sides::setNo).map { e ->
                 // Numbers not on our roster are opponents or misreads; keep the touch, drop the number.
                 val jersey = e["jersey"] as Int?
                 if (jersey != null && roster.isNotEmpty() && jersey !in roster) e + ("jersey" to null) else e
@@ -190,6 +194,8 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_SENSITIVITY = "sensitivity"
         const val KEY_OUR_HALF = "ourHalf"
         const val KEY_POINTS = "calibrationPoints"
+        /** JSON [{from, ourHalf, points}] per stretch of the video; newer than KEY_POINTS/KEY_OUR_HALF, which stay for set 1. */
+        const val KEY_SEGMENTS = "calibrationSegments"
         private const val LEGACY_CORNERS = "corners"
         const val KEY_PROGRESS = "progress"
         const val KEY_MESSAGE = "message"

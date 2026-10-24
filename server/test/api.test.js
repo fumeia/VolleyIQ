@@ -41,6 +41,10 @@ test('team, roster, match, events and jersey resolution', async () => {
   assert.equal(saved.points.length, 4);
   assert.equal(saved.points[0].extra, undefined);
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { points: landmarks.points.slice(0, 3), ourHalf: 'near' } } })).statusCode, 400);
+  // One side switch per set, the second with a new court marking.
+  const sets = { points: saved.points, ourHalf: 'far', switches: [{ t: 610.5, ourHalf: 'far' }, { t: 1300, ourHalf: 'near', points: saved.points }] };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: sets } })).json().calibration, sets);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { ...landmarks, switches: [{ t: -1, ourHalf: 'far' }] } } })).statusCode, 400);
   await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } });
 
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();

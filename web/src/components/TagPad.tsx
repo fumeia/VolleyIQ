@@ -7,7 +7,7 @@ import { ZoneCourt } from './ZoneCourt';
 
 export interface TagSettings {
   autoPause: boolean;                     // pause the video while a tag is being entered
-  location: 'points' | 'zones' | 'off';   // how to record where attacks/serves landed
+  location: 'points' | 'zones' | 'off';   // how to record court spots (attacks, serves, digs, blocks)
   receiveMode: 'court' | 'grade';         // tap where the pass landed, or grade 0-3 directly
   leadSeconds: number;                    // shift the timestamp back (reaction time)
 }
@@ -74,7 +74,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     const next = { ...d, action, value };
     const wantsLocation = action.code === 'receive'
       ? settings.receiveMode === 'court' && value == null
-      : !!action.zone && settings.location !== 'off';
+      : !!action.spot && settings.location !== 'off';
     if (wantsLocation) setDraft(next);
     else finish(next);
   }
@@ -132,11 +132,11 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     return (
       <div className="pad">
         <div className="pad-head">
-          <span>{who(draft.player)} · <b>{draft.action.label}</b> → where?</span>
+          <span>{who(draft.player)} · <b>{draft.action.label}</b> → {draft.action.spotPrompt?.toLowerCase() ?? 'where?'}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
         {settings.location === 'points'
-          ? <CourtHalf half="theirs" onPick={(p) => finish(draft, { point: p })} label="Tap where the ball landed" />
+          ? <CourtHalf half={draft.action.spot ?? 'theirs'} onPick={(p) => finish(draft, { point: p })} label={draft.action.spotPrompt} />
           : <ZoneCourt onPick={(z) => finish(draft, { zone: z })} />}
         <button className="btn wide" onClick={() => finish(draft)}>No location</button>
       </div>

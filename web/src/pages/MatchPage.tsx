@@ -5,7 +5,7 @@ import { EventList } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { StatsView } from '../components/StatsView';
 import { MatchReportView } from '../report/ReportViews';
-import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
+import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
 import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
@@ -16,6 +16,7 @@ import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
+import type { Calibration } from '../lib/calibration';
 
 type Tab = 'tag' | 'events' | 'review' | 'stats' | 'report' | 'ai';
 
@@ -56,6 +57,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   // A video file on this device (phone gallery, imported link, or a browser file).
   const [local, setLocal] = useState<LocalVideo | null>(() => (isApp() ? localVideo(initial.match.id) : null));
   const [calibrating, setCalibrating] = useState(false);
+  // Marking the court from this video time on (a later set, camera moved); null = the first marking.
+  const [calibFrom, setCalibFrom] = useState<number | null>(null);
   const calib = useCalibration(initial.match.calibration);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
@@ -170,11 +173,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 {calibrating ? (
                   <CalibrationPanel
                     session={calib}
+                    from={calibFrom}
                     onCancel={() => setCalibrating(false)}
                     onSave={async (c) => {
-                      setMatch(await api.updateMatch(match.id, { calibration: c }));
+                      const cur = match.calibration;
+                      const next: Calibration = calibFrom == null || !cur
+                        ? { ...cur, ...c, corners: undefined }
+                        : { ...cur, switches: [...(cur.switches ?? []).filter((s) => Math.abs(s.t - calibFrom) > 1), { t: calibFrom, ...c }] };
+                      setMatch(await api.updateMatch(match.id, { calibration: next }));
                       setCalibrating(false);
-                      flash('Court calibrated');
+                      flash(calibFrom == null ? 'Court calibrated' : `Court re-marked from ${fmtTime(calibFrom)}`);
                     }}
                   />
                 ) : (
@@ -278,9 +286,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 match={match}
                 players={players}
                 video={isApp() ? local : null}
-                onCalibrate={() => {
+                getTime={getTime}
+                onCalibration={async (c) => setMatch(await api.updateMatch(match.id, { calibration: c }))}
+                onCalibrate={(from) => {
                   if (!source) return flash('Load the video first');
                   player.current?.pause();
+                  const cur = match.calibration;
+                  // Start from the marking in use at that time: after a small camera move most points are still close.
+                  const prev = from == null ? cur?.points
+                    : [...(cur?.switches ?? [])].filter((s) => s.t <= from && s.points).sort((a, b) => b.t - a.t)[0]?.points ?? cur?.points;
+                  calib.load(prev ?? []);
+                  setCalibFrom(from);
                   setCalibrating(true);
                   window.scrollTo({ top: 0 });
                 }}
@@ -314,7 +330,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><b>Tagging settings</b><button className="btn-ghost" onClick={() => setShowSettings(false)}>✕</button></div>
             <label className="toggle"><input type="checkbox" checked={settings.autoPause} onChange={(e) => setSettings({ ...settings, autoPause: e.target.checked })} /> Pause video while tagging, resume afterwards</label>
-            <label className="field-label">Where attacks and serves landed</label>
+            <label className="field-label">Court spot (attacks, serves, digs, blocks)</label>
             <div className="segmented">
               {(['points', 'zones', 'off'] as const).map((m) => (
                 <button key={m} className={settings.location === m ? 'on' : ''} onClick={() => setSettings({ ...settings, location: m })}>
@@ -333,6 +349,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <button className="btn wide" onClick={() => {
                 player.current?.pause();
                 setShowSettings(false);
+                calib.load(match.calibration?.points ?? []);
+                setCalibFrom(null);
                 setCalibrating(true);
               }}>
                 {match.calibration ? 'Recalibrate court' : 'Calibrate court (tap 4+ court points)'}

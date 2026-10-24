@@ -1,8 +1,10 @@
 import { ACTION_BY_CODE, type ActionCode } from './actions';
 import type { Player, VEvent } from './api';
+import { zoneOf } from './court';
 
 export interface StatLine {
-  kills: number; attackErrors: number; attempts: number; killPct: number | null; attackEff: number | null;
+  /** attackErrors includes the blocked attacks; blocked is that part on its own. */
+  kills: number; attackErrors: number; blocked: number; attempts: number; killPct: number | null; attackEff: number | null;
   aces: number; serveErrors: number; serves: number; acePct: number | null; serveInPct: number | null;
   receptions: number; recAvg: number | null; recPerfectPct: number | null; recErrors: number;
   digs: number; digErrors: number;
@@ -27,7 +29,7 @@ export function statLine(events: Ev[]): StatLine {
     }
   }
   const n = (k: ActionCode) => c[k] ?? 0;
-  const kills = n('kill'), attackErrors = n('attack_error');
+  const kills = n('kill'), blocked = n('attack_blocked'), attackErrors = n('attack_error') + blocked;
   const attempts = kills + attackErrors + n('attack');
   const aces = n('ace'), serveErrors = n('serve_error');
   const serves = aces + serveErrors + n('serve');
@@ -36,7 +38,7 @@ export function statLine(events: Ev[]): StatLine {
   const points = kills + aces + blockPoints;
   const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + assistErrors + recErr;
   return {
-    kills, attackErrors, attempts,
+    kills, attackErrors, blocked, attempts,
     killPct: ratio(kills, attempts), attackEff: ratio(kills - attackErrors, attempts),
     aces, serveErrors, serves, acePct: ratio(aces, serves), serveInPct: ratio(serves - serveErrors, serves),
     receptions: recN, recAvg: ratio(recSum, recN), recPerfectPct: ratio(recPerfect, recN), recErrors: recErr,
@@ -74,7 +76,11 @@ export function roleStats(players: Player[], events: VEvent[]) {
 
 export function zoneCounts(events: VEvent[], actions: ActionCode[]) {
   const counts = [0, 0, 0, 0, 0, 0, 0]; // index 1..6
-  for (const e of events) if (e.zone && actions.includes(e.action)) counts[e.zone]++;
+  for (const e of events) {
+    if (!actions.includes(e.action)) continue;
+    const z = e.zone ?? (e.x != null && e.y != null ? zoneOf({ x: e.x, y: e.y }) : null);
+    if (z) counts[z]++;
+  }
   return counts;
 }
 

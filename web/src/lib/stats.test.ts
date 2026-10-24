@@ -35,3 +35,14 @@ describe('scoreBySet / zoneCounts', () => {
     expect(z[2]).toBe(0);
   });
 });
+
+describe('blocks and court spots', () => {
+  it('counts a blocked attack as an attack error and zones from tapped points', () => {
+    const s = statLine([ev('kill'), ev('attack_blocked'), ev('attack')]);
+    expect(s).toMatchObject({ attempts: 3, attackErrors: 1, blocked: 1, errors: 1 });
+    expect(s.attackEff).toBeCloseTo(0);
+    const z = zoneCounts([ev('block_point', { x: 1, y: 8 }), ev('dig', { x: 4.5, y: 1 })], ['block_point', 'dig']);
+    expect(z[4]).toBe(1);
+    expect(z[6]).toBe(1);
+  });
+});

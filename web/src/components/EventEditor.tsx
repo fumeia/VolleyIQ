@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ACTIONS, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, ACTIONS, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
-import { receiveGrade, zoneOf } from '../lib/court';
+import { spotFields } from '../lib/court';
 import { CourtHalf } from './CourtHalf';
 import { ZoneCourt } from './ZoneCourt';
 
@@ -74,10 +74,10 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         </label>
         <div className="editor-court">
           <CourtHalf
-            half={d.action === 'receive' || d.action === 'dig' ? 'ours' : 'theirs'}
+            half={ACTION_BY_CODE[d.action!]?.spot ?? 'theirs'}
             showTarget={d.action === 'receive'}
             marker={point}
-            onPick={(p) => set({ x: p.x, y: p.y, zone: zoneOf(p), ...(d.action === 'receive' ? { value: receiveGrade(p) } : {}) })}
+            onPick={(p) => set(spotFields(d.action!, p))}
           />
         </div>
         {!point && <ZoneCourt compact selected={d.zone} onPick={(z) => set({ zone: d.zone === z ? null : z })} />}

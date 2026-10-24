@@ -11,7 +11,8 @@ const footerFor = (rep: { title: string }) => `${rep.title} · made with VolleyI
 
 function outcomeOf(e: VEvent): Outcome {
   if (e.action === 'kill' || e.action === 'ace') return 'point';
-  if (e.action === 'attack_error' || e.action === 'serve_error') return 'error';
+  if (e.action === 'block_point') return 'point';
+  if (['attack_error', 'serve_error', 'attack_blocked', 'block_error', 'dig_error'].includes(e.action)) return 'error';
   return 'play';
 }
 
@@ -167,6 +168,26 @@ export function ServeCard({ rep, players }: { rep: MatchReport; players: Player[
       <OutcomeLegend x={72} y={300} labels={['Ace', 'In play', 'Error']} />
       <CourtSvg x={(W - 13 * 46) / 2} y={325} scale={46} half="theirs" dots={dots} />
       <ServerTable y={940} rows={servers} />
+    </Card>
+  );
+}
+
+/** Blocks and digs: where along the net we block and get blocked, and where we dig. */
+export function NetDefenceCard({ rep, players }: { rep: MatchReport; players: Player[] }) {
+  const blocks = dotsFor(rep.confirmed, ['block_point', 'block_touch', 'block_error'], players);
+  const blocked = dotsFor(rep.confirmed, ['attack_blocked'], players);
+  const digs = dotsFor(rep.confirmed, ['dig', 'dig_error'], players);
+  const t = rep.team;
+  const s = 34;
+  return (
+    <Card kind="Net & defence" title={rep.title} subtitle={`${t.blockPoints} block points · ${t.blockTouches} touches · ${t.blocked} times blocked · ${t.digs} digs`} footer={footerFor(rep)}>
+      <OutcomeLegend x={72} y={300} labels={['Point', 'In play', 'Error']} />
+      <Heading x={72} y={370}>{`Our blocks · ${blocks.length}`}</Heading>
+      <CourtSvg x={72} y={385} scale={s} half="ours" dots={blocks} zoneLabels />
+      <Heading x={W - 72 - 13 * s} y={370}>{`We got blocked · ${blocked.length}`}</Heading>
+      <CourtSvg x={W - 72 - 13 * s} y={385} scale={s} half="ours" dots={blocked} zoneLabels />
+      <Heading x={72} y={880}>{`Digs · ${t.digs} · errors ${t.digErrors}`}</Heading>
+      <CourtSvg x={(W - 13 * 28) / 2} y={895} scale={28} half="ours" dots={digs} zoneLabels />
     </Card>
   );
 }

@@ -25,7 +25,7 @@ import kotlin.math.min
  * is calibrated, and reads their jersey number (on-device OCR). Frames are
  * handed in by [FrameSampler]; evidence per touch is gathered in an [Evidence].
  */
-class TouchVision(context: Context, private val readJerseys: Boolean, private val homography: Homography?) : Closeable {
+class TouchVision(context: Context, private val readJerseys: Boolean) : Closeable {
 
     data class Result(val jersey: Int?, val jerseyConf: Double, val pos: P?, val ball: Double?)
 
@@ -50,7 +50,8 @@ class TouchVision(context: Context, private val readJerseys: Boolean, private va
     )
     private val ocr: TextRecognizer? = if (readJerseys) TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) else null
 
-    fun look(frame: Bitmap, roster: Set<Int>, ev: Evidence) {
+    /** [homography]: the court marking for this moment of the video (it can change per set), or null. */
+    fun look(frame: Bitmap, roster: Set<Int>, ev: Evidence, homography: Homography?) {
         ev.frames++
         val dets = detector.detect(BitmapImageBuilder(frame).build()).detections()
         val people = dets.filter { it.categories().firstOrNull()?.categoryName() == "person" }.map { it.boundingBox() }

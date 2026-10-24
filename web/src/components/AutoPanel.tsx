@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, serverBase, type Match, type Player } from '../lib/api';
-import { flatPoints } from '../lib/calibration';
+import { flatPoints, segments, type Calibration } from '../lib/calibration';
+import { SidesPanel } from './Calibration';
 import { isApp, Native, type LocalVideo, type WorkState } from '../lib/native';
 
 interface Props {
   match: Match;
   players: Player[];
   video: LocalVideo | null;
-  onCalibrate: () => void;
+  /** Open the court marking; from = video time for a re-marking later in the match. */
+  onCalibrate: (from: number | null) => void;
+  onCalibration: (c: Calibration) => void;
+  getTime: () => number | null;
   onDone: () => void;
 }
 
@@ -16,7 +20,7 @@ interface Props {
  * (picture), rallies, and optionally jersey numbers and court sides. Results
  * land in Review. Runs as a background job with a notification.
  */
-export function AutoPanel({ match, players, video, onCalibrate, onDone }: Props) {
+export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone }: Props) {
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
@@ -76,6 +80,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onDone }: Props)
         sensitivity,
         ourHalf: cal?.ourHalf ?? null,
         points: cal ? flatPoints(cal) : null,
+        segments: cal ? segments(cal) : null,
       });
       setStatus({ analysis: { id: '', state: 'enqueued', progress: 0, message: 'Starting…' }, upload: null });
     } catch (e) {
@@ -106,10 +111,14 @@ export function AutoPanel({ match, players, video, onCalibrate, onDone }: Props)
       <input type="range" min={0.6} max={1.8} step={0.1} value={sensitivity} onChange={(e) => setSensitivity(Number(e.target.value))} />
 
       <div className="row wrap calib-status">
-        {match.calibration
-          ? <span className="small">Court calibrated ✓ · we play {match.calibration.ourHalf === 'near' ? 'near the camera' : 'on the far side'}</span>
-          : <span className="small muted">Optional: calibrate the court so the phone can tell our touches from theirs.</span>}
-        <button className="btn-ghost small" onClick={onCalibrate}>{match.calibration ? 'Recalibrate' : 'Calibrate court'}</button>
+        {match.calibration ? (
+          <SidesPanel calibration={match.calibration} getTime={getTime} onChange={onCalibration} onMark={onCalibrate} />
+        ) : (
+          <>
+            <span className="small muted">Optional: calibrate the court so the phone can tell our touches from theirs.</span>
+            <button className="btn-ghost small" onClick={() => onCalibrate(null)}>Calibrate court</button>
+          </>
+        )}
       </div>
 
       <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>

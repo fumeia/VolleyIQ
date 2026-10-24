@@ -3,7 +3,7 @@ import type { Match, Player, VEvent } from '../lib/api';
 import { playerStats } from '../lib/stats';
 import { matchReport, seasonTrend } from './analytics';
 import {
-  AttackCard, BoxScoreCard, FlowCard, LeaderboardCard, PlayerCard, PointsCard, ReceptionCard, ServeCard, SeasonSummaryCard, SummaryCard, TrendsCard,
+  AttackCard, BoxScoreCard, FlowCard, LeaderboardCard, NetDefenceCard, PlayerCard, PointsCard, ReceptionCard, ServeCard, SeasonSummaryCard, SummaryCard, TrendsCard,
 } from './Cards';
 import { downloadBlob, safeFile, shareImages, svgToPng } from './exportImage';
 import { fmtAvg, fmtEff, fmtPct } from './ui';
@@ -76,6 +76,8 @@ export function MatchReportView({ match, players, events, actions }: { match: Ma
     { id: 'attack', label: 'Attack map', node: <AttackCard rep={rep} players={players} /> },
     { id: 'serve', label: 'Serve map', node: <ServeCard rep={rep} players={players} /> },
     { id: 'reception', label: 'Reception', node: <ReceptionCard rep={rep} players={players} /> },
+    ...(rep.confirmed.some((e) => ['block_point', 'block_touch', 'block_error', 'attack_blocked', 'dig', 'dig_error'].includes(e.action) && e.x != null)
+      ? [{ id: 'net-defence', label: 'Blocks & digs', node: <NetDefenceCard rep={rep} players={players} /> }] : []),
     { id: 'box-score', label: 'Box score', node: <BoxScoreCard rep={rep} /> },
     ...rep.rows.filter((r) => r.count >= 3).map((r) => ({
       id: `player-${r.player.number ?? r.player.id}`,

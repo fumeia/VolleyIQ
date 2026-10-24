@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, actionLabel, type ActionCode } from '../lib/actions';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ACTION_BY_CODE, actionLabel, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
+import { spotFields } from '../lib/court';
+import { rallyInfo, sideToDrop } from '../lib/rallies';
+import { CourtHalf } from './CourtHalf';
 import type { PlayerHandle } from './VideoPlayer';
 import { playerLabel } from './EventList';
 import { fmtTime } from './TagPad';
@@ -19,18 +22,26 @@ interface Props {
 
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
-const QUICK_ACTIONS: ActionCode[] = ['serve', 'receive', 'set', 'attack', 'kill', 'dig', 'block_touch', 'block_point', 'ace'];
+const QUICK_ACTIONS: ActionCode[] = [
+  'serve', 'ace', 'serve_error', 'receive', 'set', 'attack', 'kill', 'attack_error', 'attack_blocked',
+  'dig', 'block_touch', 'block_point',
+];
+
+type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'>;
 
 /**
  * Second pass over auto-detected events: each suggestion plays a short clip
- * around its timestamp; one tap on a jersey fixes the player and confirms.
+ * around its timestamp. Pick (or keep) the player and the action, then tap the
+ * court where the ball went; only that saves the touch.
  */
 export function ReviewPanel({ events, players, player, update, remove, removeMany, confirmAll, onEdit, onExit }: Props) {
   const [idx, setIdx] = useState(0);
   const [loop, setLoop] = useState(true);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const ev = events[Math.min(idx, events.length - 1)];
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  const info = useMemo(() => rallyInfo(events), [events]);
 
   function playClip(e: VEvent | undefined) {
     clearTimeout(timer.current);
@@ -42,6 +53,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
 
   useEffect(() => {
     playClip(ev);
+    setDraft(null);
     return () => clearTimeout(timer.current);
   }, [ev?.id]);
 
@@ -54,17 +66,18 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
     );
   }
 
-  // After confirming/deleting, the list shrinks so the same index shows the next event.
-  const confirm = (patch: Partial<VEvent> = {}) => update(ev, { ...patch, status: 'confirmed' });
+  // Changes stay in the draft until the touch is saved (court tap or a save button).
+  const d: Draft = draft ?? { player_id: ev.player_id, jersey: ev.jersey, action: ev.action, value: ev.value };
+  const def = ACTION_BY_CODE[d.action];
+  const point = ev.x != null && ev.y != null ? { x: ev.x, y: ev.y } : null;
+  // After saving/deleting, the list shrinks so the same index shows the next event.
+  const save = (patch: Partial<VEvent> = {}) => update(ev, { ...d, ...patch, status: 'confirmed' });
 
   // Possessions alternate within a rally, so knowing whose touch this is settles every touch of the rally.
-  const rally = ev.rally != null && ev.poss != null ? events.filter((e) => e.rally === ev.rally && e.poss != null) : [];
-  function decideSide(ours: boolean) {
-    const theirs = rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours);
-    removeMany(theirs);
-  }
+  const dropIfOurs = sideToDrop(events, info, ev, true);
+  const dropIfTheirs = sideToDrop(events, info, ev, false);
+  const rallyNo = info.get(ev.id)?.rally;
   const filled = events.filter((e) => e.hint);
-  const opponentCount = (ours: boolean) => rally.filter((e) => (e.poss! % 2 === ev.poss! % 2) !== ours).length;
 
   return (
     <div className="pad review">
@@ -75,8 +88,8 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
 
       <div className="review-card">
         <div className="review-what">
-          <span className="review-player">{playerLabel(players, ev)}</span>
-          <span className="review-action">{actionLabel(ev)}</span>
+          <span className="review-player">{playerLabel(players, { ...ev, ...d })}</span>
+          <span className="review-action">{actionLabel(d)}</span>
           {ev.confidence != null && <span className="badge">AI {Math.round(ev.confidence * 100)}%</span>}
         </div>
         {ev.hint && (
@@ -94,42 +107,68 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
         </div>
       </div>
 
-      {opponentCount(true) > 0 && opponentCount(false) > 0 && (
+      {rallyNo != null && (
         <div className="side-row">
-          <span className="small muted">Rally {ev.rally}: whose touch is this?</span>
-          <button className="btn" onClick={() => decideSide(true)}>Ours <small>(drops {opponentCount(true)})</small></button>
-          <button className="btn" onClick={() => decideSide(false)}>Theirs <small>(drops {opponentCount(false)})</small></button>
+          <span className="small muted">Rally {rallyNo.replace('~', '')}: whose touch is this? Settles the whole rally.</span>
+          <button className="btn" disabled={!dropIfOurs.length} onClick={() => removeMany(dropIfOurs)}>
+            Ours <small>(removes {dropIfOurs.length} of theirs)</small>
+          </button>
+          <button className="btn" onClick={() => removeMany(dropIfTheirs)}>
+            Theirs <small>(removes {dropIfTheirs.length})</small>
+          </button>
         </div>
       )}
 
-      <span className="pad-group-label">Who touched it? (tap = fix + confirm)</span>
+      <span className="pad-group-label">1 · Who touched it?</span>
       <div className="pad-grid pad-players small-jerseys">
         {roster.map((p) => (
-          <button key={p.id} className={`jersey role-${p.role} ${ev.player_id === p.id ? 'is-selected' : ''}`}
-            onClick={() => confirm({ player_id: p.id, jersey: p.number })}>
+          <button key={p.id} className={`jersey role-${p.role} ${d.player_id === p.id ? 'is-selected' : ''}`}
+            onClick={() => setDraft({ ...d, player_id: p.id, jersey: p.number })}>
             <span className="jersey-num">{p.number ?? '–'}</span>
             <span className="jersey-name">{p.name.split(' ')[0]}</span>
           </button>
         ))}
       </div>
 
-      <span className="pad-group-label">Action</span>
+      <span className="pad-group-label">2 · What was it?</span>
       <div className="chips">
         {QUICK_ACTIONS.map((code) => (
-          <button key={code} className={`chip ${ev.action === code ? 'on' : ''}`}
-            onClick={() => update(ev, { action: code, value: code === 'receive' ? ev.value ?? 2 : null })}>
-            {ACTIONS.find((a) => a.code === code)!.short}
+          <button key={code} className={`chip chip-${ACTION_BY_CODE[code].group} ${d.action === code ? 'on' : ''}`}
+            onClick={() => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null })}>
+            {ACTION_BY_CODE[code].short}
           </button>
         ))}
         <button className="chip" onClick={() => onEdit(ev)}>More…</button>
       </div>
 
-      <div className="review-actions">
-        <button className="btn btn-danger" onClick={() => remove(ev)}>✕ Not a touch</button>
-        <button className="btn btn-primary" onClick={() => confirm()}>✓ Confirm</button>
-      </div>
-      <button className="btn-ghost small" onClick={() => { if (confirm_(`Confirm all ${events.length} remaining suggestions?`)) confirmAll(); }}>
-        Confirm all remaining
+      {def?.spot ? (
+        <>
+          <span className="pad-group-label">3 · {def.spotPrompt} <small className="muted">(tap = save)</small></span>
+          {d.action === 'receive' && (
+            <div className="pad-grid pad-grid-4 receive-quick">
+              {[0, 1, 2, 3].map((v) => (
+                <button key={v} className={`act act-receive r${v}`} onClick={() => save({ value: v })}>{v}</button>
+              ))}
+            </div>
+          )}
+          <div className="review-court">
+            <CourtHalf half={def.spot} showTarget={d.action === 'receive'} marker={point} label={def.spotPrompt}
+              onPick={(p) => save(spotFields(d.action, p))} />
+          </div>
+          <div className="review-actions">
+            <button className="btn btn-danger" onClick={() => remove(ev)}>✕ Not a touch</button>
+            <button className="btn" onClick={() => save()}>{point ? '✓ Save with marked spot' : '✓ Save without spot'}</button>
+          </div>
+        </>
+      ) : (
+        <div className="review-actions">
+          <button className="btn btn-danger" onClick={() => remove(ev)}>✕ Not a touch</button>
+          <button className="btn btn-primary" onClick={() => save()}>✓ Save</button>
+        </div>
+      )}
+
+      <button className="btn-ghost small" onClick={() => { if (confirm_(`Save all ${events.length} remaining suggestions as they are?`)) confirmAll(); }}>
+        Save all remaining as they are
       </button>
       <div className="bulk-row">
         <span className="small muted">Clear out noise: remove heard sounds with AI confidence below</span>

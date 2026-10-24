@@ -183,15 +183,26 @@ export function registerRoutes(app, { db }) {
       const inImage = (v) => Number.isFinite(v) && v >= -0.5 && v <= 1.5;
       const onCourt = (v) => Number.isFinite(v) && v >= -5 && v <= 23;
       // New format: 4-10 tapped landmarks {id, u, v, x, y}; legacy: 4 corners [u, v].
-      const points = Array.isArray(c?.points) && c.points.length >= 4 && c.points.length <= 10
-        && c.points.every((p) => typeof p?.id === 'string' && p.id.length <= 16 && inImage(p.u) && inImage(p.v) && onCourt(p.x) && onCourt(p.y));
+      const validPoints = (pts) => Array.isArray(pts) && pts.length >= 4 && pts.length <= 10
+        && pts.every((p) => typeof p?.id === 'string' && p.id.length <= 16 && inImage(p.u) && inImage(p.v) && onCourt(p.x) && onCourt(p.y));
+      const cleanPoints = (pts) => pts.map(({ id, u, v, x, y }) => ({ id, u, v, x, y }));
+      const half = (h) => ['near', 'far'].includes(h);
+      const points = validPoints(c?.points);
       const corners = Array.isArray(c?.corners) && c.corners.length === 4
         && c.corners.every((p) => Array.isArray(p) && p.length === 2 && p.every(inImage));
-      const valid = c === null || ((points || corners) && ['near', 'far'].includes(c.ourHalf));
-      if (!valid) return bad(reply, 'calibration needs 4-10 points {id, u, v, x, y} (or 4 corners) and ourHalf near|far');
-      calibration = c === null ? null : JSON.stringify(points
-        ? { points: c.points.map(({ id, u, v, x, y }) => ({ id, u, v, x, y })), ourHalf: c.ourHalf }
-        : { corners: c.corners, ourHalf: c.ourHalf });
+      // Side switches (one per set): from video time t we play on ourHalf, optionally with a new court marking.
+      const switches = c?.switches ?? [];
+      const switchesOk = Array.isArray(switches) && switches.length <= 10 && switches.every((sw) =>
+        Number.isFinite(sw?.t) && sw.t >= 0 && half(sw.ourHalf) && (sw.points == null || validPoints(sw.points)));
+      const valid = c === null || ((points || corners) && half(c.ourHalf) && switchesOk);
+      if (!valid) return bad(reply, 'calibration needs 4-10 points {id, u, v, x, y} (or 4 corners), ourHalf near|far and at most 10 side switches {t, ourHalf, points?}');
+      calibration = c === null ? null : JSON.stringify({
+        ...(points ? { points: cleanPoints(c.points) } : { corners: c.corners }),
+        ourHalf: c.ourHalf,
+        ...(switches.length ? {
+          switches: switches.map((sw) => ({ t: sw.t, ourHalf: sw.ourHalf, ...(sw.points ? { points: cleanPoints(sw.points) } : {}) })),
+        } : {}),
+      });
     }
     db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ? WHERE id = ?`)
       .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, m.id);

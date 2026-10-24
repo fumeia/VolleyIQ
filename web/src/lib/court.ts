@@ -57,3 +57,8 @@ export function fromView(half: Half, v: Pt): Pt {
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
+
+/** Event fields for a tapped court spot: point, zone, and for a receive the grade it implies. */
+export function spotFields(action: string, p: Pt): { x: number; y: number; zone: number | null; value?: number } {
+  return { x: p.x, y: p.y, zone: zoneOf(p), ...(action === 'receive' ? { value: receiveGrade(p) } : {}) };
+}

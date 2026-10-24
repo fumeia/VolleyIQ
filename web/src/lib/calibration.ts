@@ -22,7 +22,34 @@ export const LANDMARKS: Landmark[] = [
 /** One tapped landmark: image position (0..1 of the video picture) and its court position (m). */
 export interface CalPoint { id: string; u: number; v: number; x: number; y: number }
 
-export interface Calibration { points: CalPoint[]; ourHalf: 'near' | 'far'; corners?: [number, number][] }
+export type OurHalf = 'near' | 'far';
+
+/**
+ * From video time [t] on, we play on [ourHalf] (teams switch sides every set).
+ * [points] when the court was marked again there (the camera moved); otherwise the
+ * previous marking still holds.
+ */
+export interface SideSwitch { t: number; ourHalf: OurHalf; points?: CalPoint[] }
+
+export interface Calibration { points: CalPoint[]; ourHalf: OurHalf; corners?: [number, number][]; switches?: SideSwitch[] }
+
+/** One stretch of the video with one court marking and one side for us. */
+export interface Segment { from: number; ourHalf: OurHalf; points: number[] }
+
+/** The calibration as consecutive stretches (set 1 from 0:00, then one per side switch), for the native analysis. */
+export function segments(c: Calibration): Segment[] {
+  const out: Segment[] = [{ from: 0, ourHalf: c.ourHalf, points: flatPoints(c) }];
+  for (const s of [...(c.switches ?? [])].sort((a, b) => a.t - b.t)) {
+    const prev = out[out.length - 1];
+    out.push({ from: s.t, ourHalf: s.ourHalf, points: s.points?.length ? flatPoints({ points: s.points, ourHalf: s.ourHalf }) : prev.points });
+  }
+  return out;
+}
+
+/** Which side we are on at video time [t]. */
+export function ourHalfAt(c: Calibration, t: number): OurHalf {
+  return segments(c).filter((s) => s.from <= t).pop()!.ourHalf;
+}
 
 type H = number[]; // 3x3 row-major, h[8] = 1
 

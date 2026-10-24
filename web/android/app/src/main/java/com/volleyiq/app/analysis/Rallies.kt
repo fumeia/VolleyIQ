@@ -175,12 +175,17 @@ object Rallies {
     }
 
     /** Suggested events, with landing spots inferred from the next touch when positions are known. */
-    fun toEvents(rallies: List<Rally>, ourHalf: String?, dropOpponent: Boolean = true): List<Map<String, Any?>> {
+    fun toEvents(rallies: List<Rally>, ourHalf: String?, dropOpponent: Boolean = true) = toEvents(rallies, { ourHalf }, { null }, dropOpponent)
+
+    /** [ourHalfAt] / [setAt]: our side and the set number at a video time (teams switch sides every set). */
+    fun toEvents(
+        rallies: List<Rally>, ourHalfAt: (Double) -> String?, setAt: (Double) -> Int?, dropOpponent: Boolean = true,
+    ): List<Map<String, Any?>> {
         val events = ArrayList<Map<String, Any?>>()
         for ((ri, rally) in rallies.withIndex()) {
             for ((i, t) in rally.touches.withIndex()) {
                 if (dropOpponent && t.team == "them") continue
-                val landing = landingSpot(rally, i, ourHalf)
+                val landing = landingSpot(rally, i, ourHalfAt(t.t))
                 events += mapOf(
                     "t" to round2(max(0.0, t.t)),
                     "action" to t.action,
@@ -191,6 +196,7 @@ object Rallies {
                     "y" to landing?.y?.let(::round2),
                     "rally" to ri + 1,
                     "poss" to t.possession,
+                    "set_no" to setAt(t.t),
                 )
             }
         }

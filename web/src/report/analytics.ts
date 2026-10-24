@@ -50,6 +50,7 @@ export function pointSources(events: VEvent[]): { won: Bar[]; lost: Bar[] } {
   const lost: Bar[] = [
     { key: 'opp', label: 'Opponent winners', value: n(['opp_point']) },
     { key: 'att', label: 'Attack errors', value: n(['attack_error']) },
+    { key: 'blk', label: 'Got blocked', value: n(['attack_blocked']) },
     { key: 'srv', label: 'Serve errors', value: n(['serve_error']) },
     { key: 'rec', label: 'Reception errors', value: n(['receive'], (e) => e.value === 0) },
     { key: 'def', label: 'Block / dig errors', value: n(['block_error', 'dig_error']) },
