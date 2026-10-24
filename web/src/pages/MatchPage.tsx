@@ -241,7 +241,15 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   player={player}
                   update={update}
                   remove={remove}
-                  removeMany={async (list) => { for (const e of list) await remove(e); }}
+                  removeMany={async (list) => {
+                    // Big clean-ups go to the server in one request; small ones stay optimistic.
+                    if (list.length > 5 && list.every((e) => e.id > 0)) {
+                      await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
+                      await reload();
+                    } else {
+                      for (const e of list) await remove(e);
+                    }
+                  }}
                   onEdit={setEditing}
                   onExit={() => setTab('tag')}
                   confirmAll={async () => {

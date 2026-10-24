@@ -12,6 +12,7 @@ import com.volleyiq.app.analysis.Homography
 import com.volleyiq.app.analysis.P
 import com.volleyiq.app.analysis.Rallies
 import com.volleyiq.app.analysis.VisionResult
+import com.volleyiq.app.media.FrameSampler
 import com.volleyiq.app.media.MediaScan
 import com.volleyiq.app.media.TouchVision
 import kotlinx.coroutines.Dispatchers
@@ -79,26 +80,51 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 val variant = "jerseys=$readJerseys|roster=${roster.sorted()}|cal=${(calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
                 val done = checkpoints.loadVision(variant)
                 val resumed = touches.count { CheckpointStore.touchKey(it.t) in done }
+                // Every frame still needed, in video order; touches already in the checkpoint are skipped.
+                val todo = touches.indices.filter { CheckpointStore.touchKey(touches[it].t) !in done }
+                val requests = todo.flatMap { ti -> TouchVision.OFFSETS.map { dt -> ti to ((touches[ti].t + dt).coerceAtLeast(0.0) * 1_000_000).toLong() } }
+                    .sortedBy { it.second }
+                val evidence = HashMap<Int, TouchVision.Evidence>()
+                val framesLeft = HashMap<Int, Int>().apply { todo.forEach { put(it, TouchVision.OFFSETS.size) } }
                 var unsaved = 0
-                // Models are only loaded if some touch still needs looking at.
-                val vision = lazy { TouchVision(applicationContext, uri, readJerseys, homography) }
-                try {
-                    touches.forEachIndexed { i, t ->
-                        if (isStopped) throw java.util.concurrent.CancellationException()
-                        val key = CheckpointStore.touchKey(t.t)
-                        val r = done[key] ?: vision.value.analyze(t.t, roster).let { VisionResult(it.jersey, it.jerseyConf, it.pos) }.also {
-                            done[key] = it
-                            if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
+                fun finish(ti: Int, vision: TouchVision) {
+                    val r = vision.result(evidence.remove(ti) ?: TouchVision.Evidence())
+                    done[CheckpointStore.touchKey(touches[ti].t)] = VisionResult(r.jersey, r.jerseyConf, r.pos)
+                    if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
+                }
+                if (requests.isNotEmpty()) {
+                    TouchVision(applicationContext, readJerseys, homography).use { vision ->
+                        try {
+                            FrameSampler.sample(
+                                applicationContext, uri, LongArray(requests.size) { requests[it].second }, 1920,
+                                onFrame = { targets, frame ->
+                                    for (k in targets) {
+                                        val ti = requests[k].first
+                                        vision.look(frame, roster, evidence.getOrPut(ti) { TouchVision.Evidence() })
+                                        val left = framesLeft.getValue(ti) - 1
+                                        framesLeft[ti] = left
+                                        if (left == 0) finish(ti, vision)
+                                    }
+                                },
+                                onProgress = { f ->
+                                    val n = resumed + (todo.size * f).toInt()
+                                    val note = if (resumed > 0) " ($resumed from before)" else ""
+                                    report(0.6 + 0.37 * n / touches.size, "Looking at players $n/${touches.size}$note")
+                                },
+                                isStopped = ::isStopped,
+                            )
+                            // Frames past the end of the video: finish with what was seen.
+                            framesLeft.filterValues { it > 0 }.keys.forEach { finish(it, vision) }
+                        } finally {
+                            if (unsaved > 0) checkpoints.saveVision(variant, done)
                         }
-                        t.jersey = r.jersey
-                        t.jerseyConf = r.jerseyConf
-                        t.pos = r.pos
-                        val note = if (resumed > 0) " (${resumed} from before)" else ""
-                        report(0.6 + 0.37 * (i + 1) / touches.size, "Looking at players ${i + 1}/${touches.size}$note")
                     }
-                } finally {
-                    if (unsaved > 0) checkpoints.saveVision(variant, done)
-                    if (vision.isInitialized()) runCatching { vision.value.close() }
+                }
+                for (t in touches) {
+                    val r = done[CheckpointStore.touchKey(t.t)] ?: continue
+                    t.jersey = r.jersey
+                    t.jerseyConf = r.jerseyConf
+                    t.pos = r.pos
                 }
                 rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
             }

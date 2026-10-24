@@ -123,6 +123,20 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
       <button className="btn-ghost small" onClick={() => { if (confirm_(`Confirm all ${events.length} remaining suggestions?`)) confirmAll(); }}>
         Confirm all remaining
       </button>
+      <div className="bulk-row">
+        <span className="small muted">Clear out noise: remove suggestions with AI confidence below</span>
+        <div className="chips">
+          {[40, 50, 60].map((p) => {
+            const weak = events.filter((e) => (e.confidence ?? 0) < p / 100);
+            return (
+              <button key={p} className="chip" disabled={!weak.length}
+                onClick={() => { if (confirm_(`Remove ${weak.length} suggestions below ${p}%?`)) removeMany(weak); }}>
+                {p}% <small>({weak.length})</small>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
