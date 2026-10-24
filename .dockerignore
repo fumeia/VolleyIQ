@@ -3,5 +3,5 @@
 data
 .env
 .git
-worker
+
 **/__pycache__

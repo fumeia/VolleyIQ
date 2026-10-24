@@ -7,7 +7,7 @@ import { buildApp } from '../src/index.js';
 
 async function setup(extra = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-'));
-  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none'), WORKER_TOKEN: 'wt', ...extra });
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none'), ...extra });
   return app;
 }
 
@@ -33,34 +33,34 @@ test('team, roster, match, events and jersey resolution', async () => {
   assert.equal(patched.action, 'attack_error');
   assert.equal(patched.zone, null);
 
+  const cal = { corners: [[0.1, 0.9], [0.9, 0.9], [0.7, 0.3], [0.3, 0.3]], ourHalf: 'near' };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } })).json().calibration, cal);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { corners: [[0, 0]] } } })).statusCode, 400);
+
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
+  assert.deepEqual(bundle.match.calibration, cal);
   assert.equal(bundle.events.length, 2);
   assert.equal(bundle.players.length, 1);
   await app.close();
 });
 
-test('worker job lifecycle creates suggested events', async () => {
+test('app suggestions replace earlier unconfirmed suggestions only', async () => {
   const app = await setup();
   const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'A' } })).json();
   await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'B', number: 3 } });
-  const match = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm', team_id: team.id, video_type: 'youtube', video_ref: 'yt' } })).json();
-  const job = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/analyze`, payload: {} })).json();
-  assert.equal(job.status, 'queued');
+  const match = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm', team_id: team.id } })).json();
+  const post = (events) => app.inject({ method: 'POST', url: `/api/matches/${match.id}/suggestions`, payload: { events } });
 
-  assert.equal((await app.inject({ method: 'POST', url: '/api/worker/claim' })).statusCode, 401);
-  const claim = (await app.inject({ method: 'POST', url: '/api/worker/claim', headers: { authorization: 'Bearer wt' } })).json();
-  assert.equal(claim.job.id, job.id);
-  assert.equal(claim.players.length, 1);
-
-  const fin = (await app.inject({
-    method: 'POST', url: `/api/worker/jobs/${job.id}/finish`, headers: { authorization: 'Bearer wt' },
-    payload: { events: [{ action: 'serve', t: 3, jersey: 3, confidence: 0.6 }, { action: 'bogus', t: 4 }] },
-  })).json();
-  assert.equal(fin.inserted, 1);
-  const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
+  assert.equal((await post([{ action: 'serve', t: 3, jersey: 3, confidence: 0.6 }, { action: 'bogus', t: 4 }])).json().inserted, 1);
+  let bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
   assert.equal(bundle.events[0].status, 'suggested');
-  assert.ok(bundle.events[0].player_id);
-  assert.equal(bundle.jobs[0].status, 'done');
+  assert.equal(bundle.events[0].source, 'auto');
+  assert.ok(bundle.events[0].player_id, 'jersey resolved to roster player');
+
+  await app.inject({ method: 'PATCH', url: `/api/events/${bundle.events[0].id}`, payload: { status: 'confirmed' } });
+  await post([{ action: 'dig', t: 9 }]);
+  bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
+  assert.deepEqual(bundle.events.map((e) => [e.action, e.status]), [['serve', 'confirmed'], ['dig', 'suggested']]);
   await app.close();
 });
 
@@ -75,5 +75,16 @@ test('password protection and share links', async () => {
   const { share_token } = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/share`, headers: { cookie }, payload: {} })).json();
   const shared = (await app.inject({ url: `/api/share/${share_token}` })).json();
   assert.equal(shared.events.length, 1);
+
+  // The Android app uses the session as a bearer token from its own origin.
+  const { token } = login.json();
+  const viaBearer = await app.inject({ url: '/api/teams', headers: { authorization: `Bearer ${token}` } });
+  assert.equal(viaBearer.statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/teams', headers: { authorization: 'Bearer junk.junk' } })).statusCode, 401);
+  const pre = await app.inject({ method: 'OPTIONS', url: '/api/teams', headers: { origin: 'https://localhost' } });
+  assert.equal(pre.statusCode, 204);
+  assert.equal(pre.headers['access-control-allow-origin'], 'https://localhost');
+  const evil = await app.inject({ method: 'OPTIONS', url: '/api/teams', headers: { origin: 'https://evil.example' } });
+  assert.equal(evil.headers['access-control-allow-origin'], undefined);
   await app.close();
 });

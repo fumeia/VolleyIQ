@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-MAX_GAP = 4.0          # seconds without a contact ends a rally
+MAX_GAP = 3.5          # seconds without a contact ends a rally
+CUT_GUARD = 0.15       # seconds around an edit cut where contacts are splice artefacts
 MIN_CONTACTS = 2
 
 
@@ -38,17 +39,24 @@ class Rally:
         return self.touches[-1].t
 
 
-def segment_rallies(contacts: list[tuple[float, float]], whistles: list[tuple[float, float]] | None = None) -> list[Rally]:
-    whistle_starts = sorted(w[0] for w in (whistles or []))
+def segment_rallies(
+    contacts: list[tuple[float, float]],
+    whistles: list[tuple[float, float]] | None = None,
+    cuts: list[float] | None = None,
+) -> list[Rally]:
+    """Groups contacts into rallies. Boundaries: whistles, edit cuts, or a long silence."""
+    cuts = sorted(cuts or [])
+    # The audio splice at an edit cut sounds like a contact; drop anything right at a cut.
+    contacts = [(t, s) for t, s in contacts if not any(abs(t - c) < CUT_GUARD for c in cuts)]
+    boundaries = sorted([w[0] for w in (whistles or [])] + cuts)
     rallies: list[Rally] = []
     cur: list[Touch] = []
-    wi = 0
+    bi = 0
     for t, s in sorted(contacts):
-        # A whistle between two contacts always separates rallies.
         crossed = False
-        while wi < len(whistle_starts) and whistle_starts[wi] < t:
-            crossed = crossed or (cur and whistle_starts[wi] > cur[-1].t)
-            wi += 1
+        while bi < len(boundaries) and boundaries[bi] < t:
+            crossed = crossed or bool(cur and boundaries[bi] > cur[-1].t)
+            bi += 1
         if cur and (t - cur[-1].t > MAX_GAP or crossed):
             rallies.append(Rally(cur))
             cur = []

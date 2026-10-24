@@ -1,0 +1,116 @@
+package com.volleyiq.app.work
+
+import android.content.Context
+import android.net.Uri
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.volleyiq.app.analysis.Detection
+import com.volleyiq.app.analysis.Homography
+import com.volleyiq.app.analysis.P
+import com.volleyiq.app.analysis.Rallies
+import com.volleyiq.app.media.MediaScan
+import com.volleyiq.app.media.TouchVision
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+/**
+ * First, automatic pass over a match video, run entirely on the phone as a
+ * foreground job (keeps going when the app is in the background):
+ * audio contacts + whistles -> edit cuts -> rallies -> optional vision
+ * (jersey numbers, court side) -> suggestions file for [UploadWorker].
+ */
+class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+
+    private val matchId = inputData.getLong(KEY_MATCH, 0)
+    private val notificationId = 1000 + (matchId % 10_000).toInt() * 2
+    private var lastReported = -1
+
+    override suspend fun getForegroundInfo() = Notifications.foreground(applicationContext, notificationId, "Analysing match", "Starting…", null)
+
+    override suspend fun doWork(): Result = withContext(Dispatchers.Default) {
+        val uri = Uri.parse(inputData.getString(KEY_URI) ?: return@withContext Result.failure(workDataOf(KEY_ERROR to "No video")))
+        val roster = (inputData.getIntArray(KEY_ROSTER) ?: IntArray(0)).toSet()
+        val readJerseys = inputData.getBoolean(KEY_JERSEYS, true)
+        val detectCuts = inputData.getBoolean(KEY_CUTS, true)
+        val sensitivity = inputData.getDouble(KEY_SENSITIVITY, 1.0)
+        val ourHalf = inputData.getString(KEY_OUR_HALF)
+        val homography = inputData.getDoubleArray(KEY_CORNERS)?.takeIf { it.size == 8 }
+            ?.let { c -> Homography.fromCorners((0 until 4).map { P(c[2 * it], c[2 * it + 1]) }) }
+
+        setForeground(getForegroundInfo())
+        try {
+            report(0.0, "Listening for ball contacts")
+            val feat = MediaScan.audioFeatures(applicationContext, uri, { report(0.02 + 0.33 * it, "Listening for ball contacts") }, ::isStopped)
+            val whistles = Detection.whistles(feat)
+            val contacts = Detection.contacts(feat, sensitivity, whistles = whistles)
+
+            val cuts = if (detectCuts) {
+                val diffs = MediaScan.frameDiffs(applicationContext, uri, { report(0.35 + 0.25 * it, "Looking for edit cuts") }, ::isStopped)
+                Detection.cuts(diffs, MediaScan.DIFF_FPS)
+            } else emptyList()
+
+            val rallies = Rallies.segment(contacts, whistles, cuts)
+            rallies.forEach(Rallies::label)
+            val touches = rallies.flatMap { it.touches }
+            report(0.6, "${rallies.size} rallies, ${touches.size} touches")
+
+            if ((readJerseys || homography != null) && touches.isNotEmpty()) {
+                TouchVision(applicationContext, uri, readJerseys, homography).use { vision ->
+                    touches.forEachIndexed { i, t ->
+                        if (isStopped) throw java.util.concurrent.CancellationException()
+                        val r = vision.analyze(t.t, roster)
+                        t.jersey = r.jersey
+                        t.jerseyConf = r.jerseyConf
+                        t.pos = r.pos
+                        report(0.6 + 0.37 * (i + 1) / touches.size, "Looking at players ${i + 1}/${touches.size}")
+                    }
+                }
+                rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
+            }
+
+            val events = Rallies.toEvents(rallies, ourHalf).map { e ->
+                // Numbers not on our roster are opponents or misreads; keep the touch, drop the number.
+                val jersey = e["jersey"] as Int?
+                if (jersey != null && roster.isNotEmpty() && jersey !in roster) e + ("jersey" to null) else e
+            }
+            val file = File(applicationContext.filesDir, "suggestions-$matchId.json")
+            file.writeText(JSONArray(events.map { JSONObject(it.filterValues { v -> v != null }) }).toString())
+            Notifications.done(applicationContext, notificationId, "Analysis finished", "${events.size} touches suggested — open VolleyIQ to review")
+            Result.success(workDataOf(KEY_FILE to file.absolutePath, KEY_COUNT to events.size, KEY_RALLIES to rallies.size))
+        } catch (e: java.util.concurrent.CancellationException) {
+            Result.failure(workDataOf(KEY_ERROR to "Cancelled"))
+        } catch (e: Exception) {
+            Notifications.done(applicationContext, notificationId, "Analysis failed", e.message ?: e.javaClass.simpleName)
+            Result.failure(workDataOf(KEY_ERROR to (e.message ?: e.javaClass.simpleName)))
+        }
+    }
+
+    private fun report(fraction: Double, message: String) {
+        val pct = (fraction * 100).toInt()
+        if (pct == lastReported) return
+        lastReported = pct
+        setProgressAsync(workDataOf(KEY_PROGRESS to fraction, KEY_MESSAGE to message))
+        setForegroundAsync(Notifications.foreground(applicationContext, notificationId, "Analysing match", message, fraction))
+    }
+
+    companion object {
+        const val KEY_MATCH = "matchId"
+        const val KEY_URI = "uri"
+        const val KEY_ROSTER = "roster"
+        const val KEY_JERSEYS = "readJerseys"
+        const val KEY_CUTS = "detectCuts"
+        const val KEY_SENSITIVITY = "sensitivity"
+        const val KEY_OUR_HALF = "ourHalf"
+        const val KEY_CORNERS = "corners"
+        const val KEY_PROGRESS = "progress"
+        const val KEY_MESSAGE = "message"
+        const val KEY_ERROR = "error"
+        const val KEY_FILE = "file"
+        const val KEY_COUNT = "count"
+        const val KEY_RALLIES = "rallies"
+    }
+}

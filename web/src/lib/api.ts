@@ -5,11 +5,12 @@ export interface Player { id: number; team_id: number; name: string; number: num
 export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
-  video_ref: string | null; share_token: string | null; created_at?: string; event_count?: number; suggested_count?: number;
+  video_ref: string | null; share_token: string | null;
+  calibration?: { corners: [number, number][]; ourHalf: 'near' | 'far' } | null; created_at?: string; event_count?: number; suggested_count?: number;
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
-  value: number | null; zone: number | null; x: number | null; y: number | null; t: number | null; set_no: number | null;
+  value: number | null; zone: number | null; x: number | null; y: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
 }
 export interface Job { id: number; match_id: number; status: 'queued' | 'running' | 'done' | 'failed'; progress: number; message: string | null }

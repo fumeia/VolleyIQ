@@ -74,6 +74,16 @@ const MIGRATIONS = [
   ALTER TABLE events ADD COLUMN x REAL;
   ALTER TABLE events ADD COLUMN y REAL;
   `,
+  // v3: analysis moved to the phone app, the server no longer queues jobs
+  `
+  DROP TABLE IF EXISTS jobs;
+  `,
+  // v4: rally / possession numbers on auto suggestions, so one review tap can settle a whole rally
+  `
+  ALTER TABLE events ADD COLUMN rally INTEGER;
+  ALTER TABLE events ADD COLUMN poss INTEGER;
+  ALTER TABLE matches ADD COLUMN calibration TEXT; -- JSON: { corners: [[u,v] x4], ourHalf: 'near'|'far' }
+  `,
 ];
 
 function migrate(db) {

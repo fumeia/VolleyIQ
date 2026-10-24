@@ -17,9 +17,12 @@ function verify(token, secret) {
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
-  if (payload.exp < Date.now() / 1000) return null;
-  return payload;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
+    return payload.exp > Date.now() / 1000 ? payload : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeEqual(a, b) {
@@ -31,23 +34,20 @@ function safeEqual(a, b) {
 /**
  * Single-coach auth: one password from APP_PASSWORD. Without a password set,
  * the app is open (handy for local dev, never do this on a public server).
- * The worker authenticates with WORKER_TOKEN via a bearer header.
+ * The website uses an httpOnly cookie; the Android app gets the same signed
+ * session as a bearer token, since it runs on its own origin.
  */
-export function registerAuth(app, { password, secret, workerToken, secure }) {
+export function registerAuth(app, { password, secret, secure }) {
   app.decorateRequest('user', null);
 
   app.addHook('onRequest', async (req) => {
-    const auth = req.headers.authorization;
-    if (workerToken && auth === `Bearer ${workerToken}`) {
-      req.user = { worker: true };
-      return;
-    }
     if (!password) {
       req.user = { coach: true };
       return;
     }
-    const session = verify(req.cookies[COOKIE], secret);
-    if (session) req.user = { coach: true };
+    const auth = req.headers.authorization;
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : req.cookies[COOKIE];
+    if (verify(token, secret)) req.user = { coach: true };
   });
 
   app.post('/api/login', async (req, reply) => {
@@ -58,7 +58,7 @@ export function registerAuth(app, { password, secret, workerToken, secure }) {
     reply.setCookie(COOKIE, token, {
       path: '/', httpOnly: true, sameSite: 'lax', secure, maxAge: MAX_AGE,
     });
-    return { ok: true };
+    return { ok: true, token };
   });
 
   app.post('/api/logout', async (req, reply) => {
@@ -77,7 +77,18 @@ export function requireCoach(req, reply, done) {
   done();
 }
 
-export function requireWorker(req, reply, done) {
-  if (!req.user?.worker) return reply.code(401).send({ error: 'Worker token required' });
-  done();
+/** CORS for the Android app (its WebView runs on https://localhost). Bearer auth, no cookies. */
+export function registerCors(app, origins) {
+  app.addHook('onRequest', async (req, reply) => {
+    const origin = req.headers.origin;
+    if (!origin || !origins.includes(origin)) return;
+    reply.header('Access-Control-Allow-Origin', origin);
+    reply.header('Vary', 'Origin');
+    if (req.method === 'OPTIONS') {
+      reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+      reply.header('Access-Control-Allow-Headers', 'authorization,content-type');
+      reply.header('Access-Control-Max-Age', '86400');
+      return reply.code(204).send();
+    }
+  });
 }

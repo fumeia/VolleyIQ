@@ -1,11 +1,6 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
 import { ACTIONS, ROLES } from './actions.js';
-import { requireCoach, requireWorker } from './auth.js';
-
-const VIDEO_EXT = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
+import { requireCoach } from './auth.js';
 
 function bad(reply, msg, code = 400) {
   return reply.code(code).send({ error: msg });
@@ -37,6 +32,8 @@ function cleanEvent(body) {
   return [{
     x,
     y,
+    rally: int(body.rally),
+    poss: int(body.poss),
     player_id: int(body.player_id),
     jersey: int(body.jersey),
     action: body.action,
@@ -51,7 +48,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, videosDir }) {
+export function registerRoutes(app, { db }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -68,18 +65,19 @@ export function registerRoutes(app, { db, videosDir }) {
     events: db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     eventByClient: db.prepare('SELECT * FROM events WHERE match_id = ? AND client_id = ?'),
-    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, t, set_no, source, status, confidence, client_id)
-                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @t, @set_no, @source, @status, @confidence, @client_id)`),
-    jobsForMatch: db.prepare('SELECT * FROM jobs WHERE match_id = ? ORDER BY id DESC'),
-    job: db.prepare('SELECT * FROM jobs WHERE id = ?'),
+    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, rally, poss, t, set_no, source, status, confidence, client_id)
+                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @rally, @poss, @t, @set_no, @source, @status, @confidence, @client_id)`),
   };
 
   const coach = { onRequest: requireCoach };
-  const worker = { onRequest: requireWorker };
+
+  function withCalibration(m) {
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null };
+  }
 
   function matchBundle(match) {
     const players = match.team_id ? q.players.all(match.team_id) : [];
-    return { match, players, events: q.events.all(match.id) };
+    return { match: withCalibration(match), players, events: q.events.all(match.id) };
   }
 
   // Resolve a jersey number to a roster player of the match's team.
@@ -168,7 +166,7 @@ export function registerRoutes(app, { db, videosDir }) {
   app.get('/api/matches/:id', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Not found', 404);
-    return { ...matchBundle(match), jobs: q.jobsForMatch.all(match.id) };
+    return matchBundle(match);
   });
 
   app.patch('/api/matches/:id', coach, async (req, reply) => {
@@ -176,9 +174,18 @@ export function registerRoutes(app, { db, videosDir }) {
     if (!m) return bad(reply, 'Not found', 404);
     const b = req.body ?? {};
     const pick = (k) => (k in b ? b[k] : m[k]);
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), m.id);
-    return q.match.get(m.id);
+    let calibration = m.calibration;
+    if ('calibration' in b) {
+      const c = b.calibration;
+      const valid = c === null || (Array.isArray(c?.corners) && c.corners.length === 4
+        && c.corners.every((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(v) && v >= -0.5 && v <= 1.5))
+        && ['near', 'far'].includes(c.ourHalf));
+      if (!valid) return bad(reply, 'calibration needs 4 corners [u, v] in 0..1 and ourHalf near|far');
+      calibration = c === null ? null : JSON.stringify({ corners: c.corners, ourHalf: c.ourHalf });
+    }
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, m.id);
+    return withCalibration(q.match.get(m.id));
   });
 
   app.delete('/api/matches/:id', coach, async (req) => {
@@ -256,103 +263,25 @@ export function registerRoutes(app, { db, videosDir }) {
     return { ok: true };
   });
 
-  // ---------- video upload & streaming ----------
-  app.post('/api/matches/:id/video', coach, async (req, reply) => {
+  // ---------- auto-detection results from the phone app ----------
+  // The Android app analyses the video on the phone and posts its suggestions here.
+  app.post('/api/matches/:id/suggestions', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Match not found', 404);
-    const file = await req.file();
-    if (!file) return bad(reply, 'No file');
-    const ext = path.extname(file.filename || '').toLowerCase() || '.mp4';
-    if (!VIDEO_EXT.has(ext)) return bad(reply, `Unsupported file type ${ext}`);
-    const name = `match-${match.id}-${Date.now()}${ext}`;
-    const dest = path.join(videosDir, name);
-    await pipeline(file.file, fs.createWriteStream(dest));
-    if (file.file.truncated) {
-      fs.rmSync(dest, { force: true });
-      return bad(reply, 'File too large', 413);
-    }
-    db.prepare("UPDATE matches SET video_type = 'upload', video_ref = ? WHERE id = ?").run(name, match.id);
-    return q.match.get(match.id);
-  });
-
-  app.get('/media/:name', async (req, reply) => {
-    const name = path.basename(req.params.name);
-    const token = req.query.share;
-    const allowed = req.user?.coach || req.user?.worker
-      || (token && db.prepare('SELECT 1 FROM matches WHERE share_token = ? AND video_ref = ?').get(token, name));
-    if (!allowed) return bad(reply, 'Not allowed', 401);
-    if (!fs.existsSync(path.join(videosDir, name))) return bad(reply, 'Not found', 404);
-    return reply.sendFile(name, videosDir);
-  });
-
-  // ---------- auto-analysis jobs ----------
-  app.post('/api/matches/:id/analyze', coach, async (req, reply) => {
-    const match = q.match.get(req.params.id);
-    if (!match) return bad(reply, 'Match not found', 404);
-    if (!['youtube', 'upload'].includes(match.video_type)) {
-      return bad(reply, 'Auto-analysis needs a YouTube link or an uploaded video (local-only files stay on your phone).');
-    }
-    const active = db.prepare("SELECT id FROM jobs WHERE match_id = ? AND status IN ('queued','running')").get(match.id);
-    if (active) return bad(reply, 'Analysis already running for this match', 409);
-    const options = {
-      jersey_ocr: req.body?.jersey_ocr !== false,
-      replace_suggestions: req.body?.replace_suggestions !== false,
-    };
-    const r = db.prepare('INSERT INTO jobs (match_id, options) VALUES (?, ?)').run(match.id, JSON.stringify(options));
-    return q.job.get(r.lastInsertRowid);
-  });
-
-  app.get('/api/jobs/:id', coach, async (req, reply) => q.job.get(req.params.id) ?? bad(reply, 'Not found', 404));
-
-  // Worker protocol: claim → progress* → events → finish.
-  app.post('/api/worker/claim', worker, async (req, reply) => {
-    const claim = db.transaction(() => {
-      const job = db.prepare("SELECT * FROM jobs WHERE status = 'queued' ORDER BY id LIMIT 1").get();
-      if (!job) return null;
-      db.prepare("UPDATE jobs SET status = 'running', updated_at = datetime('now') WHERE id = ?").run(job.id);
-      return job;
-    });
-    const job = claim();
-    if (!job) return reply.code(204).send();
-    const match = q.match.get(job.match_id);
-    return {
-      job: { ...job, options: JSON.parse(job.options || '{}') },
-      match,
-      players: match.team_id ? q.players.all(match.team_id).filter((p) => p.active) : [],
-      video_path: match.video_type === 'upload' ? match.video_ref : null,
-    };
-  });
-
-  app.post('/api/worker/jobs/:id/progress', worker, async (req) => {
-    db.prepare("UPDATE jobs SET progress = ?, message = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(num(req.body.progress) ?? 0, req.body.message ?? null, req.params.id);
-    return { ok: true };
-  });
-
-  app.post('/api/worker/jobs/:id/finish', worker, async (req, reply) => {
-    const job = q.job.get(req.params.id);
-    if (!job) return bad(reply, 'Not found', 404);
-    const match = q.match.get(job.match_id);
-    const options = JSON.parse(job.options || '{}');
-    const { status = 'done', message = null, events = [] } = req.body ?? {};
+    const { events = [], replace = true } = req.body ?? {};
+    if (!Array.isArray(events) || events.length > 5000) return bad(reply, 'events must be an array (max 5000)');
     const save = db.transaction(() => {
-      if (status === 'done' && options.replace_suggestions) {
-        db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
-      }
+      // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
+      if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
       let n = 0;
       for (const raw of events) {
-        const [ev] = cleanEvent({ ...raw, source: 'auto', status: 'suggested' });
+        const [ev] = cleanEvent({ ...raw, source: 'auto', status: 'suggested', client_id: null });
         if (!ev) continue;
         q.insertEvent.run({ ...attachPlayer(match, ev), match_id: match.id });
         n++;
       }
-      db.prepare("UPDATE jobs SET status = ?, progress = 1, message = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(status === 'failed' ? 'failed' : 'done', message ?? `${n} events suggested`, job.id);
       return n;
     });
-    return { ok: true, inserted: save() };
+    return { inserted: save() };
   });
-
-  // Jobs stuck in "running" (worker crashed) go back to the queue on restart.
-  db.prepare("UPDATE jobs SET status = 'queued' WHERE status = 'running' AND updated_at < datetime('now', '-30 minutes')").run();
 }
