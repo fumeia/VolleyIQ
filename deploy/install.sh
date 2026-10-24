@@ -192,9 +192,13 @@ new_image=$(docker images -q "${PROJECT}-app" 2>/dev/null | head -1 || true)
 docker image prune -f --filter "label=org.volleyiq.build=1" >/dev/null 2>&1 || true
 if [ $cache_was_empty = 1 ]; then docker builder prune -af >/dev/null 2>&1 || true; else echo "Note: Docker build cache was not empty before, so it was left alone."; fi
 
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
   curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break
-  [ "$i" = 30 ] && die "VolleyIQ did not start; see: docker compose -p $PROJECT -f $DIR/docker-compose.yml logs"
+  if [ "$i" = 60 ]; then
+    compose ps
+    compose logs --tail 30 app || true
+    die "VolleyIQ did not answer on 127.0.0.1:$PORT (logs above). Nothing outside VolleyIQ was changed; undo with: sudo bash $0 --uninstall $DOMAIN"
+  fi
   sleep 1
 done
 echo "VolleyIQ is running on 127.0.0.1:$PORT"

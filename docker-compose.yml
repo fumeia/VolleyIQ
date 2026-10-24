@@ -8,6 +8,8 @@ services:
     env_file: .env
     environment:
       COOKIE_SECURE: "true"
+      # Inside the container the app always listens on 3000; PORT in .env only picks the host port.
+      PORT: "3000"
     ports:
       - "127.0.0.1:${PORT:-3080}:3000"
     volumes:

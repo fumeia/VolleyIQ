@@ -17,12 +17,13 @@ jobs:
       - name: Server tests
         working-directory: server
         run: npm ci && npm test
-      - name: Build Docker image (same as the server install)
-        run: docker build -t volleyiq:ci .
-      - name: Smoke test the container
+      - name: Smoke test with docker compose and the .env install.sh writes
         run: |
-          docker run -d --name viq -e APP_PASSWORD=ci-password -e SESSION_SECRET=x -p 3080:3000 volleyiq:ci
-          for i in $(seq 1 30); do curl -fsS localhost:3080/api/health && break; sleep 1; done
-          curl -fsS localhost:3080/ | grep -q '<div id="root">'
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3080/api/teams)" = 401
-          docker image ls volleyiq:ci
+          printf 'APP_PASSWORD=ci-password\nSESSION_SECRET=x\nPORT=3080\n' > .env
+          mkdir -p data
+          docker compose -p volleyiq up -d --build
+          ok=0; for i in $(seq 1 60); do curl -fsS 127.0.0.1:3080/api/health && ok=1 && break; sleep 1; done
+          [ $ok = 1 ] || { docker compose -p volleyiq logs; exit 1; }
+          curl -fsS 127.0.0.1:3080/ | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' 127.0.0.1:3080/api/teams)" = 401
+          docker image ls volleyiq-app
