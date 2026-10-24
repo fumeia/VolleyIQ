@@ -2,13 +2,16 @@ package com.volleyiq.app.work
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.volleyiq.app.analysis.CheckpointStore
 import com.volleyiq.app.analysis.Detection
 import com.volleyiq.app.analysis.Homography
 import com.volleyiq.app.analysis.P
 import com.volleyiq.app.analysis.Rallies
+import com.volleyiq.app.analysis.VisionResult
 import com.volleyiq.app.media.MediaScan
 import com.volleyiq.app.media.TouchVision
 import kotlinx.coroutines.Dispatchers
@@ -39,20 +42,30 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val sensitivity = inputData.getDouble(KEY_SENSITIVITY, 1.0)
         val ourHalf = inputData.getString(KEY_OUR_HALF)
         // Calibration: flat [u, v, x, y] per tapped landmark (image position -> court meters).
-        val homography = inputData.getDoubleArray(KEY_POINTS)?.takeIf { it.size >= 16 && it.size % 4 == 0 }?.let { a ->
+        val calibration = inputData.getDoubleArray(KEY_POINTS)?.takeIf { it.size >= 16 && it.size % 4 == 0 }
+        val homography = calibration?.let { a ->
             val n = a.size / 4
             Homography.fromPoints((0 until n).map { P(a[4 * it], a[4 * it + 1]) }, (0 until n).map { P(a[4 * it + 2], a[4 * it + 3]) })
-        }
+        } ?: inputData.getDoubleArray(LEGACY_CORNERS)?.takeIf { it.size == 8 } // jobs queued by older app versions
+            ?.let { c -> Homography.fromCorners((0 until 4).map { P(c[2 * it], c[2 * it + 1]) }) }
+
+        // Saved progress for this video: survives app updates, reboots and Android stopping the job.
+        val cacheRoot = File(applicationContext.filesDir, "analysis-checkpoints")
+        val checkpoints = CheckpointStore(cacheRoot, videoIdentity(uri))
+        CheckpointStore.prune(cacheRoot)
 
         setForeground(getForegroundInfo())
         try {
-            report(0.0, "Listening for ball contacts")
-            val feat = MediaScan.audioFeatures(applicationContext, uri, { report(0.02 + 0.33 * it, "Listening for ball contacts") }, ::isStopped)
+            val feat = checkpoints.loadFeatures()?.also { report(0.35, "Sound already analysed, continuing") }
+                ?: MediaScan.audioFeatures(applicationContext, uri, { report(0.02 + 0.33 * it, "Listening for ball contacts") }, ::isStopped)
+                    .also(checkpoints::saveFeatures)
             val whistles = Detection.whistles(feat)
             val contacts = Detection.contacts(feat, sensitivity, whistles = whistles)
 
             val cuts = if (detectCuts) {
-                val diffs = MediaScan.frameDiffs(applicationContext, uri, { report(0.35 + 0.25 * it, "Looking for edit cuts") }, ::isStopped)
+                val diffs = checkpoints.loadDiffs()?.also { report(0.6, "Edit cuts already found, continuing") }
+                    ?: MediaScan.frameDiffs(applicationContext, uri, { report(0.35 + 0.25 * it, "Looking for edit cuts") }, ::isStopped)
+                        .also(checkpoints::saveDiffs)
                 Detection.cuts(diffs, MediaScan.DIFF_FPS)
             } else emptyList()
 
@@ -62,15 +75,30 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             report(0.6, "${rallies.size} rallies, ${touches.size} touches")
 
             if ((readJerseys || homography != null) && touches.isNotEmpty()) {
-                TouchVision(applicationContext, uri, readJerseys, homography).use { vision ->
+                // Results depend on these settings; a different variant starts its own checkpoint.
+                val variant = "jerseys=$readJerseys|roster=${roster.sorted()}|cal=${(calibration ?: inputData.getDoubleArray(LEGACY_CORNERS))?.joinToString(",")}"
+                val done = checkpoints.loadVision(variant)
+                val resumed = touches.count { CheckpointStore.touchKey(it.t) in done }
+                var unsaved = 0
+                // Models are only loaded if some touch still needs looking at.
+                val vision = lazy { TouchVision(applicationContext, uri, readJerseys, homography) }
+                try {
                     touches.forEachIndexed { i, t ->
                         if (isStopped) throw java.util.concurrent.CancellationException()
-                        val r = vision.analyze(t.t, roster)
+                        val key = CheckpointStore.touchKey(t.t)
+                        val r = done[key] ?: vision.value.analyze(t.t, roster).let { VisionResult(it.jersey, it.jerseyConf, it.pos) }.also {
+                            done[key] = it
+                            if (++unsaved >= 10) { checkpoints.saveVision(variant, done); unsaved = 0 }
+                        }
                         t.jersey = r.jersey
                         t.jerseyConf = r.jerseyConf
                         t.pos = r.pos
-                        report(0.6 + 0.37 * (i + 1) / touches.size, "Looking at players ${i + 1}/${touches.size}")
+                        val note = if (resumed > 0) " (${resumed} from before)" else ""
+                        report(0.6 + 0.37 * (i + 1) / touches.size, "Looking at players ${i + 1}/${touches.size}$note")
                     }
+                } finally {
+                    if (unsaved > 0) checkpoints.saveVision(variant, done)
+                    if (vision.isInitialized()) runCatching { vision.value.close() }
                 }
                 rallies.forEach { Rallies.assignTeams(it, roster, ourHalf) }
             }
@@ -92,6 +120,25 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         }
     }
 
+    /** Same video file = same key, even when it is picked again under a new content:// URI. */
+    private fun videoIdentity(uri: Uri): String {
+        var name = uri.toString()
+        var size = -1L
+        if (uri.scheme == "file") {
+            val f = File(uri.path ?: "")
+            return "${f.name}|${f.length()}|${f.lastModified()}"
+        }
+        runCatching {
+            applicationContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    c.getString(0)?.let { name = it }
+                    size = c.getLong(1)
+                }
+            }
+        }
+        return if (size > 0) "$name|$size" else uri.toString()
+    }
+
     private fun report(fraction: Double, message: String) {
         val pct = (fraction * 100).toInt()
         if (pct == lastReported) return
@@ -109,6 +156,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_SENSITIVITY = "sensitivity"
         const val KEY_OUR_HALF = "ourHalf"
         const val KEY_POINTS = "calibrationPoints"
+        private const val LEGACY_CORNERS = "corners"
         const val KEY_PROGRESS = "progress"
         const val KEY_MESSAGE = "message"
         const val KEY_ERROR = "error"
