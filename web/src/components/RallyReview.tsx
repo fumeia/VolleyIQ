@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, REVIEW_ACTIONS } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
@@ -28,10 +28,6 @@ interface Props {
 // Positions in court order as seen from behind our baseline: front row, then back row.
 const COURT_ORDER = [4, 3, 2, 5, 6, 1];
 
-const ACTION_CHOICES: ActionCode[] = [
-  'serve', 'receive', 'set', 'attack', 'dig', 'freeball', 'block_touch',
-  'ace', 'kill', 'block_point', 'serve_error', 'attack_error', 'attack_blocked', 'set_error', 'dig_error',
-];
 const SPEEDS = [1, 1.5, 2];
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
@@ -367,7 +363,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
             ))}
           </div>
           <div className="chips tight">
-            {ACTION_CHOICES.map((c) => (
+            {REVIEW_ACTIONS.map((c) => (
               <button key={c} className={`chip ${sv.action === c ? 'on' : ''}`}
                 onClick={() => patch(selected, { action: c, value: c === 'receive' ? sv.value : null })}>{ACTION_BY_CODE[c].short}</button>
             ))}

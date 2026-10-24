@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, actionLabel, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, REVIEW_ACTIONS, actionLabel } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { rallyInfo, sideToDrop } from '../lib/rallies';
@@ -23,10 +23,6 @@ interface Props {
 
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
-const QUICK_ACTIONS: ActionCode[] = [
-  'serve', 'ace', 'serve_error', 'receive', 'set', 'set_error', 'attack', 'kill', 'attack_error', 'attack_blocked',
-  'dig', 'freeball', 'block_touch', 'block_point',
-];
 
 type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'> & {
   /** Where the ball was played from, and which court tap comes next. */
@@ -156,7 +152,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
 
       <span className="pad-group-label">2 · What was it?</span>
       <div className="chips">
-        {QUICK_ACTIONS.map((code) => (
+        {REVIEW_ACTIONS.map((code) => (
           <button key={code} className={`chip chip-${ACTION_BY_CODE[code].group} ${d.action === code ? 'on' : ''}`}
             onClick={() => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null,
               stage: ACTION_BY_CODE[code].court === 'path' && !d.from ? 'from' : 'to' })}>

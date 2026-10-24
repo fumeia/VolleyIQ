@@ -51,6 +51,13 @@ export const ACTIONS: ActionDef[] = [
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },
 ];
 
+/** Action choices in review, grouped serve, pass, set, attack, defence, block: every player action. */
+export const REVIEW_ACTIONS: ActionCode[] = [
+  'serve', 'ace', 'serve_error', 'receive', 'set', 'assist', 'set_error', 'assist_error',
+  'attack', 'kill', 'attack_error', 'attack_blocked', 'dig', 'dig_error', 'freeball',
+  'block_touch', 'block_point', 'block_error',
+];
+
 export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])) as Record<ActionCode, ActionDef>;
 
 export const GROUPS: { id: Group; label: string }[] = [
