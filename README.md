@@ -70,6 +70,12 @@ For Caddy: `volleyiq.mydomain.com { reverse_proxy 127.0.0.1:3080 }`.
 
 Data lives in `./data/volleyiq.db`, a single SQLite file, so back that up.
 
+On a server whose web server is Caddy, `deploy/install.sh` does all of the above in one go, and is safe to re-run for updates:
+`sudo bash install.sh volleyiq.yourdomain.com`. It shows a plan and asks before changing anything.
+It checks the Caddy config before touching it, backs up the Caddyfile and the database, and only
+touches `/opt/volleyiq`, its own Docker project, and a marked block in the Caddyfile.
+`sudo bash install.sh --uninstall volleyiq.yourdomain.com` removes everything again (the database is saved to `/root` first).
+
 To see what an existing server already runs (read-only, prints a report):
 `curl -fsSL https://raw.githubusercontent.com/fumeia/VolleyIQ/main/deploy/diagnose.sh -o diagnose.sh && sudo bash diagnose.sh`
 

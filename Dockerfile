@@ -1,5 +1,6 @@
 # --- build the web app ---
 FROM node:22-bookworm-slim AS web
+LABEL org.volleyiq.build=1
 WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci
@@ -8,6 +9,7 @@ RUN npm run build
 
 # --- API server + static files ---
 FROM node:22-bookworm-slim
+LABEL org.volleyiq.build=1
 WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm ci --omit=dev
