@@ -3,8 +3,8 @@ export type ActionCode =
   | 'attack_error' | 'serve_error' | 'dig_error' | 'block_error' | 'attack_blocked'
   | 'attack' | 'serve' | 'dig' | 'block_touch'
   | 'kill' | 'ace' | 'block_point'
-  | 'set' | 'assist' | 'assist_error'
-  | 'receive'
+  | 'set' | 'assist' | 'assist_error' | 'set_error'
+  | 'receive' | 'freeball'
   | 'opp_point' | 'opp_error';
 
 export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team';
@@ -37,6 +37,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it go?' },
   { code: 'serve', label: 'Serve', short: 'Serve', group: 'actions', key: 's', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?' },
   { code: 'dig', label: 'Dig', short: 'Dig', group: 'actions', key: 'd', court: 'path', fromPrompt: 'Where was the dig?', toPrompt: 'Where did it go?' },
+  { code: 'freeball', label: 'Free Ball', short: 'Free', group: 'actions', key: 'b', court: 'path', fromPrompt: 'Where was the free ball played?', toPrompt: 'Where did it go?' },
   { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', court: 'at', toPrompt: 'Where along the net?' },
   { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
@@ -44,6 +45,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist', label: 'Assist', short: 'Assist', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist_error', label: 'Assist Error', short: 'Ast Err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
+  { code: 'set_error', label: 'Set Error', short: 'Set Err', group: 'setting', key: 'u', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
   { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', court: 'path', fromPrompt: 'Where was it received?', toPrompt: 'Where did the pass go?' },
   { code: 'opp_error', label: 'Opponent Error', short: 'Opp Err', group: 'team', needsPlayer: false, score: 'us' },
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },

@@ -54,7 +54,7 @@ export function pointSources(events: VEvent[]): { won: Bar[]; lost: Bar[] } {
     { key: 'srv', label: 'Serve errors', value: n(['serve_error']) },
     { key: 'rec', label: 'Reception errors', value: n(['receive'], (e) => e.value === 0) },
     { key: 'def', label: 'Block / dig errors', value: n(['block_error', 'dig_error']) },
-    { key: 'set', label: 'Setting errors', value: n(['assist_error']) },
+    { key: 'set', label: 'Setting errors', value: n(['assist_error', 'set_error']) },
   ];
   return { won, lost };
 }

@@ -23,8 +23,8 @@ interface Props {
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
 const QUICK_ACTIONS: ActionCode[] = [
-  'serve', 'ace', 'serve_error', 'receive', 'set', 'attack', 'kill', 'attack_error', 'attack_blocked',
-  'dig', 'block_touch', 'block_point',
+  'serve', 'ace', 'serve_error', 'receive', 'set', 'set_error', 'attack', 'kill', 'attack_error', 'attack_blocked',
+  'dig', 'freeball', 'block_touch', 'block_point',
 ];
 
 type Draft = Pick<VEvent, 'player_id' | 'jersey' | 'action' | 'value'> & {

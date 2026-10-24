@@ -14,15 +14,17 @@ const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'aces', label: 'Aces', actions: ['ace'] },
   { id: 'receives', label: 'Passes', actions: ['receive'] },
   { id: 'digs', label: 'Digs', actions: ['dig', 'dig_error'] },
+  { id: 'freeballs', label: 'Free balls', actions: ['freeball'] },
   { id: 'blocks', label: 'Our blocks', actions: ['block_point', 'block_touch', 'block_error'] },
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
 const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
-  { id: 'attacks', label: 'Attacks', actions: ['kill', 'attack', 'attack_error'] },
+  { id: 'attacks', label: 'Attacks', actions: ['kill', 'attack', 'attack_error', 'attack_blocked'] },
   { id: 'serves', label: 'Serves', actions: ['ace', 'serve', 'serve_error'] },
   { id: 'receives', label: 'Receives', actions: ['receive'] },
-  { id: 'sets', label: 'Sets', actions: ['set', 'assist', 'assist_error'] },
+  { id: 'sets', label: 'Sets', actions: ['set', 'assist', 'assist_error', 'set_error'] },
+  { id: 'freeballs', label: 'Free balls', actions: ['freeball'] },
   { id: 'digs', label: 'Digs', actions: ['dig', 'dig_error'] },
   { id: 'blocks', label: 'Our blocks', actions: ['block_point', 'block_touch', 'block_error'] },
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
@@ -30,7 +32,7 @@ const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
 
 const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
   kill: '#22c55e', ace: '#22c55e', attack: '#60a5fa', serve: '#60a5fa', attack_error: '#ef4444', serve_error: '#ef4444',
-  set: '#60a5fa', assist: '#22c55e', assist_error: '#ef4444',
+  set: '#60a5fa', assist: '#22c55e', assist_error: '#ef4444', set_error: '#ef4444', freeball: '#60a5fa',
   dig: '#60a5fa', dig_error: '#ef4444', block_point: '#22c55e', block_touch: '#60a5fa', block_error: '#ef4444', attack_blocked: '#ef4444',
 };
 const GRADE_COLOR = ['#ef4444', '#f59e0b', '#60a5fa', '#22c55e'];
@@ -42,6 +44,7 @@ const LEGEND: Record<string, [string, string][]> = {
   blocks: [['#22c55e', 'Block point'], ['#60a5fa', 'Touch'], ['#ef4444', 'Error']],
   blocked: [['#ef4444', 'Blocked']],
   sets: [['#22c55e', 'Assist'], ['#60a5fa', 'Set'], ['#ef4444', 'Error']],
+  freeballs: [['#60a5fa', 'Free ball']],
 };
 
 type Tab = 'overview' | 'attack' | 'serve' | 'pass' | 'block' | 'roles';
@@ -61,11 +64,11 @@ const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => st
   ],
   pass: [
     { h: 'Rec', v: (s) => s.receptions }, { h: 'Avg', v: (s) => dec(s.recAvg) }, { h: '3%', v: (s) => pct(s.recPerfectPct) },
-    { h: 'RE', v: (s) => s.recErrors }, { h: 'Dig', v: (s) => s.digs }, { h: 'DE', v: (s) => s.digErrors },
+    { h: 'RE', v: (s) => s.recErrors }, { h: 'Dig', v: (s) => s.digs }, { h: 'DE', v: (s) => s.digErrors }, { h: 'FB', v: (s) => s.freeballs },
   ],
   block: [
     { h: 'BS', v: (s) => s.blockPoints }, { h: 'BT', v: (s) => s.blockTouches }, { h: 'BE', v: (s) => s.blockErrors },
-    { h: 'Sets', v: (s) => s.sets }, { h: 'Ast', v: (s) => s.assists }, { h: 'AE', v: (s) => s.assistErrors },
+    { h: 'Sets', v: (s) => s.sets }, { h: 'Ast', v: (s) => s.assists }, { h: 'AE', v: (s) => s.assistErrors }, { h: 'SE', v: (s) => s.setErrors },
   ],
 };
 

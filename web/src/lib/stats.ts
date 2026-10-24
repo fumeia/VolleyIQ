@@ -7,9 +7,9 @@ export interface StatLine {
   kills: number; attackErrors: number; blocked: number; attempts: number; killPct: number | null; attackEff: number | null;
   aces: number; serveErrors: number; serves: number; acePct: number | null; serveInPct: number | null;
   receptions: number; recAvg: number | null; recPerfectPct: number | null; recErrors: number;
-  digs: number; digErrors: number;
+  digs: number; digErrors: number; freeballs: number;
   blockPoints: number; blockTouches: number; blockErrors: number;
-  sets: number; assists: number; assistErrors: number;
+  sets: number; assists: number; assistErrors: number; setErrors: number;
   points: number; errors: number; plusMinus: number;
 }
 
@@ -34,17 +34,17 @@ export function statLine(events: Ev[]): StatLine {
   const aces = n('ace'), serveErrors = n('serve_error');
   const serves = aces + serveErrors + n('serve');
   const blockPoints = n('block_point');
-  const assists = n('assist'), assistErrors = n('assist_error');
+  const assists = n('assist'), assistErrors = n('assist_error'), setErrors = n('set_error');
   const points = kills + aces + blockPoints;
-  const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + assistErrors + recErr;
+  const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + assistErrors + setErrors + recErr;
   return {
     kills, attackErrors, blocked, attempts,
     killPct: ratio(kills, attempts), attackEff: ratio(kills - attackErrors, attempts),
     aces, serveErrors, serves, acePct: ratio(aces, serves), serveInPct: ratio(serves - serveErrors, serves),
     receptions: recN, recAvg: ratio(recSum, recN), recPerfectPct: ratio(recPerfect, recN), recErrors: recErr,
-    digs: n('dig'), digErrors: n('dig_error'),
+    digs: n('dig'), digErrors: n('dig_error'), freeballs: n('freeball'),
     blockPoints, blockTouches: n('block_touch'), blockErrors: n('block_error'),
-    sets: n('set') + assists + assistErrors, assists, assistErrors,
+    sets: n('set') + assists + assistErrors + setErrors, assists, assistErrors, setErrors,
     points, errors, plusMinus: points - errors,
   };
 }
