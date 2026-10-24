@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import type { Match, Player } from '../lib/api';
-import type { Lineup, Lineups } from '../lib/rotation';
+import { orderAt, type Lineup, type Lineups } from '../lib/rotation';
+import { fmtTime } from './TagPad';
 
 interface Props {
   match: Match;
   players: Player[];
   initialSet: number;
+  /** Video time for a substitution (null without a video: it then counts from now on). */
+  getTime: () => number | null;
   onSave: (lineups: Lineups) => Promise<void>;
   onClose: () => void;
 }
@@ -14,13 +17,20 @@ interface Props {
 const GRID = [4, 3, 2, 5, 6, 1];
 
 /** Starting six per set (position 1 = server), libero and who serves first. */
-export function LineupSheet({ match, players, initialSet, onSave, onClose }: Props) {
+export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose }: Props) {
   const [all, setAll] = useState<Lineups>(() => match.lineups ?? {});
   const [set, setSet] = useState(initialSet);
   const [slot, setSlot] = useState<number | null>(1);
+  const [subOut, setSubOut] = useState<number | null>(null);
+  const now = getTime();
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const empty: Lineup = { order: [null, null, null, null, null, null], libero: null, weServeFirst: true };
-  const cur = all[String(set)] ?? all[String(set - 1)] ?? empty;
+  // A new set starts from the previous set's six (without its substitutions).
+  const prev = all[String(set - 1)];
+  const cur = all[String(set)] ?? (prev ? { ...prev, subs: [] } : empty);
+  const subs = [...(cur.subs ?? [])].sort((a, b) => a.t - b.t);
+  const subAt = now ?? 1e9 + subs.length; // live tagging: after everything so far
+  const onCourtNow = orderAt(cur, subAt).filter((x): x is number => x != null);
   const put = (l: Lineup) => setAll({ ...all, [String(set)]: l });
   const label = (id: number | null | undefined) => {
     const p = players.find((x) => x.id === id);
@@ -73,6 +83,34 @@ export function LineupSheet({ match, players, initialSet, onSave, onClose }: Pro
             </button>
           ))}
         </div>
+        <label className="field-label">Substitutions in set {set}</label>
+        {subs.map((x) => (
+          <div key={`${x.t}-${x.out}`} className="sides-row">
+            <span className="small">{x.t >= 1e9 ? 'live' : fmtTime(x.t)} · {label(x.out)} ⟶ {label(x.in)}</span>
+            <button className="btn-ghost small" aria-label="Remove" onClick={() => put({ ...cur, subs: subs.filter((y) => y !== x) })}>✕</button>
+          </div>
+        ))}
+        {cur.order.every((x) => x != null) && (
+          <>
+            <span className="small muted">
+              {now != null ? `At ${fmtTime(now)} (pause the video where the change happens): ` : ''}
+              {subOut == null ? 'who goes out?' : `${label(subOut)} goes out. Who comes in?`}
+            </span>
+            <div className="chips">
+              {subOut == null
+                ? onCourtNow.map((id) => <button key={id} className="chip" onClick={() => setSubOut(id)}>{label(id)}</button>)
+                : <>
+                  {roster.filter((p) => !onCourtNow.includes(p.id) && p.id !== cur.libero).map((p) => (
+                    <button key={p.id} className="chip" onClick={() => {
+                      put({ ...cur, subs: [...subs, { t: subAt, out: subOut, in: p.id }] });
+                      setSubOut(null);
+                    }}>{label(p.id)}</button>
+                  ))}
+                  <button className="chip" onClick={() => setSubOut(null)}>Cancel</button>
+                </>}
+            </div>
+          </>
+        )}
         <label className="field-label">First serve of set {set}</label>
         <div className="segmented">
           <button className={cur.weServeFirst ? 'on' : ''} onClick={() => put({ ...cur, weServeFirst: true })}>We serve</button>

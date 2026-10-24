@@ -143,7 +143,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   // Line-up of the current set, rotated by the points tagged so far: on-court players come first.
   const lineup = match.lineups?.[String(setNo)];
-  const rotationNow = lineup ? rotationAfter(lineup, pointsOfSet(confirmed, setNo, Infinity), players) : null;
+  const rotationNow = lineup ? rotationAfter(lineup, pointsOfSet(confirmed, setNo, Infinity), players, getTime() ?? Infinity) : null;
   const onCourt = rotationNow
     ? [4, 3, 2, 5, 6, 1].map((pos) => rotationNow.positions[pos - 1]).filter((x): x is number => x != null)
     : undefined;
@@ -362,7 +362,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       )}
 
       {lineupSet != null && (
-        <LineupSheet match={match} players={players} initialSet={lineupSet} onClose={() => setLineupSet(null)}
+        <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)}
           onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
       )}
 

@@ -5,7 +5,25 @@ import type { Player, VEvent } from './api';
  * Starting line-up of one set: order[0] is in position 1 (the server's spot), then
  * positions 2..6. With a libero, she replaces the middle blockers in the back row.
  */
-export interface Lineup { order: (number | null)[]; libero?: number | null; weServeFirst: boolean }
+export interface Lineup {
+  order: (number | null)[];
+  libero?: number | null;
+  weServeFirst: boolean;
+  /** Substitutions: from video time t on, [in] plays in [out]'s place. */
+  subs?: Sub[];
+}
+
+export interface Sub { t: number; out: number; in: number }
+
+/** The starting order with the substitutions made up to time [at] (Infinity = all of them). */
+export function orderAt(lineup: Lineup, at = Infinity): (number | null)[] {
+  let order = [...lineup.order];
+  for (const s of [...(lineup.subs ?? [])].sort((a, b) => a.t - b.t)) {
+    if (s.t > at) break;
+    order = order.map((id) => (id === s.out ? s.in : id === s.in ? s.out : id));
+  }
+  return order;
+}
 
 /** Line-ups per set number ("1".."5"). */
 export type Lineups = Record<string, Lineup>;
@@ -25,14 +43,15 @@ export const FRONT = [2, 3, 4];
  * We rotate when we win a point on their serve (side-out). [points]: who won each
  * rally, in order.
  */
-export function rotationAfter(lineup: Lineup, points: ('us' | 'them')[], players: Player[]): RotationState {
+export function rotationAfter(lineup: Lineup, points: ('us' | 'them')[], players: Player[], at = Infinity): RotationState {
+  const order = orderAt(lineup, at);
   let weServe = lineup.weServeFirst;
   let turns = 0;
   for (const p of points) {
     if (p === 'us' && !weServe) turns++;
     weServe = p === 'us';
   }
-  const base = Array.from({ length: 6 }, (_, i) => lineup.order[(i + turns) % 6] ?? null);
+  const base = Array.from({ length: 6 }, (_, i) => order[(i + turns) % 6] ?? null);
   const role = (id: number | null) => players.find((x) => x.id === id)?.role;
   const positions = base.map((id, i) => {
     const pos = i + 1;

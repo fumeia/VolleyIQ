@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, VEvent } from './api';
-import { candidates, pointsOfSet, rotationAfter } from './rotation';
+import { candidates, orderAt, pointsOfSet, rotationAfter } from './rotation';
 
 const P = (id: number, role: string) => ({ id, role, name: `p${id}`, number: id, active: 1 }) as unknown as Player;
 // 5-1: S in 1, OH 2, MB 3, OPP 4, OH 5, MB 6; libero 7.
@@ -37,5 +37,13 @@ describe('rotation', () => {
   it('reads who won each rally from the point-ending events', () => {
     const ev = (t: number, action: string, set_no = 1) => ({ t, action, set_no, status: 'confirmed' }) as VEvent;
     expect(pointsOfSet([ev(1, 'kill'), ev(2, 'attack'), ev(3, 'opp_point'), ev(4, 'ace', 2), ev(9, 'kill')], 1, 5)).toEqual(['us', 'them']);
+  });
+
+  it('applies substitutions from their time on', () => {
+    const subbed = { ...lineup, subs: [{ t: 300, out: 4, in: 8 }, { t: 900, out: 8, in: 4 }] };
+    expect(orderAt(subbed, 100)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(orderAt(subbed, 400)).toEqual([1, 2, 3, 8, 5, 6]);
+    expect(orderAt(subbed, 1000)).toEqual([1, 2, 3, 4, 5, 6]); // swapped back
+    expect(rotationAfter(subbed, [], [...players, P(8, 'OPP')], 400).positions[3]).toBe(8);
   });
 });

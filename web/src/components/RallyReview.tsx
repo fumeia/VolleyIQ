@@ -66,7 +66,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const lineup = r ? match.lineups?.[String(r.set)] : undefined;
   const rotation = useMemo(
-    () => (r && lineup ? rotationAfter(lineup, pointsOfSet(confirmed, r.set, r.start), players) : null),
+    () => (r && lineup ? rotationAfter(lineup, pointsOfSet(confirmed, r.set, r.start), players, r.start) : null),
     [r?.key, r?.start, lineup, confirmed, players],
   );
 
