@@ -142,7 +142,7 @@ export function ServePassSection({ players, events }: { players: Player[]; event
             <span className="chart-sub">Each dot is a pass, coloured by grade; the ring is the target</span>
             <span className="chart-legend">{[0, 1, 2, 3].map((g) => <Swatch key={g} fill={RAMP[g]} label={`Grade ${g}`} />)}</span>
           </figcaption>
-          <div className="plot-wrap paper"><CourtFull points={passDots} showTarget /></div>
+          <div className="plot-wrap paper"><CourtFull points={passDots} showTarget yRange={[-3, 10.5]} /></div>
         </figure>
       )}
     </div>

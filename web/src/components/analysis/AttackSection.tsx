@@ -143,7 +143,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             ))}
             <PlayBtn list={attacks.filter((e) => shots === 'all' || result(e.action) === shots)} label="Watch these" />
           </div>
-          <div className="plot-wrap paper"><CourtFull paths={paths} /></div>
+          <div className="plot-wrap paper"><CourtFull paths={paths} yRange={[4, 21]} /></div>
         </figure>
       )}
     </div>

@@ -19,6 +19,8 @@ interface Props {
   sideways?: boolean | 'auto';
   /** We play on the far half in the video: draw the court as the camera sees it (our half at the top, mirrored). */
   flip?: boolean;
+  /** Plots only: show just this stretch of the court (meters from our baseline), e.g. [4, 21] for attacks. */
+  yRange?: [number, number];
 }
 
 const W = FULL_VIEW.x1 - FULL_VIEW.x0;
@@ -27,7 +29,7 @@ const CELL = 1.5;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** The whole court with run-off, for tapping spots on either side and for plots. */
-export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip }: Props) {
+export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip, yRange }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const portrait = usePortraitPhone();
   const sideways = side === 'auto' ? portrait : !!side;
@@ -72,7 +74,7 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
   const net = seg(FULL_VIEW.x0 + 0.4, COURT.net, FULL_VIEW.x1 - 0.4, COURT.net);
   const label_ = (x: number, y: number) => P(x, y);
   return (
-    <svg ref={svg} className={`court-svg court-full ${sideways ? 'sideways' : ''} ${onPick ? 'is-pickable' : ''}`} viewBox={`0 0 ${VW} ${VH}`}
+    <svg ref={svg} className={`court-svg court-full ${sideways ? 'sideways' : ''} ${onPick ? 'is-pickable' : ''}`} viewBox={yRange && !sideways && !onPick ? `0 ${vy(yRange[1])} ${VW} ${yRange[1] - yRange[0]}` : `0 0 ${VW} ${VH}`}
       onClick={pick} role={onPick ? 'button' : 'img'} aria-label={label ?? 'Court'}>
       <defs>
         <marker id="court-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
