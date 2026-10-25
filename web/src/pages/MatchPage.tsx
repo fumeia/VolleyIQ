@@ -442,6 +442,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   window.scrollTo({ top: 0 });
                 }}
                 onDone={async () => { await reload(); setTab('review'); }}
+                pending={suggested.length}
+                onClearSuggestions={async () => {
+                  const n = suggested.length;
+                  try { await api.clearSuggestions(match.id); } catch { /* fall back below */ }
+                  await reload();
+                  flash(`Deleted ${n} unreviewed suggestion${n === 1 ? '' : 's'}`);
+                }}
               />
             )}
           </div>

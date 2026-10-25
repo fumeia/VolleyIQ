@@ -179,3 +179,18 @@ test('match sheet scan: disabled by default, works with a scanner, validates inp
   assert.equal(res.data.rosters.A[0].captain, true);
   await app.close();
 });
+
+test('clear unreviewed suggestions keeps confirmed touches', async () => {
+  const app = await setup();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'c' } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions`, payload: { events: [
+    { action: 'serve', t: 1 }, { action: 'dig', t: 2 }, { action: 'set', t: 3 },
+  ] } });
+  const evs = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[0].id}`, payload: { status: 'confirmed' } });
+  const res = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions/clear` })).json();
+  assert.equal(res.deleted, 2);
+  const left = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  assert.deepEqual(left.map((e) => [e.action, e.status]), [['serve', 'confirmed']]);
+  await app.close();
+});

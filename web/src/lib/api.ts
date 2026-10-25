@@ -136,4 +136,5 @@ export const api = {
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
+  clearSuggestions: (matchId: number) => req<{ deleted: number }>('POST', `/api/matches/${matchId}/suggestions/clear`),
 };

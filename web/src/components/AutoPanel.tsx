@@ -13,6 +13,9 @@ interface Props {
   onCalibration: (c: Calibration) => void;
   getTime: () => number | null;
   onDone: () => void;
+  /** How many unreviewed auto suggestions exist, and a way to delete them all. */
+  pending?: number;
+  onClearSuggestions?: () => void;
 }
 
 /**
@@ -20,7 +23,7 @@ interface Props {
  * (picture), rallies, and optionally jersey numbers and court sides. Results
  * land in Review. Runs as a background job with a notification.
  */
-export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone }: Props) {
+export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone, pending = 0, onClearSuggestions }: Props) {
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
@@ -61,6 +64,11 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         <p><b>Auto-detection runs in the VolleyIQ Android app</b>, on the phone where the video is. It finds rallies and ball
           touches, guesses the action, and reads jersey numbers. The suggestions then show up here in <b>Review</b>.</p>
         <p className="muted small">Install it from the project's GitHub Releases page ("VolleyIQ Android (latest build)").</p>
+        {pending > 0 && onClearSuggestions && (
+          <button className="btn-ghost small danger wide" onClick={() => {
+            if (confirm(`Delete all ${pending} unreviewed auto suggestion${pending === 1 ? '' : 's'}? Saved touches are kept.`)) onClearSuggestions();
+          }}>🗑 Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
+        )}
       </div>
     );
   }
@@ -147,6 +155,11 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         A new run replaces the suggestions you have not saved yet; saved touches are kept and not suggested again.
         Progress is saved, so an app update or a reboot does not start it over. Offline results upload once you are back online.
       </p>
+      {pending > 0 && onClearSuggestions && (
+        <button className="btn-ghost small danger wide" disabled={running} onClick={() => {
+          if (confirm(`Delete all ${pending} unreviewed auto suggestion${pending === 1 ? '' : 's'}? Saved touches are kept. Then run again, e.g. at sensitivity 0.7.`)) onClearSuggestions();
+        }}>🗑 Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
+      )}
     </div>
   );
 }

@@ -387,6 +387,15 @@ export function registerRoutes(app, { db, vision, insights }) {
     }
   });
 
+  // Delete every unreviewed auto suggestion of a match (saved/confirmed touches are kept),
+  // to clear the review queue before re-running the detection.
+  app.post('/api/matches/:id/suggestions/clear', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const r = db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
+    return { deleted: r.changes };
+  });
+
   // ---------- auto-detection results from the phone app ----------
   // The Android app analyses the video on the phone and posts its suggestions here.
   app.post('/api/matches/:id/suggestions', coach, async (req, reply) => {

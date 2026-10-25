@@ -481,6 +481,11 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       )}
 
       <div className="rally-card" onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }} onPointerUp={onSwipeEnd}>
+        <div className="rr-addrow">
+          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(false)} title="Add a touch at the current video time">
+            + Add touch{now != null ? ` @ ${fmtTime(now)}` : ''}
+          </button>
+        </div>
         <div className="strip">
           {r.events.map((e) => {
             const v = view(e);
@@ -495,9 +500,6 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
               </button>
             );
           })}
-          <button className="touch-chip add" disabled={busy || now == null} onClick={() => addAt(false)} title="Add a touch at the current video time">
-            <b>+</b><span>{now != null ? fmtTime(now) : ''}</span>
-          </button>
         </div>
         {!selected && <div className="rr-tools">
           <button className="icon-btn" onClick={playRally} title="Replay the rally">↻</button>
