@@ -22,6 +22,7 @@ import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
+import { useWorkTimer } from '../lib/useWorkTimer';
 
 type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
 
@@ -54,6 +55,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [match, setMatch] = useState<Match>(initial.match);
   const players = initial.players;
   const { events, add, update, remove, replaceAll, pendingCount } = useEvents(match.id, initial.events);
+  useWorkTimer(match.id);
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);

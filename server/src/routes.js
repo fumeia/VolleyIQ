@@ -68,7 +68,9 @@ export function registerRoutes(app, { db }) {
     player: db.prepare('SELECT * FROM players WHERE id = ?'),
     matches: db.prepare(`SELECT m.*, t.name AS team_name,
                            (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id) AS event_count,
-                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'suggested') AS suggested_count
+                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'suggested') AS suggested_count,
+                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'confirmed') AS confirmed_count,
+                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'confirmed' AND e.source = 'auto') AS auto_confirmed_count
                          FROM matches m LEFT JOIN teams t ON t.id = m.team_id
                          ORDER BY COALESCE(m.played_on, m.created_at) DESC, m.id DESC`),
     match: db.prepare('SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id = m.team_id WHERE m.id = ?'),
@@ -302,15 +304,36 @@ export function registerRoutes(app, { db }) {
     const merged = { ...cur, ...req.body };
     const [ev, err] = cleanEvent(merged);
     if (err) return bad(reply, err);
+    // An auto suggestion given another player or action counts as a correction (accuracy metric).
+    if (cur.source === 'auto' && cur.status === 'suggested' && ((ev.player_id ?? null) !== (cur.player_id ?? null) || ev.action !== cur.action)) {
+      db.prepare('UPDATE matches SET edited_count = edited_count + 1 WHERE id = ?').run(cur.match_id);
+    }
     db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone, x = @x, y = @y,
                 fx = @fx, fy = @fy, rally = @rally, poss = @poss, t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
       .run({ ...ev, source: cur.source, id: cur.id });
     return q.event.get(cur.id);
   });
 
+  // Removing an auto suggestion counts it as a false detection.
+  const countRemoved = (ev) => {
+    if (ev?.source === 'auto' && ev.status === 'suggested') db.prepare('UPDATE matches SET removed_count = removed_count + 1 WHERE id = ?').run(ev.match_id);
+  };
+
   app.delete('/api/events/:id', coach, async (req) => {
-    db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+    db.transaction(() => {
+      countRemoved(q.event.get(req.params.id));
+      db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+    })();
     return { ok: true };
+  });
+
+  // Active analyst time, sent by the page in small increments while someone works on the match.
+  app.post('/api/matches/:id/work', coach, async (req, reply) => {
+    const sec = Math.round(Number(req.body?.sec));
+    if (!Number.isFinite(sec) || sec < 0 || sec > 600) return bad(reply, 'sec must be 0-600');
+    const r = db.prepare('UPDATE matches SET work_sec = work_sec + ? WHERE id = ?').run(sec, req.params.id);
+    if (!r.changes) return bad(reply, 'Not found', 404);
+    return { work_sec: q.match.get(req.params.id).work_sec };
   });
 
   app.post('/api/matches/:id/events/bulk', coach, async (req, reply) => {
@@ -319,7 +342,11 @@ export function registerRoutes(app, { db }) {
     const run = db.transaction(() => {
       for (const id of ids) {
         if (op === 'confirm') db.prepare("UPDATE events SET status = 'confirmed' WHERE id = ? AND match_id = ?").run(id, req.params.id);
-        else if (op === 'delete') db.prepare('DELETE FROM events WHERE id = ? AND match_id = ?').run(id, req.params.id);
+        else if (op === 'delete') {
+          const ev = q.event.get(id);
+          if (ev && String(ev.match_id) === String(req.params.id)) countRemoved(ev);
+          db.prepare('DELETE FROM events WHERE id = ? AND match_id = ?').run(id, req.params.id);
+        }
       }
     });
     run();

@@ -9,6 +9,8 @@ export interface Match {
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
   calibration?: Calibration | null; lineups?: Lineups | null; created_at?: string; event_count?: number; suggested_count?: number;
+  /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
+  work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
@@ -114,6 +116,7 @@ export const api = {
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),
   deleteEvent: (id: number) => req('DELETE', `/api/events/${id}`),
+  addWork: (matchId: number, sec: number) => req<{ work_sec: number }>('POST', `/api/matches/${matchId}/work`, { sec }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
 };

@@ -102,6 +102,13 @@ const MIGRATIONS = [
   `
   ALTER TABLE matches ADD COLUMN lineups TEXT;
   `,
+  // v9: analyst effort per match: active seconds spent tagging/reviewing, auto suggestions
+  // removed as wrong, and auto suggestions corrected (other player or action) before saving
+  `
+  ALTER TABLE matches ADD COLUMN work_sec INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE matches ADD COLUMN removed_count INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE matches ADD COLUMN edited_count INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function migrate(db) {

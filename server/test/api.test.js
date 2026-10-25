@@ -122,3 +122,23 @@ test('password protection and share links', async () => {
   assert.equal(evil.headers['access-control-allow-origin'], undefined);
   await app.close();
 });
+
+test('analyst effort: active time, corrected and removed auto suggestions', async () => {
+  const app = await setup();
+  const match = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${match.id}/suggestions`, payload: { events: [
+    { action: 'serve', t: 1 }, { action: 'dig', t: 5 }, { action: 'set', t: 6 }, { action: 'attack', t: 7 },
+  ] } });
+  const evs = (await app.inject({ url: `/api/matches/${match.id}` })).json().events;
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[0].id}`, payload: { status: 'confirmed' } });
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[1].id}`, payload: { status: 'confirmed', action: 'receive', value: 2 } });
+  await app.inject({ method: 'DELETE', url: `/api/events/${evs[2].id}` });
+  await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events/bulk`, payload: { op: 'delete', ids: [evs[3].id] } });
+  const manual = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'kill', t: 8 } })).json();
+  await app.inject({ method: 'DELETE', url: `/api/events/${manual.id}` }); // own tag: not a false detection
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/work`, payload: { sec: 30 } })).json().work_sec, 30);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/work`, payload: { sec: 5000 } })).statusCode, 400);
+  const m = (await app.inject({ url: '/api/matches' })).json()[0];
+  assert.deepEqual([m.work_sec, m.edited_count, m.removed_count, m.confirmed_count, m.auto_confirmed_count], [30, 1, 2, 2, 2]);
+  await app.close();
+});
