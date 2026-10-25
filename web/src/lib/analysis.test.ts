@@ -33,3 +33,16 @@ describe('key findings', () => {
     expect(some.map((f) => f.text).join(' ')).toContain('lowest: #3 Anna');
   });
 });
+
+describe('zone charts', () => {
+  it('groups attacks by origin and passes by reception zone on our half', async () => {
+    const { attackOrigins, receptionZones } = await import('./analysis');
+    const e = (action: string, fx: number, fy: number, value: number | null = null) => ({ action, fx, fy, value }) as VEvent;
+    const o = attackOrigins([e('kill', 1, 7.5), e('attack', 1.5, 8), e('attack_error', 8, 7)]);
+    expect(o.find((z) => z.zone === 4)).toMatchObject({ n: 2, good: 1, value: 0.5 });
+    expect(o.find((z) => z.zone === 2)).toMatchObject({ n: 1, value: 0 });
+    const r = receptionZones([e('receive', 8, 1, 3), e('receive', 8, 2, 1), e('receive', 4.5, 2, 2)]);
+    expect(r.find((z) => z.zone === 1)).toMatchObject({ n: 2, value: 2 });
+    expect(r.find((z) => z.zone === 6)).toMatchObject({ n: 1, value: 2 });
+  });
+});

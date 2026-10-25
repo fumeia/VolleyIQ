@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, LineChart, RAMP, Scatter, SERIES, StackedBars } from '../charts/Charts';
 import type { Match, Player, VEvent } from '../lib/api';
-import { breakPct, keyFindings, rotationStats, serveRows, sideOutPct } from '../lib/analysis';
+import { attackOrigins, breakPct, keyFindings, receptionZones, rotationStats, serveRows, sideOutPct } from '../lib/analysis';
 import { playerStats, statLine } from '../lib/stats';
 import { attackZones, pointSources, receivers, scoreFlow } from '../report/analytics';
 
@@ -121,6 +121,26 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
 
       {focus == null && <BarChart title="How we scored" rows={sources.won.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.aqua} fmt={(v) => String(Math.round(v))} />}
       {focus == null && <BarChart title="How the opponent scored" rows={sources.lost.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.orange} fmt={(v) => String(Math.round(v))} />}
+
+      {(() => {
+        const origins = attackOrigins(confirmed);
+        return origins.reduce((a, r) => a + r.n, 0) >= 5 ? (
+          <GroupedColumns title={`Attacks by where they were hit from${forWho}`} subtitle="Kill % per zone of our court (front row 4-3-2, back row 5-6-1)"
+            categories={origins.map((z) => `Zone ${z.zone}`)}
+            series={[{ name: 'Kill %', color: SERIES.blue, values: origins.map((z) => z.value), notes: origins.map((z) => `${z.good}/${z.n}`) }]}
+            yTitle="Kill %" fmt={pct} yDomain={[0, 1]} />
+        ) : null;
+      })()}
+
+      {(() => {
+        const zones = receptionZones(confirmed);
+        return zones.reduce((a, r) => a + r.n, 0) >= 5 ? (
+          <GroupedColumns title={`Pass quality by reception zone${forWho}`} subtitle="Average grade (0–3) of passes received in each zone"
+            categories={zones.map((z) => `Zone ${z.zone}`)}
+            series={[{ name: 'Pass avg', color: SERIES.blue, values: zones.map((z) => z.value), notes: zones.map((z) => `${z.n} passes`) }]}
+            yTitle="Grade" fmt={(v) => v.toFixed(1)} yDomain={[0, 3]} />
+        ) : null;
+      })()}
 
       <GroupedColumns title={`Attacks by target zone${forWho}`} subtitle="Kill % per zone of the opponent's court (number of attacks in the table)"
         categories={zones.map((z) => `Zone ${z.zone}`)}

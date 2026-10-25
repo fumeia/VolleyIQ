@@ -94,3 +94,39 @@ export function keyFindings(
   if (leak && lostTotal >= 10) out.push({ text: `Most points given away: ${leak.label.toLowerCase()} (${leak.value} of ${lostTotal}).` });
   return out;
 }
+
+export interface ZoneRow { zone: number; n: number; good: number; value: number | null }
+
+/** Our court zone (1..6) of a point on our half, as our team numbers it. */
+function ourZone(x: number, y: number): number | null {
+  if (x < 0 || x > 9 || y < 0 || y > 9) return null;
+  const col = x < 3 ? 0 : x < 6 ? 1 : 2;
+  return y >= 6 ? [4, 3, 2][col] : [5, 6, 1][col];
+}
+
+/** Attacks by the zone they were hit from (our half): kill % per zone. */
+export function attackOrigins(events: VEvent[]): ZoneRow[] {
+  const rows = [4, 3, 2, 5, 6, 1].map((zone) => ({ zone, n: 0, good: 0, value: null as number | null }));
+  for (const e of events) {
+    if (!['attack', 'kill', 'attack_error', 'attack_blocked'].includes(e.action) || e.fx == null || e.fy == null) continue;
+    const z = ourZone(e.fx, e.fy);
+    const r = rows.find((x) => x.zone === z);
+    if (!r) continue;
+    r.n++;
+    if (e.action === 'kill') r.good++;
+  }
+  return rows.map((r) => ({ ...r, value: r.n ? r.good / r.n : null }));
+}
+
+/** Passes by the zone they were received in (our half): average grade per zone. */
+export function receptionZones(events: VEvent[]): ZoneRow[] {
+  const rows = [4, 3, 2, 5, 6, 1].map((zone) => ({ zone, n: 0, good: 0, value: null as number | null }));
+  for (const e of events) {
+    if (e.action !== 'receive' || e.value == null || e.fx == null || e.fy == null) continue;
+    const r = rows.find((x) => x.zone === ourZone(e.fx!, e.fy!));
+    if (!r) continue;
+    r.n++;
+    r.good += e.value;
+  }
+  return rows.map((r) => ({ ...r, value: r.n ? r.good / r.n : null }));
+}
