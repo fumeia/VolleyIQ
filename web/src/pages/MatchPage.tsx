@@ -15,7 +15,7 @@ import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
 import { ACTION_BY_CODE, actionLabel } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
-import { api, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { api, ApiError, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
@@ -177,11 +177,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   async function removeSuggestions(list: VEvent[]) {
     // Big clean-ups go to the server in one request; small ones stay optimistic.
     if (list.length > 5 && list.every((e) => e.id > 0)) {
-      await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
-      await reload();
-    } else {
-      await Promise.all(list.map((e) => remove(e)));
+      try {
+        await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
+        await reload();
+        return;
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 0) throw err;
+        // Offline: delete one by one, which queues them until the connection is back.
+      }
     }
+    await Promise.all(list.map((e) => remove(e)));
   }
 
   // Tags since the last point of this set = the rally being tagged.
