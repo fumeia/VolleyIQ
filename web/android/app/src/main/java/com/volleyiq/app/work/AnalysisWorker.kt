@@ -120,7 +120,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                     val now = (todo.size * f).toInt()
                                     val n = resumed + now
                                     val note = if (resumed > 0) " ($resumed from before)" else ""
-                                    report(0.6 + 0.37 * n / touches.size, "Looking at players $n/${touches.size}$note${speedNote(vision, now, started)}")
+                                    report(0.6 + 0.37 * n / touches.size, "Looking at players $n/${touches.size}$note${speedNote(vision, now, started, touches.size - n)}")
                                 },
                                 isStopped = ::isStopped,
                             )
@@ -180,13 +180,14 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         return if (size > 0) "$name|$size" else uri.toString()
     }
 
-    /** Seconds per touch and where they go: " · 1.9 s/touch (players 0.8, numbers 0.7, video 0.4)". */
-    private fun speedNote(v: TouchVision, done: Int, startedNs: Long): String {
+    /** Time left, seconds per touch and where they go: " · ~25 min left · 1.9 s/touch (players 0.8, numbers 0.7, video 0.4)". */
+    private fun speedNote(v: TouchVision, done: Int, startedNs: Long, left: Int): String {
         if (done < 20) return ""
         fun s(ns: Long) = "%.1f".format(ns / 1e9 / done)
         val total = System.nanoTime() - startedNs
         val video = total - v.detectNs - v.zoomNs - v.ocrNs
-        return " · ${s(total)} s/touch (players ${s(v.detectNs + v.zoomNs)}, numbers ${s(v.ocrNs)}, video ${s(video)})"
+        val minutes = Math.round(total / 1e9 / done * left / 60)
+        return " · ~$minutes min left · ${s(total)} s/touch (players ${s(v.detectNs + v.zoomNs)}, numbers ${s(v.ocrNs)}, video ${s(video)})"
     }
 
     private fun report(fraction: Double, message: String) {

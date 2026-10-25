@@ -24,7 +24,10 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
-  const [sensitivity, setSensitivity] = useState(1);
+  // Remembered per match, so a re-run uses the same value unless you change it.
+  const sensKey = `viq:sensitivity:${match.id}`;
+  const [sensitivity, setSensitivityState] = useState(() => { try { return Number(localStorage.getItem(sensKey)) || 1; } catch { return 1; } });
+  const setSensitivity = (v: number) => { setSensitivityState(v); try { localStorage.setItem(sensKey, String(v)); } catch { /* private mode */ } };
   const [status, setStatus] = useState<{ analysis: WorkState | null; upload: WorkState | null } | null>(null);
   const [err, setErr] = useState('');
   const handled = useRef<string | null>(null);
@@ -107,7 +110,9 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         <input type="checkbox" checked={detectCuts} onChange={(e) => setDetectCuts(e.target.checked)} />
         Video is edited (rallies cut together)
       </label>
-      <label className="field-label">Touch sensitivity: {sensitivity.toFixed(1)}× {sensitivity > 1.2 ? '(finds more, also more false ones)' : ''}</label>
+      <label className="field-label">
+        Touch sensitivity: {sensitivity.toFixed(1)}× {sensitivity > 1.2 ? '(finds more, also more false ones)' : sensitivity < 0.9 ? '(fewer false touches, may miss quiet ones)' : ''}
+      </label>
       <input type="range" min={0.6} max={1.8} step={0.1} value={sensitivity} onChange={(e) => setSensitivity(Number(e.target.value))} />
 
       <div className="row wrap calib-status">
