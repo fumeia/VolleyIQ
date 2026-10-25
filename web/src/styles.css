@@ -524,3 +524,5 @@ button.court-zone:active { background: #2a2f3a; }
 .paste-roster { display: flex; flex-direction: column; gap: 8px; }
 .paste-roster textarea { font-family: inherit; resize: vertical; }
 .paste-roster ul { margin: 0; padding-left: 18px; }
+/* Scrolling a pad into view leaves room for the sticky tab bar. */
+.pad { scroll-margin-top: 64px; }

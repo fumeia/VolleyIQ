@@ -64,6 +64,11 @@ interface Draft {
 export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
+  // Each step (action, court spots) starts at the top of the panel, so nothing is scrolled away.
+  const padRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (draft) padRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [!!draft, draft?.action?.code, draft?.stage]);
   draftRef.current = draft;
   const rank = (id: number) => { const i = onCourt?.indexOf(id) ?? -1; return i < 0 ? 99 : i; };
   const roster = players.filter((p) => p.active).sort((a, b) => rank(a.id) - rank(b.id) || (a.number ?? 999) - (b.number ?? 999));
@@ -144,7 +149,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
 
   if (draft?.action && settings.location === 'zones' && draft.action.code !== 'receive') {
     return (
-      <div className="pad">
+      <div className="pad" ref={padRef}>
         <div className="pad-head">
           <span>{who(draft.player)} · <b>{draft.action.label}</b> → zone?</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
@@ -161,7 +166,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     const prompt = (first ? a.fromPrompt : a.toPrompt) ?? 'Where?';
     const steps = a.court === 'path' && settings.fromTap ? ` (${first ? 1 : 2}/2)` : '';
     return (
-      <div className="pad">
+      <div className="pad" ref={padRef}>
         <div className="pad-head">
           <span>{who(draft.player)} · <b>{a.label}</b> → {prompt}{steps}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
@@ -184,7 +189,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
 
   if (draft) {
     return (
-      <div className="pad">
+      <div className="pad" ref={padRef}>
         <div className="pad-head">
           <span><b>{who(draft.player)}</b> {draft.t != null && <small className="muted">@ {fmtTime(draft.t)}</small>}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
@@ -222,7 +227,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
   }
 
   return (
-    <div className="pad">
+    <div className="pad" ref={padRef}>
       <div className="pad-head"><span className="muted">Tap the player who touched the ball</span></div>
       {server && (
         <button className="act act-actions wide serve-now" onClick={() => chooseAction(ACTION_BY_CODE.serve, undefined, begin(server))}>
