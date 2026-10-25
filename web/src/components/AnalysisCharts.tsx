@@ -52,16 +52,16 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
         <>
           <LineChart title="Attack efficiency per match" subtitle="(kills − errors) / attempts, in date order"
             series={[{ name: 'Attack eff.', color: SERIES.blue, points: perMatch((evs) => statLine(evs.filter((e) => e.player_id != null)).attackEff) }]}
-            xTitle="Match" yTitle="Efficiency" yFmt={eff} xFmt={matchName} refLine={{ y: 0, label: '0' }} />
+            xTitle="Match" yTitle="Efficiency" yFmt={eff} xFmt={matchName} categorical refLine={{ y: 0, label: '0' }} />
           <LineChart title="Pass average per match" subtitle="Receive grade 0–3"
             series={[{ name: 'Pass avg', color: SERIES.blue, points: perMatch((evs) => statLine(evs).recAvg) }]}
-            xTitle="Match" yTitle="Grade" yDomain={[0, 3]} yFmt={(v) => v.toFixed(1)} xFmt={matchName} />
+            xTitle="Match" yTitle="Grade" yDomain={[0, 3]} yFmt={(v) => v.toFixed(1)} xFmt={matchName} categorical />
           <LineChart title="Side-out % per match" subtitle="Points won when the opponent served (needs line-ups)"
             series={[{ name: 'Side-out %', color: SERIES.blue, points: perMatch((evs) => {
               const r = rotationStats(evs, lineups, players).reduce((a, x) => ({ receiving: a.receiving + x.receiving, sideOuts: a.sideOuts + x.sideOuts }), { receiving: 0, sideOuts: 0 });
               return sideOutPct(r);
             }) }]}
-            xTitle="Match" yTitle="Side-out" yDomain={[0, 1]} yFmt={pct} xFmt={matchName} />
+            xTitle="Match" yTitle="Side-out" yDomain={[0, 1]} yFmt={pct} xFmt={matchName} categorical />
         </>
       )}
 

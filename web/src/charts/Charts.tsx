@@ -108,11 +108,13 @@ function endLabels(labels: { x: number; y: number; text: string }[]) {
 
 export interface LineSeries { name: string; color: string; points: { x: number; y: number }[] }
 
-export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt, step, yDomain, height = 220, refLine }: {
+export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt, step, yDomain, height = 220, refLine, categorical }: {
   title: string; subtitle?: string; series: LineSeries[]; xTitle: string; yTitle: string;
   yFmt?: (v: number) => string; xFmt?: (v: number) => string; step?: boolean; yDomain?: [number, number]; height?: number;
   /** A horizontal reference line (e.g. 0, or the season average). */
   refLine?: { y: number; label: string };
+  /** x values are categories 1..n (e.g. matches): one tick each, half a step of room at both ends. */
+  categorical?: boolean;
 }) {
   const [wrap, w] = useWidth<HTMLDivElement>();
   const [tip, setTip] = useState<Tip | null>(null);
@@ -120,9 +122,13 @@ export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt,
   const all = series.flatMap((s) => s.points);
   const m = { l: 44, r: 40, t: 10, b: 36 };
   const xs = all.map((p) => p.x), ys = all.map((p) => p.y);
-  const xTicks = niceTicks(Math.min(0, ...xs), Math.max(1, ...xs), Math.max(2, Math.floor((w - m.l - m.r) / 60)));
+  const cats = [...new Set(xs)].sort((a, b) => a - b);
+  const xTicks = categorical ? cats : niceTicks(Math.min(0, ...xs), Math.max(1, ...xs), Math.max(2, Math.floor((w - m.l - m.r) / 60)));
   const yTicks = niceTicks(yDomain?.[0] ?? Math.min(0, ...ys), yDomain?.[1] ?? Math.max(1, ...ys), 4);
-  const X = linear(xTicks[0], xTicks[xTicks.length - 1], m.l, w - m.r);
+  const [x0, x1] = categorical ? [Math.min(...cats) - 0.5, Math.max(...cats) + 0.5] : [xTicks[0], xTicks[xTicks.length - 1]];
+  const X = linear(x0, x1, m.l, w - m.r);
+  // Few points: mark each one (a single value would otherwise be invisible).
+  const markAll = !step && Math.max(0, ...series.map((s) => s.points.length)) <= 24;
   const Y = linear(yTicks[0], yTicks[yTicks.length - 1], height - m.b, m.t);
   const path = (pts: { x: number; y: number }[]) => pts.map((p, i) => {
     if (i === 0) return `M${X(p.x)},${Y(p.y)}`;
@@ -140,7 +146,7 @@ export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt,
   function move(e: React.PointerEvent<SVGRectElement>) {
     const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
     const px = e.clientX - box.left;
-    const xv = xTicks[0] + ((px - m.l) / (w - m.l - m.r)) * (xTicks[xTicks.length - 1] - xTicks[0]);
+    const xv = x0 + ((px - m.l) / (w - m.l - m.r)) * (x1 - x0);
     const near = [...new Set(xs)].sort((a, b) => Math.abs(a - xv) - Math.abs(b - xv))[0];
     if (near == null) return;
     setHoverX(near);
@@ -175,6 +181,7 @@ export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt,
         {series.map((s) => s.points.length > 0 && (
           <g key={s.name}>
             <path d={path(s.points)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            {markAll && s.points.slice(0, -1).map((p) => <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />)}
             {(() => {
               const p = s.points[s.points.length - 1];
               return <circle cx={X(p.x)} cy={Y(p.y)} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />;
@@ -366,8 +373,8 @@ export function Scatter({ title, subtitle, points, xTitle, yTitle, xFmt, yFmt }:
 }) {
   const [wrap, w] = useWidth<HTMLDivElement>();
   const [tip, setTip] = useState<Tip | null>(null);
-  const height = 240;
-  const m = { l: 48, r: 16, t: 12, b: 38 };
+  const height = 250;
+  const m = { l: 48, r: 24, t: 22, b: 38 };
   const xt = niceTicks(Math.min(0, ...points.map((p) => p.x)), Math.max(1, ...points.map((p) => p.x)), 5);
   const yt = niceTicks(Math.min(0, ...points.map((p) => p.y)), Math.max(0.1, ...points.map((p) => p.y)), 4);
   const X = linear(xt[0], xt[xt.length - 1], m.l, w - m.r);
