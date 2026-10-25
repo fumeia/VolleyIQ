@@ -304,7 +304,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </>
             )}
             {tab === 'events' && (
-              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} />
+              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} filterable />
             )}
             {tab === 'review' && (
               suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (

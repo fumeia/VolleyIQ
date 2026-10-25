@@ -12,7 +12,19 @@ interface Props {
   limit?: number;
   /** Enables selecting several events (hold one, then tap more) and deleting them at once. */
   onDeleteMany?: (list: VEvent[]) => Promise<void>;
+  /** Show filters (set, player, kind of touch) above the list. */
+  filterable?: boolean;
 }
+
+const KINDS: { label: string; codes: string[] }[] = [
+  { label: 'Serve', codes: ['serve', 'ace', 'serve_error'] },
+  { label: 'Pass', codes: ['receive'] },
+  { label: 'Set', codes: ['set', 'assist', 'assist_error', 'set_error'] },
+  { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
+  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
+  { label: 'Defence', codes: ['dig', 'dig_error', 'freeball'] },
+  { label: 'Team', codes: ['opp_error', 'opp_point'] },
+];
 
 const HOLD_MS = 450;
 
@@ -23,14 +35,40 @@ export function playerLabel(players: Player[], e: VEvent) {
   return ACTION_BY_CODE[e.action]?.needsPlayer === false ? 'Team' : '—';
 }
 
-export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany }: Props) {
-  const shown = limit ? events.slice(-limit).reverse() : events;
+export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, filterable }: Props) {
+  const [fSet, setFSet] = useState<number | null>(null);
+  const [fPlayer, setFPlayer] = useState<number | null>(null);
+  const [fKind, setFKind] = useState<string | null>(null);
+  const kind = KINDS.find((k) => k.label === fKind);
+  const filtered = events.filter((e) => (fSet == null || (e.set_no ?? 1) === fSet)
+    && (fPlayer == null || e.player_id === fPlayer) && (!kind || kind.codes.includes(e.action)));
+  const shown = limit ? filtered.slice(-limit).reverse() : filtered;
+  const sets = [...new Set(events.map((e) => e.set_no ?? 1))].sort();
+  const people = players.filter((p) => events.some((e) => e.player_id === p.id));
+  const filters = filterable && events.length > 0 && (
+    <div className="ev-filters">
+      {sets.length > 1 && (
+        <select className="input small-select" value={fSet ?? ''} onChange={(e) => setFSet(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">All sets</option>
+          {sets.map((n) => <option key={n} value={n}>Set {n}</option>)}
+        </select>
+      )}
+      <select className="input small-select" value={fPlayer ?? ''} onChange={(e) => setFPlayer(e.target.value ? Number(e.target.value) : null)}>
+        <option value="">All players</option>
+        {people.map((p) => <option key={p.id} value={p.id}>#{p.number ?? '–'} {p.name}</option>)}
+      </select>
+      <div className="chips tight">
+        {KINDS.map((k) => <button key={k.label} className={`chip ${fKind === k.label ? 'on' : ''}`} onClick={() => setFKind(fKind === k.label ? null : k.label)}>{k.label}</button>)}
+      </div>
+      {(fSet != null || fPlayer != null || fKind) && <span className="small muted">{filtered.length} of {events.length}</span>}
+    </div>
+  );
   // null = normal list; a set = selecting (tap toggles).
   const [selected, setSelected] = useState<Set<number> | null>(null);
   const [busy, setBusy] = useState(false);
   const hold = useRef<number | undefined>(undefined);
   const held = useRef(false);
-  if (!shown.length) return <p className="muted small">No events yet.</p>;
+  if (!shown.length) return <>{filters}<p className="muted small">{events.length ? 'Nothing matches the filters.' : 'No events yet.'}</p></>;
 
   const toggle = (id: number) => setSelected((s) => {
     const next = new Set(s ?? []);
@@ -47,6 +85,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
 
   return (
     <>
+      {filters}
       {onDeleteMany && (selected ? (
         <div className="select-bar">
           <span><b>{selected.size}</b> selected</span>

@@ -67,6 +67,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const selectAt = useRef<number | null>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const editor = useRef<HTMLDivElement>(null);
+  // Set while the whole rally plays; when it ends, the first touch that needs a player opens.
+  const rallyPlaying = useRef(false);
+  const openFirst = useRef<() => void>(() => {});
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const lineup = r ? match.lineups?.[String(r.set)] : undefined;
   const rotation = useMemo(
@@ -111,7 +114,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       if (!p || t == null) return;
       setNow(t);
       if (!p.isPlaying()) return;
-      if (stopAt.current != null && t >= stopAt.current) { p.pause(); stopAt.current = null; return; }
+      if (stopAt.current != null && t >= stopAt.current) {
+        p.pause();
+        stopAt.current = null;
+        if (rallyPlaying.current) { rallyPlaying.current = false; openFirst.current(); }
+        return;
+      }
       if (stepPause && r) {
         const hit = r.events.find((e) => e.t != null && e.t <= t && e.t > t - 0.4 && !passed.current.has(e.id));
         if (hit) {
@@ -147,7 +155,11 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     stopAt.current = t1;
     passed.current = new Set();
   }
-  const playRally = () => r && playFrom(r.start - PRE_ROLL, r.end + POST_ROLL);
+  const playRally = () => {
+    if (!r) return;
+    playFrom(r.start - PRE_ROLL, r.end + POST_ROLL);
+    rallyPlaying.current = true;
+  };
 
   /**
    * A touch (or a whole rally) the analysis missed or that was deleted: added at the
@@ -224,12 +236,19 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 
   /** Open a touch at its first question and replay its moment (stopping right after the contact). */
   function open(e: VEvent, play = true) {
+    rallyPlaying.current = false;
     setSel(e.id);
     setStep('player');
     const v = view(e);
     setFrom(v.fx != null && v.fy != null ? { x: v.fx, y: v.fy } : null);
     if (play && e.t != null) playFrom(e.t - 1.5, e.t + 0.3);
   }
+
+  openFirst.current = () => {
+    if (sel != null) return;
+    const first = r.events.find((e) => ours(e) && view(e).player_id == null);
+    if (first) open(first, false);
+  };
 
   /** Next of our touches after [e]; none left = the rally is ready to be settled. */
   function advance(e: VEvent) {
