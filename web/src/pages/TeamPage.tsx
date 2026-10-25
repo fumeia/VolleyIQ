@@ -23,11 +23,22 @@ export function TeamPage() {
     <div className="page">
       <header className="page-head">
         <h1>{team.name}</h1>
-        <button className="btn-ghost small" onClick={async () => {
-          if (!confirm(`Delete team ${team.name}? Matches stay but lose their roster link.`)) return;
-          await api.deleteTeam(team.id);
-          nav('/teams');
-        }}>Delete</button>
+        <div className="row">
+          <button className="btn-ghost small" onClick={async () => {
+            const data = await api.teamReport(team.id);
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${team.name.replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }}>Export data</button>
+          <button className="btn-ghost small" onClick={async () => {
+            if (!confirm(`Delete team ${team.name}? Matches stay but lose their roster link.`)) return;
+            await api.deleteTeam(team.id);
+            nav('/teams');
+          }}>Delete</button>
+        </div>
       </header>
 
       <h2 className="section-title">Roster</h2>
