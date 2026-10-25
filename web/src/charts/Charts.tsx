@@ -4,16 +4,17 @@ import { linear, niceTicks, tickLabel } from './scale';
 /**
  * Small SVG chart kit for the analysis pages: real axes (ticks, titles), hairline
  * grids, thin marks, a legend for two or more series, hover tooltips and a table
- * view for every chart. Dark-surface palette validated with the dataviz checks.
+ * view for every chart. Charts sit on white paper (see .chart in styles.css); the
+ * light-surface palette is validated with the dataviz checks.
  */
-export const SERIES = { blue: '#3987e5', orange: '#d95926', aqua: '#199e70' };
-/** Ordinal blue ramp (dark -> light), e.g. pass grades 0..3. */
-export const RAMP = ['#1c5cab', '#2a78d6', '#5598e7', '#9ec5f4'];
+export const SERIES = { blue: '#2a78d6', orange: '#eb6834', aqua: '#1baf7a' };
+/** Ordinal blue ramp (light -> dark), e.g. pass grades 0..3: the better, the darker. */
+export const RAMP = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab'];
 
 const INK = 'var(--text)';
 const MUTED = 'var(--muted)';
-const GRID = '#262b35';
-const AXIS = '#3a4150';
+const GRID = '#e1e0d9';
+const AXIS = '#9a988f';
 const FONT = 11;
 
 export interface Table { head: string[]; rows: (string | number | null)[][] }

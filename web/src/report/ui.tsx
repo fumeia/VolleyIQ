@@ -5,7 +5,7 @@ import { HALF_VIEW, PASS_TARGET, toView, VIEW_H, VIEW_W, COURT, type Half } from
  * Drawing primitives for the shareable report cards. Cards are plain SVG with
  * inline attributes only (no CSS classes), so the exact same markup can be
  * rasterised to a PNG for chats. Colors follow the dataviz reference palette,
- * dark mode, validated: outcome slots blue/orange/aqua (all-pairs CVD-safe, plus
+ * light mode (white paper), validated: outcome slots blue/orange/aqua (all-pairs CVD-safe, plus
  * shape as second channel) and a one-hue blue ordinal ramp for pass grades.
  */
 export const W = 1080;
@@ -13,21 +13,21 @@ export const H = 1350;
 export const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 export const C = {
-  page: '#0d0d0d',
-  surface: '#1a1a19',
-  ink: '#f0efec',
-  ink2: '#c3c2b7',
-  muted: '#898781',
-  grid: '#2c2c2a',
-  axis: '#383835',
+  page: '#f3f2ee',
+  surface: '#ffffff',
+  ink: '#0b0b0b',
+  ink2: '#52514e',
+  muted: '#6f6d68',
+  grid: '#e1e0d9',
+  axis: '#c3c2b7',
   brand: '#f97316',
-  // categorical (dark steps): identity of series / outcome classes
-  blue: '#3987e5',
-  orange: '#d95926',
-  aqua: '#199e70',
-  // ordinal ramp for receive grades 0..3 (one hue, dark -> light)
-  grade: ['#1c5cab', '#2a78d6', '#5598e7', '#9ec5f4'],
-  court: '#2a2118',
+  // categorical (light steps): identity of series / outcome classes
+  blue: '#2a78d6',
+  orange: '#eb6834',
+  aqua: '#1baf7a',
+  // ordinal ramp for receive grades 0..3 (one hue, light -> dark: the better, the darker)
+  grade: ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab'],
+  court: '#f3ead9',
   courtLine: '#8f8a80',
 };
 

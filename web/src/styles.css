@@ -465,6 +465,11 @@ button.court-zone:active { background: #2a2f3a; }
 
 /* ---------- analysis charts ---------- */
 .charts { display: flex; flex-direction: column; gap: 14px; }
+/* Figures are printed on white paper, like a journal figure, inside the dark app. */
+.chart, .findings, .paper {
+  --surface: #ffffff; --surface-2: #f4f3ef; --line: #e1e0d9; --text: #0b0b0b; --muted: #5f5e5a;
+  color: var(--text); color-scheme: light;
+}
 .chart { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px; }
 .chart figcaption { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
 .chart-title { display: flex; align-items: baseline; gap: 8px; }
@@ -475,8 +480,8 @@ button.court-zone:active { background: #2a2f3a; }
 .chart-toggle { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; font-size: 11px; padding: 2px 8px; }
 .chart-plot { position: relative; width: 100%; overflow: hidden; }
 .chart-plot svg { display: block; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
-.chart-tip { position: absolute; pointer-events: none; background: #0b0d11; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px;
-  color: var(--text); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.4); z-index: 3; }
+.chart-tip { position: absolute; pointer-events: none; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px;
+  color: var(--text); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.15); z-index: 3; }
 .chart-tip div:first-child { font-weight: 700; }
 .tnum { font-variant-numeric: tabular-nums; }
 .chart-note { padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
@@ -534,3 +539,16 @@ button.court-zone:active { background: #2a2f3a; }
 .spot-court .court-full { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
 .spot-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
 .spot-actions .btn { min-height: 46px; }
+
+/* Court maps on paper: light floor, dark lines. */
+.paper .court-runoff { fill: #ffffff; }
+.paper .court-floor { fill: #f3ead9; }
+.paper .court-grid { stroke: rgba(0,0,0,.14); }
+.paper .court-attack { stroke: rgba(0,0,0,.45); }
+.paper .court-lines { stroke: #52514e; }
+.paper .court-dot { stroke: #ffffff; stroke-width: .08; }
+.paper .court-arrowhead { fill: #52514e; }
+.paper .court-target { fill: rgba(42,120,214,.08); stroke: rgba(42,120,214,.7); }
+.court.paper { background: #ffffff; border-color: #c3c2b7; }
+.court.paper .court-row + .court-row, .court.paper .court-zone { border-color: #e1e0d9; }
+.court.paper .court-zone[style] .court-zone-label, .court.paper .court-zone-value small { color: inherit; opacity: .8; }

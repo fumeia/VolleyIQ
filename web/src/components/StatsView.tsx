@@ -5,6 +5,7 @@ import { AnalysisCharts } from './AnalysisCharts';
 import { dec, pct, playerStats, roleStats, statLine, zoneCounts, type StatLine } from '../lib/stats';
 import type { PlotPoint } from './CourtHalf';
 import { CourtFull, type PlotPath } from './CourtFull';
+import { RAMP, SERIES } from '../charts/Charts';
 import { ZoneCourt } from './ZoneCourt';
 
 const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
@@ -31,21 +32,23 @@ const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
+// Outcome classes in the validated chart palette: point / kept in play / error.
+const GOOD = SERIES.aqua, PLAY = SERIES.blue, BAD = SERIES.orange;
 const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
-  kill: '#22c55e', ace: '#22c55e', attack: '#60a5fa', serve: '#60a5fa', attack_error: '#ef4444', serve_error: '#ef4444',
-  set: '#60a5fa', assist: '#22c55e', assist_error: '#ef4444', set_error: '#ef4444', freeball: '#60a5fa',
-  dig: '#60a5fa', dig_error: '#ef4444', block_point: '#22c55e', block_touch: '#60a5fa', block_error: '#ef4444', attack_blocked: '#ef4444',
+  kill: GOOD, ace: GOOD, attack: PLAY, serve: PLAY, attack_error: BAD, serve_error: BAD,
+  set: PLAY, assist: GOOD, assist_error: BAD, set_error: BAD, freeball: PLAY,
+  dig: PLAY, dig_error: BAD, block_point: GOOD, block_touch: PLAY, block_error: BAD, attack_blocked: BAD,
 };
-const GRADE_COLOR = ['#ef4444', '#f59e0b', '#60a5fa', '#22c55e'];
+const GRADE_COLOR = RAMP;
 const LEGEND: Record<string, [string, string][]> = {
-  attacks: [['#22c55e', 'Kill'], ['#60a5fa', 'In play'], ['#ef4444', 'Error']],
-  serves: [['#22c55e', 'Ace'], ['#60a5fa', 'In play'], ['#ef4444', 'Error']],
-  receives: [['#22c55e', '3'], ['#60a5fa', '2'], ['#f59e0b', '1'], ['#ef4444', '0']],
-  digs: [['#60a5fa', 'Dig'], ['#ef4444', 'Error']],
-  blocks: [['#22c55e', 'Block point'], ['#60a5fa', 'Touch'], ['#ef4444', 'Error']],
-  blocked: [['#ef4444', 'Blocked']],
-  sets: [['#22c55e', 'Assist'], ['#60a5fa', 'Set'], ['#ef4444', 'Error']],
-  freeballs: [['#60a5fa', 'Free ball']],
+  attacks: [[GOOD, 'Kill'], [PLAY, 'In play'], [BAD, 'Error']],
+  serves: [[GOOD, 'Ace'], [PLAY, 'In play'], [BAD, 'Error']],
+  receives: [[RAMP[3], '3'], [RAMP[2], '2'], [RAMP[1], '1'], [RAMP[0], '0']],
+  digs: [[PLAY, 'Dig'], [BAD, 'Error']],
+  blocks: [[GOOD, 'Block point'], [PLAY, 'Touch'], [BAD, 'Error']],
+  blocked: [[BAD, 'Blocked']],
+  sets: [[GOOD, 'Assist'], [PLAY, 'Set'], [BAD, 'Error']],
+  freeballs: [[PLAY, 'Free ball']],
 };
 
 type Tab = 'overview' | 'attack' | 'serve' | 'pass' | 'block' | 'roles';
@@ -195,7 +198,7 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
       {plotView !== 'path' && (
         <label className="toggle small"><input type="checkbox" checked={density} onChange={(e) => setDensity(e.target.checked)} /> Heatmap (count per 1.5 m square)</label>
       )}
-      <div className="plot-wrap">
+      <div className="plot-wrap paper">
         {plotView === 'path'
           ? <CourtFull paths={plotPaths} showTarget={plotMode.id === 'receives'} />
           : <CourtFull points={plotPoints} heat={density} showTarget={plotMode.id === 'receives'} />}
