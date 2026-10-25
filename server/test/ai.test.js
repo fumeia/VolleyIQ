@@ -52,3 +52,10 @@ test('scanner and insighter are enabled via a LiteLLM config and call the gatewa
     assert.deepEqual(await ins.generate({ x: 1 }, 'en'), ['one', 'two']);
   } finally { global.fetch = orig; }
 });
+
+test('gateway URL: root, /v1 and trailing slashes all reach /v1/chat/completions', async () => {
+  const { gatewayRoot } = await import('../src/ai.js');
+  for (const u of ['https://gw.example.com', 'https://gw.example.com/', 'https://gw.example.com/v1', 'https://gw.example.com/v1/']) {
+    assert.equal(`${gatewayRoot(u)}/v1/chat/completions`, 'https://gw.example.com/v1/chat/completions');
+  }
+});

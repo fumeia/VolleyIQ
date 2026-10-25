@@ -162,7 +162,13 @@ Two features are hidden unless an AI backend is configured in `.env`:
 
 Use either an OpenAI-compatible gateway such as LiteLLM (`LITELLM_BASE_URL`,
 `LITELLM_API_KEY`, `LITELLM_MODEL`) or the Anthropic API (`ANTHROPIC_API_KEY`).
-See `.env.example`.
+See `.env.example`. After changing `.env`, recreate the container and check the
+setup (lists the models your key can use and sends two tiny test requests; the key is never printed):
+
+```bash
+docker compose up -d --force-recreate
+docker compose exec app node src/ai-check.js
+```
 
 ## How auto-detection works
 
