@@ -2,7 +2,7 @@ import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
 
-export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null }
+export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
 export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
@@ -122,7 +122,7 @@ export const api = {
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
   shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`),
   shareTeam: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/teams/${id}/share`, { revoke }),
-  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name'>; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/share/team/${token}`),
+  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/share/team/${token}`),
 
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),

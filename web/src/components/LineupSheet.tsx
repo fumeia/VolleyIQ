@@ -34,7 +34,7 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
   const put = (l: Lineup) => setAll({ ...all, [String(set)]: l });
   const label = (id: number | null | undefined) => {
     const p = players.find((x) => x.id === id);
-    return p ? `#${p.number ?? '–'} ${p.name.split(' ')[0]}` : '—';
+    return p ? `#${p.number ?? '–'} ${p.name.split(' ')[0]}` : '–';
   };
 
   function choose(id: number) {

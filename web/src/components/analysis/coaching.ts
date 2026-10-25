@@ -65,7 +65,7 @@ export function playerCoaching(player: Player, events: VEvent[], players: Player
       const top = [...lanes.entries()].filter(([k]) => k !== '?').sort((a, b) => b[1].length - a[1].length)[0];
       if (top && top[1].length / ctx.length >= 0.6) {
         const where = top[0] === 'back' ? 'the back row' : `position ${top[0]}`;
-        faults.push({ tone: 'bad', text: `${pct(top[1].length / ctx.length)} of sets go to ${where} — predictable for the block`, weight: 2, key: 'set-spread' });
+        faults.push({ tone: 'bad', text: `${pct(top[1].length / ctx.length)} of sets go to ${where}, predictable for the block`, weight: 2, key: 'set-spread' });
       }
       const k = eff(tally(ctx.map((c) => c.attack)));
       if (k != null && k >= 0.25) strengths.push({ tone: 'good', text: `Hitters convert the sets well: ${eff3(k)} attack efficiency off them (${ctx.length})`, weight: 2 });

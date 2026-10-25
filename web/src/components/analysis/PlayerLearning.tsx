@@ -9,8 +9,10 @@ import { avg2, eff3, judge, pct, StatFigure, sample } from './ui';
  * One player's learning page: their numbers, strengths, faults and what to practise
  * (all from the tags), and how it went match by match.
  */
-export function PlayerLearning({ player, players, events, matches, actions }: {
+export function PlayerLearning({ player, players, events, matches, actions, showTips = false, tipsToggle }: {
   player: Player; players: Player[]; events: VEvent[]; matches: Match[]; actions?: React.ReactNode;
+  /** Show the pre-written practice tips (a team setting). [tipsToggle] is the coach's switch for it. */
+  showTips?: boolean; tipsToggle?: React.ReactNode;
 }) {
   const mine = useMemo(() => events.filter((e) => e.player_id === player.id), [events, player.id]);
   const c = useMemo(() => playerCoaching(player, events, players), [player, events, players]);
@@ -32,16 +34,18 @@ export function PlayerLearning({ player, players, events, matches, actions }: {
           <div className="learn-cols">
             <section className="chart learn-box">
               <h3 className="tone-good">▲ Strengths</h3>
-              {c.strengths.length ? <ul>{c.strengths.map((i, k) => <li key={k}>{i.text}</li>)}</ul> : <p className="muted small">Nothing stands out yet — more tagged matches will show it.</p>}
+              {c.strengths.length ? <ul>{c.strengths.map((i, k) => <li key={k}>{i.text}</li>)}</ul> : <p className="muted small">Nothing stands out yet. More tagged matches will show more.</p>}
             </section>
             <section className="chart learn-box">
               <h3 className="tone-bad">▼ Faults</h3>
               {c.faults.length ? <ul>{c.faults.map((i, k) => <li key={k}>{i.text}</li>)}</ul> : <p className="muted small">No clear weak spot in the data.</p>}
             </section>
           </div>
-          {c.suggestions.length > 0 && (
+          {tipsToggle}
+          {showTips && c.suggestions.length > 0 && (
             <section className="chart learn-box">
               <h3>What to practise</h3>
+              <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>
               <ol className="learn-tips">
                 {c.suggestions.map((t) => (
                   <li key={t.title}>
@@ -51,7 +55,6 @@ export function PlayerLearning({ player, players, events, matches, actions }: {
                   </li>
                 ))}
               </ol>
-              <p className="muted small">Suggestions are generated from the tagged touches; a coach knows the context better.</p>
             </section>
           )}
           {perMatch.length > 1 && (

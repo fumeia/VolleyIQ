@@ -23,7 +23,7 @@ const POINTS: ActionCode[] = ['kill', 'ace', 'block_point'];
 export function ErrorsSection({ players, events }: { players: Player[]; events: VEvent[] }) {
   const isError = (e: VEvent) => ERROR_TYPES.some((t) => t.test(e));
   const errors = events.filter(isError);
-  if (!errors.length) return <p className="muted small">No errors tagged — nice.</p>;
+  if (!errors.length) return <p className="muted small">No errors tagged.</p>;
   const rows = players
     .map((p) => {
       const mine = events.filter((e) => e.player_id === p.id);

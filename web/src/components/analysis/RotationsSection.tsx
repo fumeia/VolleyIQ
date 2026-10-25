@@ -11,7 +11,7 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
 
 /**
  * Rotations (from the serve order, no line-up needed): for each one, how the pass,
- * the first-ball attack and our serve went, and who attacked — why a rotation wins
+ * the first-ball attack and our serve went, and who attacked: why a rotation wins
  * or loses its points.
  */
 export function RotationsSection({ players, events }: { players: Player[]; events: VEvent[] }) {

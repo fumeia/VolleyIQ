@@ -7,7 +7,7 @@ import { pointSources, receivers } from '../report/analytics';
 const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
 
 /**
- * Compact, grounded statistics payload for the AI coach summary — the same shape
+ * Compact, grounded statistics payload for the AI coach summary: the same shape
  * whether it is built for the on-screen card or the PDF report.
  */
 export function coachPayload(players: Player[], events: VEvent[], lineups: Map<number, Lineups | null | undefined>, season: boolean) {
@@ -104,7 +104,7 @@ export function keyFindings(
 ): Finding[] {
   const out: Finding[] = [];
   const pct = (v: number) => `${Math.round(v * 100)}%`;
-  const eff = (v: number) => v.toFixed(3).replace(/^(-?)0\./, '$1.');
+  const eff = (v: number) => `${v > 0.0005 ? '+' : ''}${v.toFixed(3).replace(/^(-?)0\./, '$1.')}`;
   const rec = rotations.reduce((a, r) => a + r.receiving, 0);
   if (rec >= 10) {
     const so = rotations.reduce((a, r) => a + r.sideOuts, 0) / rec;

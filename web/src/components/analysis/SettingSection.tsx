@@ -67,7 +67,7 @@ export function SettingSection({ players, events }: { players: Player[]; events:
         ]}
         play={(r) => r.list.flatMap((c) => [c.set!, c.attack])} />
 
-      <GroupedColumns title="In system vs out of system" subtitle="Kill % and error % of the attack after the set — what a poor first contact costs"
+      <GroupedColumns title="In system vs out of system" subtitle="Kill % and error % of the attack after the set, in and out of system"
         categories={['In system', 'Out of system']}
         series={[
           { name: 'Kill %', color: SERIES.aqua, values: [inSys, outSys].map((l) => pointPct(tally(l.map((c) => c.attack)))), notes: [inSys, outSys].map((l) => `${l.length} attacks`) },

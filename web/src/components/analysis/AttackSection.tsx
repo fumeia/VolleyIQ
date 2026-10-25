@@ -85,7 +85,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
         play={(r) => r.list} />
 
       <GroupedColumns title={`Attack after the first contact${forWho}`}
-        subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball) — how much the attack depends on the pass"
+        subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball): how much the attack depends on the pass"
         categories={PHASES.map(([, l]) => l)}
         series={[
           { name: 'Kill %', color: SERIES.aqua, values: PHASES.map(([k]) => pointPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.points}/${byPhase.get(k as 'p3')!.n}`) },
@@ -121,7 +121,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
       })()}
 
       <BarChart title={`Efficiency by where the attack was hit from${forWho}`}
-        subtitle="Front row zones 4, 3, 2 and back-row attacks from 5, 6 (pipe), 1 — hit behind or up to 1 m in front of the 3 m line; green = plus, red = minus"
+        subtitle="Front row zones 4, 3, 2 and back-row attacks from 5, 6 (pipe), 1, hit behind or up to 1 m in front of the 3 m line; green = plus, red = minus"
         rows={ORIGINS
           .map((o) => ({ t: origins.get(o.key)!, label: o.label }))
           .filter((r) => r.t.n > 0)

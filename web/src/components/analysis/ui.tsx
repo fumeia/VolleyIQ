@@ -5,7 +5,8 @@ import { COURT, zoneOf } from '../../lib/court';
 /* ------------------------------------------------------------ formats */
 
 export const pct = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v * 100)}%`);
-export const eff3 = (v: number | null | undefined) => (v == null ? '–' : v.toFixed(3).replace(/^(-?)0\./, '$1.'));
+/** Efficiency like volleyball stat sheets: +.250, -.125, .000. */
+export const eff3 = (v: number | null | undefined) => (v == null ? '–' : `${v > 0.0005 ? '+' : ''}${v.toFixed(3).replace(/^(-?)0\./, '$1.').replace(/^-\.000$/, '.000')}`);
 export const avg2 = (v: number | null | undefined, d = 2) => (v == null ? '–' : v.toFixed(d));
 export const meters = (v: number | null | undefined) => (v == null ? '–' : `${v.toFixed(1)} m`);
 export const ratio = (a: number, b: number) => (b > 0 ? a / b : null);

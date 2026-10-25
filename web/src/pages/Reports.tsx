@@ -27,6 +27,7 @@ export function Reports() {
   const [view, setView] = useState<'report' | 'stats' | 'players' | 'board'>('stats');
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [token, setToken] = useState<string | null | undefined>(undefined);
+  const [showTips, setShowTips] = useState(false);
 
   useEffect(() => {
     api.teams().then((t) => {
@@ -41,7 +42,7 @@ export function Reports() {
     setMatchId('all');
     setToken(undefined);
     api.teamReport(teamId).then(setData);
-    api.team(teamId).then((t) => setToken(t.share_token ?? null)).catch(() => setToken(null));
+    api.team(teamId).then((t) => { setToken(t.share_token ?? null); setShowTips(!!t.show_tips); }).catch(() => setToken(null));
   }, [teamId]);
 
   const events = useMemo(
@@ -99,6 +100,16 @@ export function Reports() {
             </div>
             <PlayerLearning player={p} players={data.players} events={events}
               matches={matchId === 'all' ? data.matches : data.matches.filter((m) => m.id === matchId)}
+              showTips={showTips}
+              tipsToggle={teamId != null && (
+                <label className="toggle small">
+                  <input type="checkbox" checked={showTips} onChange={async (e) => {
+                    const on = e.target.checked;
+                    setShowTips(on);
+                    await api.updateTeam(teamId, { show_tips: on ? 1 : 0 });
+                  }} /> Show the pre-written practice tips (also on the public player pages)
+                </label>
+              )}
               actions={url
                 ? <button className="btn small" onClick={() => shareUrl(url, p.name)}>🔗 Share page</button>
                 : <span className="muted small">Create the public link (top) to share this page.</span>} />

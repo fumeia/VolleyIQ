@@ -106,6 +106,9 @@ test('password protection and share links', async () => {
   const season = (await app.inject({ url: `/api/share/team/${ts.share_token}` })).json();
   assert.equal(season.team.name, 'T');
   assert.equal(season.team.share_token, undefined);
+  assert.equal(season.team.show_tips, 0);
+  await app.inject({ method: 'PATCH', url: `/api/teams/${team.id}`, headers: { cookie }, payload: { show_tips: true } });
+  assert.equal((await app.inject({ url: `/api/share/team/${ts.share_token}` })).json().team.show_tips, 1);
   assert.equal(season.events.length, 1);
   // The public season page runs the full analysis: it needs where each ball was played from too.
   await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, headers: { cookie }, payload: { action: 'kill', fx: 1.5, fy: 8, x: 7, y: 15 } });

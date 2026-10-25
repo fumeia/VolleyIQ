@@ -684,3 +684,4 @@ button.court-zone:active { background: #2a2f3a; }
 /* The print screen is light in both themes: dark labels on its controls. */
 .print-root .print-parts, .print-root .print-parts label { color: #1c1c1a; }
 .court-zone-n { font-size: 1.5px; font-weight: 800; fill: #1c1c1a; fill-opacity: .7; stroke: #fff; stroke-opacity: .75; stroke-width: .4px; paint-order: stroke; text-anchor: middle; dominant-baseline: central; pointer-events: none; font-variant-numeric: tabular-nums; }
+.tips-warning { margin: 0 0 8px; padding: 6px 10px; border-radius: 6px; background: #fdf3e1; color: #6b4a07; }

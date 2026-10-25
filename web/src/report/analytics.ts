@@ -2,6 +2,7 @@ import { scoreOf, type ActionCode } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
 import { zoneOf } from '../lib/court';
 import { playerStats, scoreBySet, statLine, type StatLine } from '../lib/stats';
+import { fmtEff } from './ui';
 
 /** Everything the report cards need, derived from confirmed tags only. */
 
@@ -106,7 +107,7 @@ export function leaders(rows: PlayerRow[]): Leader[] {
   return [
     pick('Points', (s) => s.points, (s) => String(s.points)),
     pick('Kills', (s) => s.kills, (s) => `${s.kills} (${s.attempts} att.)`),
-    pick('Attack eff.', (s) => s.attackEff, (s) => s.attackEff!.toFixed(3).replace(/^(-?)0/, '$1'), (s) => s.attempts >= 5),
+    pick('Attack eff.', (s) => s.attackEff, (s) => fmtEff(s.attackEff), (s) => s.attempts >= 5),
     pick('Aces', (s) => s.aces, (s) => String(s.aces)),
     pick('Pass avg', (s) => s.recAvg, (s) => `${s.recAvg!.toFixed(2)} (${s.receptions})`, (s) => s.receptions >= 5),
     pick('Digs', (s) => s.digs, (s) => String(s.digs)),

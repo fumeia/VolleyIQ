@@ -40,7 +40,7 @@ export function CoachSummary({ stats }: { stats: unknown }) {
       {busy && <p className="muted small">Writing…</p>}
       {error && <p className="error small">{error}</p>}
       {bullets && <ul>{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
-      {bullets && <p className="muted small">AI-generated from the match stats — sanity-check before sharing.</p>}
+      {bullets && <p className="muted small">AI-generated from the match stats. Check it before sharing.</p>}
     </section>
   );
 }

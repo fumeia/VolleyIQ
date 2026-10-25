@@ -9,6 +9,8 @@ import { eff3, judge, pct, plural, ratio, type Tone } from './ui';
 export interface Insight { tone: Exclude<Tone, null>; text: string; weight: number; key?: string }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+/** "6 kills, 2 errors in 15 attacks": plain counts, for a player's own page. */
+const counts = (t: { n: number; points: number; errors: number }) => `${plural(t.points, 'kill')}, ${plural(t.errors, 'error')} in ${plural(t.n, 'attack')}`;
 const push = (out: Insight[], tone: Tone, text: string, weight: number, key?: string) => { if (tone) out.push({ tone, text, weight, key }); };
 
 /**
@@ -22,19 +24,19 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
   // Attack
   const attacks = mine.filter((e) => ATTACKS.includes(e.action));
   const at = tally(attacks);
-  if (at.n >= 5) push(out, judge.eff(eff(at)), `Attack efficiency ${eff3(eff(at))} (${plural(at.points, 'kill')}, ${plural(at.errors, 'error')} in ${at.n})`, 3, 'attack');
+  if (at.n >= 5) push(out, judge.eff(eff(at)), scope === 'player' ? `Attack: ${counts(at)}` : `Attack efficiency ${eff3(eff(at))} (${counts(at)})`, 3, 'attack');
   const ctx = attackContexts(buildRallies(rallyEvents)).filter((c) => ids.has(c.attack.id));
   const so = tally(ctx.filter((c) => c.phase === 'sideout').map((c) => c.attack));
   const tr = tally(ctx.filter((c) => c.phase === 'transition').map((c) => c.attack));
   if (so.n >= 4 && tr.n >= 4 && Math.abs((eff(so) ?? 0) - (eff(tr) ?? 0)) >= 0.2) {
     const worse = (eff(so) ?? 0) < (eff(tr) ?? 0) ? ['side-out (after our pass)', so, 'sideout'] as const : ['transition (after a dig)', tr, 'transition'] as const;
-    push(out, 'bad', `Weaker in ${worse[0]}: ${eff3(eff(worse[1]))} on ${worse[1].n} attacks`, 2, `attack-${worse[2]}`);
+    push(out, 'bad', scope === 'player' ? `Weaker in ${worse[0]}: ${counts(worse[1])}` : `Weaker in ${worse[0]}: ${eff3(eff(worse[1]))} (${counts(worse[1])})`, 2, `attack-${worse[2]}`);
   }
   const p3 = tally(ctx.filter((c) => c.phase === 'sideout' && c.quality === 3).map((c) => c.attack));
   const pLow = tally(ctx.filter((c) => c.phase === 'sideout' && c.quality != null && c.quality <= 1).map((c) => c.attack));
   if (scope === 'team' && p3.n >= 4 && pLow.n >= 4) {
     const gap = (eff(p3) ?? 0) - (eff(pLow) ?? 0);
-    if (gap >= 0.25) push(out, 'bad', `Attack after a poor pass ${eff3(eff(pLow))} vs ${eff3(eff(p3))} after a perfect one — the pass decides our attack`, 3);
+    if (gap >= 0.25) push(out, 'bad', `Attack after a poor pass ${eff3(eff(pLow))} vs ${eff3(eff(p3))} after a perfect one: the pass decides our attack`, 3);
     else if ((eff(pLow) ?? 0) > 0.15) push(out, 'good', `Attack holds up after poor passes: ${eff3(eff(pLow))} (${pLow.n} attacks)`, 2);
   }
   const dirs = splitBy(attacks, direction, DIRECTIONS.map((d) => d.key));
@@ -42,8 +44,8 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
   if (dirRows.length >= 2) {
     const best = [...dirRows].sort((a, b) => (eff(b.t) ?? 0) - (eff(a.t) ?? 0))[0];
     const worst = [...dirRows].sort((a, b) => (eff(a.t) ?? 0) - (eff(b.t) ?? 0))[0];
-    if ((eff(best.t) ?? 0) > 0.15) push(out, 'good', `${best.label} shots work: ${eff3(eff(best.t))}, ${pct(pointPct(best.t))} kills (${best.t.n})`, 2, `shot-good:${best.key}`);
-    if (worst !== best && (eff(worst.t) ?? 0) < 0) push(out, 'bad', `${worst.label} shots ${eff3(eff(worst.t))} (${worst.t.n} attacks)`, 2, `shot-bad:${worst.key}`);
+    if ((eff(best.t) ?? 0) > 0.15) push(out, 'good', scope === 'player' ? `${best.label} shots: ${counts(best.t)}` : `${best.label} shots work: ${eff3(eff(best.t))}, ${pct(pointPct(best.t))} kills (${best.t.n})`, 2, `shot-good:${best.key}`);
+    if (worst !== best && (eff(worst.t) ?? 0) < 0) push(out, 'bad', scope === 'player' ? `${worst.label} shots: ${counts(worst.t)}` : `${worst.label} shots ${eff3(eff(worst.t))} (${counts(worst.t)})`, 2, `shot-bad:${worst.key}`);
   }
   const attErr = attacks.filter((e) => e.action === 'attack_error' || e.action === 'attack_blocked');
   if (attErr.length >= 3) {

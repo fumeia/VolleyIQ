@@ -3,8 +3,8 @@ import type { VEvent } from './api';
 
 /**
  * High-confidence tagging problems worth a second look, keyed by event id with a
- * short reason. Deliberately conservative — only things that are almost always a
- * mistake — so the "things to check" list stays trustworthy and low-noise.
+ * short reason. Deliberately conservative (only things that are almost always a
+ * mistake), so the "things to check" list stays trustworthy and low-noise.
  *
  * Checks (confirmed events only):
  *  - an action that needs a player but has none resolved;

@@ -110,12 +110,12 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
           {busy ? 'Reading…' : sheet ? 'Rescan' : 'Take / pick photo'}
         </button>
       </div>
-      <p className="muted small">Photograph the official sheet to fill in the teams, date and rosters. Check the result — handwriting can misread.</p>
+      <p className="muted small">Photograph the official sheet to fill in the teams, date and rosters. Check the result: handwriting can be misread.</p>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => scan(e.target.files)} />
       {error && <p className="error small">{error}</p>}
       {sheet && (
         <div className="sheet-result">
-          {sheet.confidence === 'low' && <p className="muted small">⚠ Low confidence — double-check everything.</p>}
+          {sheet.confidence === 'low' && <p className="muted small">⚠ Low confidence: double-check everything.</p>}
           {(sheet.date || sheet.venue) && <p className="muted small">{[sheet.date, sheet.venue, sheet.time].filter(Boolean).join(' · ')}</p>}
           {sheet.sets.length > 0 && (
             <p className="small">Result: {sheet.winner && sheet.setsWon ? `${sheet.setsWon.A}–${sheet.setsWon.B} · ` : ''}
