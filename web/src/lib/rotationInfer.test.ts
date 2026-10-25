@@ -27,4 +27,14 @@ describe('inferRotations', () => {
     const s1 = table.find((r) => r.label === 'S1')!;
     expect(s1).toMatchObject({ served: 1, breaks: 0, received: 1, sideouts: 1 });
   });
+
+  it('gives a substitute who serves the rotation of the player they replaced', () => {
+    const evs: VEvent[] = [];
+    // First round 1..6 sets the order; in the second round #7 serves in #4's turn.
+    for (const s of [1, 2, 3, 4, 5, 6, 1, 2, 3, 7, 5]) evs.push(ev('serve', { player_id: s }), ev('attack_error'), ev('receive', { value: 3 }), ev('kill'));
+    const rows = inferRotations(buildRallies(evs), [...players, P(7, 'OPP')]);
+    const of = (server: number) => [...new Set(rows.filter((r) => r.server === server).map((r) => r.label))];
+    expect(of(7)).toEqual(of(4));
+    expect(rotationTable(rows).map((r) => r.label)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6']);
+  });
 });

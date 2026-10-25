@@ -3,7 +3,7 @@ import type { Player, VEvent } from '../../lib/api';
 import { buildRallies, contactQuality, transitionConversion, transitionPossessions, type Rally } from '../../lib/sequence';
 import { ourZone, targetDistance } from '../../lib/trajectory';
 import { who } from './AttackSection';
-import { avg2, diverge, enough, HalfZones, judge, meters, pct, ratio, StatFigure, Swatch, type ZoneValue } from './ui';
+import { avg2, diverge, HalfZones, judge, meters, pct, ratio, StatFigure, Swatch, type ZoneValue, sample } from './ui';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const DEF = ['dig', 'dig_error', 'freeball'];
@@ -59,13 +59,13 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
           { h: 'FB', title: 'Free balls played', cell: (r) => r.list.filter((e) => e.action === 'freeball').length },
           { h: 'Quality', cell: (r) => {
             const q = mean(r.list.filter((e) => e.action === 'dig').map(contactQuality).filter((v): v is number => v != null));
-            return { text: avg2(q, 1), tone: enough(r.list.length) ? judge.passAvg(q) : null };
+            return { text: avg2(q, 1), tone: sample(judge.passAvg(q), r.list.length) };
           } },
-          { h: 'To target', cell: (r) => { const d = mean(r.list.filter((e) => e.action === 'dig').map(targetDistance).filter((v): v is number => v != null)); return { text: meters(d), tone: enough(r.list.length) ? judge.distance(d) : null }; } },
+          { h: 'To target', cell: (r) => { const d = mean(r.list.filter((e) => e.action === 'dig').map(targetDistance).filter((v): v is number => v != null)); return { text: meters(d), tone: sample(judge.distance(d), r.list.length) }; } },
           { h: 'Kill after', cell: (r) => {
             const fs = r.list.filter((e) => follow.has(e.id)).map((e) => follow.get(e.id)!);
             const v = ratio(fs.filter((x) => x === 'kill').length, fs.length);
-            return { text: pct(v), tone: enough(fs.length) ? judge.conversion(v) : null, title: `${fs.length} possessions` };
+            return { text: pct(v), tone: sample(judge.conversion(v), fs.length), title: `${fs.length} possessions` };
           } },
         ]}
         play={(r) => r.list.filter((e) => e.action === 'dig_error')} playLabel="Errors" />

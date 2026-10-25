@@ -14,7 +14,8 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 
 /* -------------------------------------------------------------- tones */
 
-export type Tone = 'good' | 'bad' | null;
+/** 'few' = too few attempts to judge: shown greyed, never green or red. */
+export type Tone = 'good' | 'bad' | 'few' | null;
 
 /**
  * When a number is good (green ▲) or a problem (red ▼) for a club team. Thresholds
@@ -46,7 +47,7 @@ export const judge = {
 /** A value with its tone: green ▲ when good, red ▼ when bad (the arrow keeps it readable without colour). */
 export function Val({ tone, children, title }: { tone?: Tone; children: ReactNode; title?: string }) {
   return (
-    <span className={`val ${tone ? `tone-${tone}` : ''}`} title={title}>
+    <span className={`val ${tone ? `tone-${tone}` : ''}`} title={title ?? (tone === 'few' ? 'Too few attempts to judge' : undefined)}>
       {tone === 'good' && <i aria-label="good">▲</i>}
       {tone === 'bad' && <i aria-label="needs work">▼</i>}
       {children}
@@ -54,8 +55,13 @@ export function Val({ tone, children, title }: { tone?: Tone; children: ReactNod
   );
 }
 
-/** Small sample: shown muted, and never toned (too few to judge). */
+/** Enough attempts to judge a number (fewer: shown greyed, never toned). */
 export const enough = (n: number, min = 5) => n >= min;
+/** The tone of a number from [n] attempts: its judgement, or 'few' when there are too few. */
+export const sample = (tone: Tone, n: number, min = 5): Tone => (n >= min ? tone : n > 0 ? 'few' : null);
+
+/** How the green / red marks are decided, for under the tables. */
+export const TONE_NOTE = 'Green ▲ / red ▼ compare with fixed club-level benchmarks, not with teammates: e.g. attack or serve efficiency above / below 0, ace % ≥ 10%, serve errors ≤ 10% good and ≥ 20% bad, pass average ≥ 2.1 good and < 1.6 bad. Greyed numbers come from too few attempts (usually under 5) to judge.';
 
 /* -------------------------------------------------------------- table */
 

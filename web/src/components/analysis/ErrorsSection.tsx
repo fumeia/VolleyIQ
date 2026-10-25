@@ -1,6 +1,7 @@
-import { BarChart, StackedBars } from '../../charts/Charts';
+import { BarChart, SERIES, StackedBars } from '../../charts/Charts';
 import type { ActionCode } from '../../lib/actions';
 import type { Player, VEvent } from '../../lib/api';
+import { buildRallies, THEIR_POINTS, theirPoint } from '../../lib/sequence';
 import { scoreBySet } from '../../lib/stats';
 import { ERROR_KINDS, errorKind } from '../../lib/trajectory';
 import { who } from './AttackSection';
@@ -30,8 +31,8 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
     })
     .filter((r) => r.errs.length || r.pts)
     .sort((a, b) => b.errs.length - a.errs.length);
-  const total = errors.length;
-  const oppPoints = events.filter((e) => e.action === 'opp_point').length;
+  const lost = buildRallies(events).filter((r) => r.won === false && r.end);
+  const unforced = lost.filter((r) => theirPoint(r.end!) === 'unforced').length;
   const sets = scoreBySet(events);
 
   const attackKinds = ERROR_KINDS.map((k) => ({ ...k, n: events.filter((e) => (e.action === 'attack_error' || e.action === 'attack_blocked') && errorKind(e) === k.key).length }));
@@ -40,10 +41,12 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
   return (
     <div className="charts">
       <div className="kpis">
-        <div className="kpi"><span className="kpi-label">Points given away</span><span className="kpi-value">{total}</span>
-          <span className="kpi-sub">{pct(ratio(total, total + oppPoints))} of the opponent's points</span></div>
-        <div className="kpi"><span className="kpi-label">Opponent winners</span><span className="kpi-value">{oppPoints}</span>
-          <span className="kpi-sub">points they earned themselves</span></div>
+        <div className="kpi"><span className="kpi-label">Their points</span><span className="kpi-value">{lost.length}</span>
+          <span className="kpi-sub">rallies we lost</span></div>
+        <div className="kpi"><span className="kpi-label">Earned by them</span><span className="kpi-value">{lost.length - unforced}</span>
+          <span className="kpi-sub">their attack, block or ace</span></div>
+        <div className="kpi"><span className="kpi-label">Given away</span><span className="kpi-value">{unforced}</span>
+          <span className="kpi-sub">{pct(ratio(unforced, lost.length))} · our serve, attack and set errors</span></div>
       </div>
 
       <StatFigure title="Points given away per player" subtitle="Own errors by kind, next to the points the player won; red when errors outnumber points"
@@ -69,18 +72,31 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
       <BarChart title="How our serves fail" subtitle="Serve errors by where the ball went"
         rows={serveKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Serves" fmt={(v) => String(Math.round(v))} color="#d03b3b" />
 
-      <StatFigure title="Errors per set" subtitle="How many of the opponent's points we gave them ourselves"
-        rows={sets} rowKey={(r) => r.set}
-        first={{ h: 'Set', cell: (r) => `Set ${r.set}` }}
-        columns={[
-          { h: 'Score', cell: (r) => `${r.us}–${r.them}` },
-          { h: 'Our errors', cell: (r) => events.filter((e) => (e.set_no ?? 1) === r.set && isError(e)).length },
-          { h: 'Share', cell: (r) => {
-            const n = events.filter((e) => (e.set_no ?? 1) === r.set && isError(e)).length;
-            const v = ratio(n, r.them);
-            return { text: pct(v), tone: v == null ? null : v >= 0.5 ? 'bad' : v <= 0.3 ? 'good' : null };
-          } },
-        ]} />
+      {(() => {
+        const bySet = [...new Set(lost.map((r) => r.set))].sort((a, b) => a - b).map((set) => {
+          const ls = lost.filter((r) => r.set === set);
+          const sc = sets.find((x) => x.set === set);
+          return { set, us: sc?.us ?? 0, them: sc?.them ?? ls.length, n: ls.length, parts: THEIR_POINTS.map((k) => ls.filter((r) => theirPoint(r.end!) === k.key).length) };
+        });
+        return (
+          <>
+            <StackedBars title="How the opponent scored, per set" subtitle="Each of their points by what ended the rally: their attack (incl. digs and blocks of ours that could not keep it in play), their block, their ace, or our own unforced error (serve, attack out / net, set)"
+              keys={THEIR_POINTS.map((k, i) => ({ name: k.label, color: [SERIES.blue, SERIES.aqua, SERIES.orange, '#d03b3b'][i] }))}
+              rows={bySet.map((r) => ({ label: `Set ${r.set}`, parts: r.parts }))} axisTitle="Share of their points" />
+            <StatFigure title="Their points per set" subtitle="Counts behind the chart above"
+              rows={bySet} rowKey={(r) => r.set}
+              first={{ h: 'Set', cell: (r) => `Set ${r.set}` }}
+              columns={[
+                { h: 'Score', cell: (r) => `${r.us}–${r.them}` },
+                ...THEIR_POINTS.map((k, i) => ({ h: k.label.replace('Our unforced error', 'Our errors'), cell: (r: (typeof bySet)[number]) => r.parts[i] })),
+                { h: 'Given', title: 'Share of their points that were our unforced errors', cell: (r) => {
+                  const v = ratio(r.parts[3], r.n);
+                  return { text: pct(v), tone: v == null ? null : v >= 0.4 ? 'bad' : v <= 0.25 ? 'good' : null };
+                } },
+              ]} />
+          </>
+        );
+      })()}
     </div>
   );
 }

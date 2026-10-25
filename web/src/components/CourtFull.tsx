@@ -21,6 +21,25 @@ interface Props {
   flip?: boolean;
   /** Plots only: show just this stretch of the court (meters from our baseline), e.g. [4, 21] for attacks. */
   yRange?: [number, number];
+  /** Over the [paths], semi-transparent: how many end in each zone (3 m columns; front and back row of each half). */
+  zoneCounts?: boolean;
+}
+
+/** Row bands along the court (m from our baseline): our back / front row, their front / back row. */
+const BANDS: [number, number][] = [[0, 6], [6, 9], [9, 12], [12, 18]];
+function zoneBins(pts: Pt[]) {
+  const out = new Map<string, { col: number; band: number; n: number }>();
+  for (const p of pts) {
+    if (p.x < 0 || p.x > COURT.width || p.y < 0 || p.y > COURT.length) continue;
+    const col = Math.min(2, Math.floor(p.x / 3));
+    const band = BANDS.findIndex(([a, b]) => p.y >= a && p.y < b);
+    const b = band < 0 ? 3 : band;
+    const k = `${col},${b}`;
+    const cur = out.get(k) ?? { col, band: b, n: 0 };
+    cur.n++;
+    out.set(k, cur);
+  }
+  return [...out.values()];
 }
 
 const W = FULL_VIEW.x1 - FULL_VIEW.x0;
@@ -29,7 +48,7 @@ const CELL = 1.5;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** The whole court with run-off, for tapping spots on either side and for plots. */
-export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip, yRange }: Props) {
+export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip, yRange, zoneCounts }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const portrait = usePortraitPhone();
   const sideways = side === 'auto' ? portrait : !!side;
@@ -116,6 +135,10 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
           {p.title && <title>{p.title}</title>}
         </line>
       ))}
+      {zoneCounts && paths && zoneBins(paths.map((p) => p.to)).map((z) => {
+        const c = P((z.col + 0.5) * 3, (BANDS[z.band][0] + BANDS[z.band][1]) / 2);
+        return <text key={`${z.col},${z.band}`} x={c.x} y={c.y} className="court-zone-n">{z.n}</text>;
+      })}
       {!cells && points?.map((p) => (
         <circle key={p.key} cx={P(p.x, p.y).x} cy={P(p.x, p.y).y} r={0.28} fill={p.color} className="court-dot">
           {p.title && <title>{p.title}</title>}

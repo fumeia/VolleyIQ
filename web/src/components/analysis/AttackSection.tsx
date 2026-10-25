@@ -6,7 +6,7 @@ import {
   attackOrigin, isBackRow, ORIGINS, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
 } from '../../lib/trajectory';
 import { CourtFull, type PlotPath } from '../CourtFull';
-import { diverge, eff3, enough, HalfZones, judge, pct, PlayBtn, ratio, StatFigure, Swatch, type ZoneValue } from './ui';
+import { diverge, eff3, HalfZones, judge, pct, PlayBtn, ratio, StatFigure, Swatch, type ZoneValue, sample } from './ui';
 
 export const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
 export const OUTCOME = { point: SERIES.aqua, play: SERIES.blue, error: SERIES.orange };
@@ -71,11 +71,11 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
           { h: 'K', cell: (r) => r.list.filter((e) => e.action === 'kill').length },
           { h: 'E', title: 'Errors (out / net)', cell: (r) => r.list.filter((e) => e.action === 'attack_error').length },
           { h: 'BA', title: 'Blocked', cell: (r) => r.list.filter((e) => e.action === 'attack_blocked').length },
-          { h: 'K%', cell: (r) => { const t = tally(r.list); return { text: pct(pointPct(t)), tone: enough(t.n) ? judge.killPct(pointPct(t)) : null }; } },
-          { h: 'Err%', cell: (r) => { const t = tally(r.list); return { text: pct(errorPct(t)), tone: enough(t.n) ? judge.errPct(errorPct(t)) : null }; } },
-          { h: 'Eff', cell: (r) => { const t = tally(r.list); return { text: eff3(eff(t)), tone: enough(t.n, 3) ? judge.eff(eff(t)) : null }; } },
-          { h: 'Side-out', title: 'Efficiency on the first ball after our pass', cell: (r) => { const t = phaseOf(r.list, 'sideout'); return { text: t.n ? eff3(eff(t)) : '–', tone: enough(t.n, 3) ? judge.eff(eff(t)) : null, title: `${t.n} attacks` }; } },
-          { h: 'Trans.', title: 'Efficiency in transition (after a dig / free ball)', cell: (r) => { const t = phaseOf(r.list, 'transition'); return { text: t.n ? eff3(eff(t)) : '–', tone: enough(t.n, 3) ? judge.eff(eff(t)) : null, title: `${t.n} attacks` }; } },
+          { h: 'K%', cell: (r) => { const t = tally(r.list); return { text: pct(pointPct(t)), tone: sample(judge.killPct(pointPct(t)), t.n) }; } },
+          { h: 'Err%', cell: (r) => { const t = tally(r.list); return { text: pct(errorPct(t)), tone: sample(judge.errPct(errorPct(t)), t.n) }; } },
+          { h: 'Eff', cell: (r) => { const t = tally(r.list); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 3) }; } },
+          { h: 'Side-out', title: 'Efficiency on the first ball after our pass', cell: (r) => { const t = phaseOf(r.list, 'sideout'); return { text: t.n ? eff3(eff(t)) : '–', tone: sample(judge.eff(eff(t)), t.n, 3), title: `${t.n} attacks` }; } },
+          { h: 'Trans.', title: 'Efficiency in transition (after a dig / free ball)', cell: (r) => { const t = phaseOf(r.list, 'transition'); return { text: t.n ? eff3(eff(t)) : '–', tone: sample(judge.eff(eff(t)), t.n, 3), title: `${t.n} attacks` }; } },
           { h: 'Main shot', title: 'Most frequent direction', cell: (r) => {
             const d = splitBy(r.list, direction, DIRECTIONS.map((x) => x.key));
             const best = [...d.entries()].sort((a, b) => b[1].n - a[1].n)[0];
@@ -103,9 +103,9 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
         columns={[
           { h: 'Attacks', cell: (r) => r.t.n },
           { h: 'Share', cell: (r) => pct(r.t.n / Math.max(1, withSpots)) },
-          { h: 'K%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: enough(r.t.n) ? judge.killPct(pointPct(r.t)) : null }) },
-          { h: 'Err%', cell: (r) => (r.depth ? '–' : { text: pct(errorPct(r.t)), tone: enough(r.t.n) ? judge.errPct(errorPct(r.t)) : null }) },
-          { h: 'Eff', cell: (r) => (r.depth ? '–' : { text: eff3(eff(r.t)), tone: enough(r.t.n, 3) ? judge.eff(eff(r.t)) : null }) },
+          { h: 'K%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.killPct(pointPct(r.t)), r.t.n) }) },
+          { h: 'Err%', cell: (r) => (r.depth ? '–' : { text: pct(errorPct(r.t)), tone: sample(judge.errPct(errorPct(r.t)), r.t.n) }) },
+          { h: 'Eff', cell: (r) => (r.depth ? '–' : { text: eff3(eff(r.t)), tone: sample(judge.eff(eff(r.t)), r.t.n, 3) }) },
         ]}
         note="Landing rows count balls that came down in the court (errors land out), so they show the kill rate only." />
 
@@ -136,10 +136,10 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             first={{ h: '', cell: (r) => r.label }}
             columns={[
               { h: 'Att', cell: (r) => ({ text: r.t.n, title: `${pct(ratio(r.t.n, byRow.get('front')!.n + byRow.get('back')!.n))} of the attacks` }) },
-              { h: 'Kill %', cell: (r) => ({ text: pct(pointPct(r.t)), tone: enough(r.t.n, 4) ? judge.killPct(pointPct(r.t)) : null }) },
-              { h: 'Err %', title: 'Errors and blocked', cell: (r) => ({ text: pct(errorPct(r.t)), tone: enough(r.t.n, 4) ? judge.errPct(errorPct(r.t)) : null }) },
+              { h: 'Kill %', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.killPct(pointPct(r.t)), r.t.n, 4) }) },
+              { h: 'Err %', title: 'Errors and blocked', cell: (r) => ({ text: pct(errorPct(r.t)), tone: sample(judge.errPct(errorPct(r.t)), r.t.n, 4) }) },
               { h: 'Blkd', title: 'Blocked', cell: (r) => r.list.filter((e) => e.action === 'attack_blocked').length },
-              { h: 'Eff', cell: (r) => ({ text: eff3(eff(r.t)), tone: enough(r.t.n, 4) ? judge.eff(eff(r.t)) : null }) },
+              { h: 'Eff', cell: (r) => ({ text: eff3(eff(r.t)), tone: sample(judge.eff(eff(r.t)), r.t.n, 4) }) },
             ]}
             play={(r) => r.list} playLabel="Attacks" />
         );
@@ -153,7 +153,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
         <figure className="chart paper">
           <figcaption>
             <div className="chart-title"><b>Shot chart{forWho}</b></div>
-            <span className="chart-sub">Each arrow from where the ball was hit to where it went</span>
+            <span className="chart-sub">Each arrow from where the ball was hit to where it went; the numbers count the shots ending in each zone</span>
             <span className="chart-legend"><Swatch fill={OUTCOME.point} label="Kill" /><Swatch fill={OUTCOME.play} label="In play" /><Swatch fill={OUTCOME.error} label="Error / blocked" /></span>
           </figcaption>
           <div className="chips tight">
@@ -162,7 +162,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             ))}
             <PlayBtn list={attacks.filter((e) => shots === 'all' || result(e.action) === shots)} label="Watch these" />
           </div>
-          <div className="plot-wrap paper"><CourtFull paths={paths} yRange={[4, 21]} /></div>
+          <div className="plot-wrap paper"><CourtFull paths={paths} yRange={[4, 21]} zoneCounts /></div>
         </figure>
       )}
     </div>

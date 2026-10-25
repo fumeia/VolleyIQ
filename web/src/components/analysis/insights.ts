@@ -97,7 +97,7 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
     const errs = rallyEvents.filter((e) => ERROR_TYPES.some((t) => t.test(e)));
     if (errs.length >= 6) {
       const top = ERROR_TYPES.map((t) => ({ t, n: errs.filter(t.test).length })).sort((a, b) => b.n - a.n)[0];
-      if (top.n / errs.length >= 0.3) push(out, 'bad', `Most points given away: ${top.t.label.toLowerCase()} (${top.n} of ${errs.length} errors)`, 3);
+      if (top.n / errs.length >= 0.3) push(out, 'bad', `Most common error: ${top.t.label.toLowerCase()} (${top.n} of ${errs.length} errors)`, 3);
     }
     // Setting: does the best hitter get the ball when the pass is good?
     const setterIds = new Set(players.filter((p) => p.role === 'S').map((p) => p.id));

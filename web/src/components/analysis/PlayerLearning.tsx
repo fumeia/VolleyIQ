@@ -3,7 +3,7 @@ import type { Match, Player, VEvent } from '../../lib/api';
 import { playerStats } from '../../lib/stats';
 import { playerCoaching } from './coaching';
 import { PlayerTiles, roleName } from './PlayersSection';
-import { avg2, eff3, enough, judge, pct, StatFigure } from './ui';
+import { avg2, eff3, judge, pct, StatFigure, sample } from './ui';
 
 /**
  * One player's learning page: their numbers, strengths, faults and what to practise
@@ -60,9 +60,9 @@ export function PlayerLearning({ player, players, events, matches, actions }: {
               first={{ h: 'Match', cell: (r) => `${r.m.played_on ?? ''} ${r.m.opponent ?? r.m.label}`.trim() }}
               columns={[
                 { h: '+/−', cell: (r) => ({ text: r.s.plusMinus > 0 ? `+${r.s.plusMinus}` : String(r.s.plusMinus), tone: player.role === 'L' ? null : judge.plusMinus(r.s.plusMinus) }) },
-                { h: 'Att eff', cell: (r) => ({ text: eff3(r.s.attackEff), tone: enough(r.s.attempts, 4) ? judge.eff(r.s.attackEff) : null, title: `${r.s.kills}-${r.s.attackErrors}/${r.s.attempts}` }) },
-                { h: 'Pass', cell: (r) => ({ text: avg2(r.s.recAvg), tone: enough(r.s.receptions) ? judge.passAvg(r.s.recAvg) : null, title: `${r.s.receptions} passes` }) },
-                { h: 'Srv err', cell: (r) => { const v = r.s.serves ? r.s.serveErrors / r.s.serves : null; return { text: pct(v), tone: enough(r.s.serves) ? judge.serveErrPct(v) : null }; } },
+                { h: 'Att eff', cell: (r) => ({ text: eff3(r.s.attackEff), tone: sample(judge.eff(r.s.attackEff), r.s.attempts, 4), title: `${r.s.kills}-${r.s.attackErrors}/${r.s.attempts}` }) },
+                { h: 'Pass', cell: (r) => ({ text: avg2(r.s.recAvg), tone: sample(judge.passAvg(r.s.recAvg), r.s.receptions), title: `${r.s.receptions} passes` }) },
+                { h: 'Srv err', cell: (r) => { const v = r.s.serves ? r.s.serveErrors / r.s.serves : null; return { text: pct(v), tone: sample(judge.serveErrPct(v), r.s.serves) }; } },
               ]} />
           )}
         </>

@@ -6,7 +6,7 @@ import { DEPTHS, depth, eff, errorKind, errorPct, ourZone, pointPct, splitBy, ta
 import { CourtFull } from '../CourtFull';
 import type { PlotPoint } from '../CourtHalf';
 import { who } from './AttackSection';
-import { avg2, diverge, eff3, enough, HalfZones, judge, meters, pct, plural, ratio, sequential, StatFigure, Swatch, type ZoneValue } from './ui';
+import { avg2, diverge, eff3, HalfZones, judge, meters, pct, plural, ratio, sequential, StatFigure, Swatch, type ZoneValue, sample } from './ui';
 
 const ZONE_ORDER = [4, 3, 2, 5, 6, 1];
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -62,9 +62,9 @@ export function ServePassSection({ players, events }: { players: Player[]; event
           { h: 'Serves', cell: (r) => r.list.length },
           { h: 'Aces', cell: (r) => r.list.filter((e) => e.action === 'ace').length },
           { h: 'Err', cell: (r) => r.list.filter((e) => e.action === 'serve_error').length },
-          { h: 'Ace%', cell: (r) => { const t = tally(r.list); return { text: pct(pointPct(t)), tone: enough(t.n) ? judge.acePct(pointPct(t)) : null }; } },
-          { h: 'Err%', cell: (r) => { const t = tally(r.list); return { text: pct(errorPct(t)), tone: enough(t.n) ? judge.serveErrPct(errorPct(t)) : null }; } },
-          { h: 'Eff', cell: (r) => { const t = tally(r.list); return { text: eff3(eff(t)), tone: enough(t.n) ? judge.eff(eff(t)) : null }; } },
+          { h: 'Ace%', cell: (r) => { const t = tally(r.list); return { text: pct(pointPct(t)), tone: sample(judge.acePct(pointPct(t)), t.n) }; } },
+          { h: 'Err%', cell: (r) => { const t = tally(r.list); return { text: pct(errorPct(t)), tone: sample(judge.serveErrPct(errorPct(t)), t.n) }; } },
+          { h: 'Eff', cell: (r) => { const t = tally(r.list); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n) }; } },
           { h: 'Net', title: 'Errors into the net', cell: (r) => r.list.filter((e) => errorKind(e) === 'net').length },
           { h: 'Long', title: 'Errors out long', cell: (r) => r.list.filter((e) => errorKind(e) === 'long').length },
           { h: 'Wide', title: 'Errors out wide', cell: (r) => r.list.filter((e) => errorKind(e) === 'wide').length },
@@ -82,7 +82,7 @@ export function ServePassSection({ players, events }: { players: Player[]; event
         columns={[
           { h: 'Serves', cell: (r) => r.t.n },
           { h: 'Aces', cell: (r) => r.t.points },
-          { h: 'Ace%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: enough(r.t.n) ? judge.acePct(pointPct(r.t)) : null }) },
+          { h: 'Ace%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.acePct(pointPct(r.t)), r.t.n) }) },
         ]} />
 
       <h3 className="section-title">Serve receive</h3>
@@ -91,10 +91,10 @@ export function ServePassSection({ players, events }: { players: Player[]; event
         first={{ h: 'Player', cell: (r) => who(r.p) }}
         columns={[
           { h: 'Passes', cell: (r) => r.list.length },
-          { h: 'Avg', cell: (r) => { const a = mean(r.list.map((e) => e.value!)); return { text: avg2(a), tone: enough(r.list.length) ? judge.passAvg(a) : null }; } },
-          { h: '3s', title: 'Perfect passes', cell: (r) => { const v = ratio(r.list.filter((e) => e.value === 3).length, r.list.length); return { text: pct(v), tone: enough(r.list.length) ? judge.perfectPct(v) : null }; } },
+          { h: 'Avg', cell: (r) => { const a = mean(r.list.map((e) => e.value!)); return { text: avg2(a), tone: sample(judge.passAvg(a), r.list.length) }; } },
+          { h: '3s', title: 'Perfect passes', cell: (r) => { const v = ratio(r.list.filter((e) => e.value === 3).length, r.list.length); return { text: pct(v), tone: sample(judge.perfectPct(v), r.list.length) }; } },
           { h: '0s', title: 'Reception errors (aces against us)', cell: (r) => { const n = r.list.filter((e) => e.value === 0).length; return { text: n, tone: judge.errors(n, r.list.length) }; } },
-          { h: 'To target', cell: (r) => { const d = mean(r.list.map(targetDistance).filter((v): v is number => v != null)); return { text: meters(d), tone: enough(r.list.length) ? judge.distance(d) : null }; } },
+          { h: 'To target', cell: (r) => { const d = mean(r.list.map(targetDistance).filter((v): v is number => v != null)); return { text: meters(d), tone: sample(judge.distance(d), r.list.length) }; } },
           { h: 'Weakest zone', title: 'Zone with the lowest average (3+ passes)', cell: (r) => {
             const zs = ZONE_ORDER.map((z) => ({ z, vs: r.list.filter((e) => ourZone(e) === z).map((e) => e.value!) })).filter((x) => x.vs.length >= 3);
             const w = zs.sort((a, b) => mean(a.vs)! - mean(b.vs)!)[0];

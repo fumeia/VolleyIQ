@@ -68,6 +68,26 @@ export function buildRallies(events: VEvent[]): Rally[] {
   return out;
 }
 
+/** How the opponent won a rally, from the tag that ended it. */
+export type TheirPoint = 'attack' | 'block' | 'ace' | 'unforced';
+export const THEIR_POINTS: { key: TheirPoint; label: string }[] = [
+  { key: 'attack', label: 'Their attack' }, { key: 'block', label: 'Their block' },
+  { key: 'ace', label: 'Their ace' }, { key: 'unforced', label: 'Our unforced error' },
+];
+
+/**
+ * A lost rally by what ended it. A dig or block that could not keep their attack in
+ * play, and the generic "they won", are their attack; a blocked attack is their
+ * block; a pass graded 0 is their ace; serve, attack (out / net) and set errors are
+ * ours alone.
+ */
+export function theirPoint(end: VEvent): TheirPoint {
+  if (end.action === 'attack_blocked') return 'block';
+  if (end.action === 'receive') return 'ace';
+  if (end.action === 'dig_error' || end.action === 'block_error' || end.action === 'opp_point') return 'attack';
+  return 'unforced';
+}
+
 export type Phase = 'sideout' | 'transition' | 'unknown';
 
 export interface AttackContext {

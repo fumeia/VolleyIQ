@@ -5,7 +5,7 @@ import { inferRotations, rotationTable, type RotationRally } from '../../lib/rot
 import { ATTACKS, attackContexts, buildRallies, SERVES } from '../../lib/sequence';
 import { eff, errorPct, pointPct, tally } from '../../lib/trajectory';
 import { who } from './AttackSection';
-import { avg2, eff3, enough, judge, pct, ratio, StatFigure } from './ui';
+import { avg2, eff3, judge, pct, ratio, StatFigure, sample } from './ui';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
@@ -42,7 +42,7 @@ export function RotationsSection({ players, events }: { players: Player[]; event
     return { t, passes, fb, serves, top, nAtt };
   });
 
-  const named = table[0].label.startsWith('S');
+  const named = table.some((t) => t.label.startsWith('S'));
   return (
     <div className="charts">
       <p className="muted small">
@@ -55,10 +55,10 @@ export function RotationsSection({ players, events }: { players: Player[]; event
         first={{ h: 'Rotation', cell: (r) => r.t.label }}
         columns={[
           { h: 'Side-out', cell: (r) => { const v = ratio(r.t.sideouts, r.t.received); return { text: pct(v), tone: r.t.received >= 5 ? judge.sideout(v) : null, title: `${r.t.sideouts}/${r.t.received}` }; } },
-          { h: 'Pass', cell: (r) => { const a = mean(r.passes.map((e) => e.value!)); return { text: avg2(a), tone: enough(r.passes.length) ? judge.passAvg(a) : null, title: `${r.passes.length} passes` }; } },
-          { h: '1st-ball eff', title: 'Attack efficiency on the first ball after our pass', cell: (r) => { const t = tally(r.fb); return { text: eff3(eff(t)), tone: enough(t.n, 4) ? judge.eff(eff(t)) : null, title: `${t.points}-${t.errors}/${t.n}` }; } },
+          { h: 'Pass', cell: (r) => { const a = mean(r.passes.map((e) => e.value!)); return { text: avg2(a), tone: sample(judge.passAvg(a), r.passes.length), title: `${r.passes.length} passes` }; } },
+          { h: '1st-ball eff', title: 'Attack efficiency on the first ball after our pass', cell: (r) => { const t = tally(r.fb); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 4), title: `${t.points}-${t.errors}/${t.n}` }; } },
           { h: 'Break', cell: (r) => { const v = ratio(r.t.breaks, r.t.served); return { text: pct(v), tone: r.t.served >= 5 ? judge.break(v) : null, title: `${r.t.breaks}/${r.t.served}` }; } },
-          { h: 'Srv err', cell: (r) => { const t = tally(r.serves); return { text: pct(errorPct(t)), tone: enough(t.n) ? judge.serveErrPct(errorPct(t)) : null }; } },
+          { h: 'Srv err', cell: (r) => { const t = tally(r.serves); return { text: pct(errorPct(t)), tone: sample(judge.serveErrPct(errorPct(t)), t.n) }; } },
           { h: 'Main hitter', title: 'Share of the attacks in this rotation (setter excluded)', cell: (r) => {
             if (!r.top) return '–';
             const p = players.find((x) => x.id === r.top![0]);
