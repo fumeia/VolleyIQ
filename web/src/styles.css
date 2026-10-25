@@ -586,6 +586,7 @@ button.court-zone:active { background: #2a2f3a; }
   #root, .no-print { display: none !important; }
   .print-root { position: static; overflow: visible; padding: 0; background: #fff; }
   .print-page { box-shadow: none; padding: 0; width: auto; }
+  .print-page .coach-summary .seg-mini { display: none; }
 }
 
 /* ---------- match sheet scan ---------- */

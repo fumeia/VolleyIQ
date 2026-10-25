@@ -1,6 +1,39 @@
 import { ACTION_BY_CODE } from './actions';
 import type { Player, VEvent } from './api';
 import { rotationAfter, type Lineups } from './rotation';
+import { playerStats, statLine } from './stats';
+import { pointSources, receivers } from '../report/analytics';
+
+const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
+
+/**
+ * Compact, grounded statistics payload for the AI coach summary — the same shape
+ * whether it is built for the on-screen card or the PDF report.
+ */
+export function coachPayload(players: Player[], events: VEvent[], lineups: Map<number, Lineups | null | undefined>, season: boolean) {
+  const confirmed = events.filter((e) => e.status === 'confirmed');
+  const team = statLine(confirmed.filter((e) => e.player_id != null));
+  const attackers = playerStats(players, confirmed).filter((r) => r.stats.attempts > 0).sort((a, b) => b.stats.attempts - a.stats.attempts);
+  const recv = receivers(players, confirmed);
+  const serves = serveRows(players, confirmed);
+  const rotations = rotationStats(confirmed, lineups, players);
+  const sources = pointSources(confirmed);
+  const hasRot = rotations.some((r) => r.receiving + r.serving > 0);
+  return {
+    scope: season ? 'season' : 'match',
+    team: {
+      attackEff: team.attackEff, killPct: team.killPct, kills: team.kills, attackErrors: team.attackErrors, attempts: team.attempts,
+      aces: team.aces, serveErrors: team.serveErrors, serves: team.serves, serveInPct: team.serveInPct,
+      recAvg: team.recAvg, receptions: team.receptions, recPerfectPct: team.recPerfectPct, recErrors: team.recErrors,
+      blockPoints: team.blockPoints, digs: team.digs, errors: team.errors, points: team.points,
+    },
+    players: attackers.slice(0, 8).map((r) => ({ name: who(r.player), role: r.player.role, kills: r.stats.kills, attackErrors: r.stats.attackErrors, attempts: r.stats.attempts, attackEff: r.stats.attackEff })),
+    reception: recv.map((r) => ({ name: who(r.player), avg: r.avg, passes: r.grades.reduce((a, b) => a + b, 0) })),
+    serving: serves.map((r) => ({ name: who(r.player), aces: r.aces, inPlay: r.inPlay, errors: r.errors })),
+    rotations: hasRot ? rotations.map((r) => ({ setterPos: r.rotation, sideOutPct: sideOutPct(r), breakPct: breakPct(r), receiving: r.receiving, serving: r.serving })) : [],
+    pointsWon: sources.won, pointsLost: sources.lost,
+  };
+}
 
 const byTime = (a: VEvent, b: VEvent) => (a.set_no ?? 1) - (b.set_no ?? 1) || (a.t ?? 1e12) - (b.t ?? 1e12) || a.id - b.id;
 
