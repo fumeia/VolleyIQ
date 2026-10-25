@@ -358,7 +358,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.get('/api/matchsheet/enabled', coach, async () => ({ enabled: !!vision?.enabled }));
 
   app.post('/api/matchsheet/scan', coach, async (req, reply) => {
-    if (!vision?.enabled) return bad(reply, 'Match-sheet scanning is not set up on this server (needs ANTHROPIC_API_KEY).', 503);
+    if (!vision?.enabled) return bad(reply, 'Match-sheet scanning is not set up on this server (needs an AI backend — LiteLLM or Anthropic).', 503);
     const [images, err] = cleanImages(req.body);
     if (err) return bad(reply, err);
     try {
@@ -373,7 +373,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.get('/api/insights/enabled', coach, async () => ({ enabled: !!insights?.enabled }));
 
   app.post('/api/insights/summary', coach, async (req, reply) => {
-    if (!insights?.enabled) return bad(reply, 'AI insights are not set up on this server (needs ANTHROPIC_API_KEY).', 503);
+    if (!insights?.enabled) return bad(reply, 'AI insights are not set up on this server (needs an AI backend — LiteLLM or Anthropic).', 503);
     const stats = req.body?.stats;
     const lang = req.body?.lang === 'de' ? 'de' : 'en';
     if (!stats || typeof stats !== 'object') return bad(reply, 'stats object required');

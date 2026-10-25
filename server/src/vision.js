@@ -1,7 +1,8 @@
 // Reads the summary fields off a photo of an official Swiss Volley / FIVB match
-// sheet with a Claude vision model, so a match can be pre-filled instead of typed.
-// Disabled unless ANTHROPIC_API_KEY is set; the SDK is imported lazily so the
-// server runs fine without it installed.
+// sheet with a vision model, so a match can be pre-filled instead of typed.
+// Disabled unless an AI backend is configured (LiteLLM / OpenAI-compatible or
+// Anthropic — see ai.js).
+import { aiComplete, aiConfig, parseJson } from './ai.js';
 
 const SYSTEM = `You read official volleyball match sheets (Swiss Volley / FIVB "Spielberichtsbogen / Feuille de match"), handwritten or printed, and return only the clearly legible summary fields.
 
@@ -72,48 +73,31 @@ const SCHEMA = {
 
 const OK_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
-/** Parse the model's JSON, tolerating a ```json fence if structured output wasn't honoured. */
-function parseJson(text) {
-  try { return JSON.parse(text); } catch { /* try to find the JSON body */ }
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('no JSON in response');
-  return JSON.parse(m[0]);
-}
+// Shape reminder for OpenAI-compatible backends (LiteLLM) that take no JSON schema.
+const JSON_HINT = 'Return ONLY a JSON object with keys: teams{A,B}, date, time, venue, league, matchNo, winner ("A"|"B"|null), setsWon{A,B}, sets (array of {a,b}), rosters{A:[{number,name,role,captain,libero}], B:[...]}, confidence ("high"|"medium"|"low"). Use null for anything unreadable.';
 
 /**
  * Build a scanner. [scan] is injectable so tests don't call the real API.
  * env.ANTHROPIC_API_KEY enables it; env.VISION_MODEL overrides the model.
  */
 export function makeVisionScanner(env = {}, scan = null) {
-  const apiKey = env.ANTHROPIC_API_KEY || env.VISION_API_KEY || null;
-  const model = env.VISION_MODEL || 'claude-opus-5-5';
+  const cfg = aiConfig(env);
+  const model = cfg?.model ?? (env.VISION_MODEL || 'claude-opus-5-5');
   if (scan) return { enabled: true, model, scan };
-  if (!apiKey) return { enabled: false, model, scan: async () => { throw new Error('disabled'); } };
+  if (!cfg) return { enabled: false, model, scan: async () => { throw new Error('disabled'); } };
 
   return {
     enabled: true,
     model,
     async scan(images) {
-      const { default: Anthropic } = await import('@anthropic-ai/sdk');
-      const client = new Anthropic({ apiKey });
-      const content = [
-        ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
-        { type: 'text', text: 'Read this match sheet and return the summary fields. If several photos are given, they are pages of the same match.' },
-      ];
-      const base = { model, max_tokens: 4000, system: SYSTEM, messages: [{ role: 'user', content }] };
-      let resp;
-      try {
-        // Preferred: structured output guarantees the response matches the schema.
-        resp = await client.messages.create({ ...base, output_config: { format: { type: 'json_schema', schema: SCHEMA } } });
-      } catch (e) {
-        // Older API versions may not accept output_config: fall back to a JSON-only instruction.
-        if (e?.status !== 400) throw e;
-        resp = await client.messages.create({
-          ...base,
-          messages: [{ role: 'user', content: [...content, { type: 'text', text: 'Respond with ONLY the JSON object, no prose and no markdown fences.' }] }],
-        });
-      }
-      const text = resp.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      const text = await aiComplete(cfg, {
+        system: SYSTEM,
+        text: 'Read this match sheet and return the summary fields. If several photos are given, they are pages of the same match.',
+        images,
+        maxTokens: 4000,
+        schema: SCHEMA,
+        jsonHint: JSON_HINT,
+      });
       return parseJson(text);
     },
   };
