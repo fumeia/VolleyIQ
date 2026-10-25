@@ -7,11 +7,12 @@ import { DefenseSection } from './analysis/DefenseSection';
 import { ErrorsSection } from './analysis/ErrorsSection';
 import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
+import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
 
 const PARTS = [
-  ['overview', 'Overview'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'],
+  ['overview', 'Overview'], ['rotations', 'Rotations'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'],
   ['defense', 'Defence'], ['errors', 'Errors'], ['players', 'Player scorecards'], ['table', 'Player table'],
 ] as const;
 type Part = (typeof PARTS)[number][0];
@@ -51,6 +52,7 @@ export function PrintReport({ title, subtitle, players, events, matches, onClose
           <small>VolleyIQ · {new Date().toISOString().slice(0, 10)}</small>
         </header>
         {on('overview') && <PrintPart title="Overview"><OverviewSection players={players} events={confirmed} matches={matches} /></PrintPart>}
+        {on('rotations') && <PrintPart title="Rotations"><RotationsSection players={players} events={confirmed} /></PrintPart>}
         {on('attack') && <PrintPart title="Attack"><AttackSection players={players} events={confirmed} /></PrintPart>}
         {on('servepass') && <PrintPart title="Serve & pass"><ServePassSection players={players} events={confirmed} /></PrintPart>}
         {on('setting') && <PrintPart title="Setting"><SettingSection players={players} events={confirmed} /></PrintPart>}

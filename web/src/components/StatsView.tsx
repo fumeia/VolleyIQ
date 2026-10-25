@@ -6,6 +6,7 @@ import { DefenseSection } from './analysis/DefenseSection';
 import { ErrorsSection } from './analysis/ErrorsSection';
 import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
+import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
 import { judge, PlayContext, Val, type Tone } from './analysis/ui';
@@ -92,9 +93,9 @@ const playerName = (players: Player[], id: number | null) => {
 
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
-type Section = 'overview' | 'attack' | 'servepass' | 'setting' | 'defense' | 'errors' | 'players' | 'tables' | 'court';
+type Section = 'overview' | 'rotations' | 'attack' | 'servepass' | 'setting' | 'defense' | 'errors' | 'players' | 'tables' | 'court';
 const SECTIONS: [Section, string][] = [
-  ['overview', 'Overview'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'], ['defense', 'Defence'],
+  ['overview', 'Overview'], ['rotations', 'Rotations'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'], ['defense', 'Defence'],
   ['errors', 'Errors'], ['players', 'Players'], ['tables', 'Tables'], ['court', 'Court maps'],
 ];
 
@@ -143,6 +144,7 @@ export function StatsView({ players, events, matches, onPlay }: {
       </div>
 
       {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
+      {section === 'rotations' && <RotationsSection players={players} events={confirmed} />}
       {section === 'attack' && <AttackSection players={players} events={confirmed} />}
       {section === 'servepass' && <ServePassSection players={players} events={confirmed} />}
       {section === 'setting' && <SettingSection players={players} events={confirmed} />}
