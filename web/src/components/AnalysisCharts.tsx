@@ -5,6 +5,8 @@ import { breakPct, coachPayload, keyFindings, rotationStats, sideOutPct } from '
 import { playerStats, statLine } from '../lib/stats';
 import { pointSources, scoreFlow } from '../report/analytics';
 import { CoachSummary } from './CoachSummary';
+import { inferRotations, rotationTable } from '../lib/rotationInfer';
+import { buildRallies, phaseScoring } from '../lib/sequence';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const eff = (v: number) => v.toFixed(2).replace(/^(-?)0\./, '$1.');
@@ -27,6 +29,8 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
   const lineups = useMemo(() => new Map((matches ?? []).map((m) => [m.id, m.lineups])), [matches]);
   const rotations = useMemo(() => rotationStats(all, lineups, players), [all, lineups, players]);
   const hasRotations = rotations.some((r) => r.receiving + r.serving > 0);
+  // Without line-ups, the rotations come from the order in which our players served.
+  const inferred = useMemo(() => (hasRotations ? [] : rotationTable(inferRotations(buildRallies(all), players))), [hasRotations, all, players]);
   const sources = useMemo(() => pointSources(confirmed), [confirmed]);
 
   if (!all.length) return <p className="muted small">No saved touches yet. Tag or review the match to see charts.</p>;
@@ -78,12 +82,12 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
           <LineChart title={`Pass average per match${forWho}`} subtitle="Receive grade 0–3"
             series={[{ name: 'Pass avg', color: SERIES.blue, points: perMatch((evs) => statLine(evs).recAvg) }]}
             xTitle="Match" yTitle="Grade" yDomain={[0, 3]} yFmt={(v) => v.toFixed(1)} xFmt={matchName} categorical />
-          {focus == null && <LineChart title="Side-out % per match" subtitle="Points won when the opponent served (needs line-ups)"
-            series={[{ name: 'Side-out %', color: SERIES.blue, points: perMatch((evs) => {
-              const r = rotationStats(evs, lineups, players).reduce((a, x) => ({ receiving: a.receiving + x.receiving, sideOuts: a.sideOuts + x.sideOuts }), { receiving: 0, sideOuts: 0 });
-              return sideOutPct(r);
-            }) }]}
-            xTitle="Match" yTitle="Side-out" yDomain={[0, 1]} yFmt={pct} xFmt={matchName} categorical />}
+          {focus == null && <LineChart title="Side-out and break points per match" subtitle="Rallies won on their serve (side-out) and on ours (break point)"
+            series={[
+              { name: 'Side-out %', color: SERIES.blue, points: perMatch((evs) => phaseScoring(buildRallies(evs)).sideoutPct) },
+              { name: 'Break %', color: SERIES.orange, points: perMatch((evs) => phaseScoring(buildRallies(evs)).breakPct) },
+            ]}
+            xTitle="Match" yTitle="Rallies won" yDomain={[0, 1]} yFmt={pct} xFmt={matchName} categorical />}
         </>
       )}
 
@@ -103,7 +107,15 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
           ]}
           yTitle="Points won" fmt={pct} yDomain={[0, 1]} />
       ) : (
-        <p className="muted small chart-note">Enter the line-ups (Review → line-up) to see side-out and break-point % per rotation.</p>
+        inferred.length >= 2 ? (
+          <GroupedColumns title="Points won by rotation" subtitle={inferred[0].label.startsWith('S') ? "From our serve order (no line-up needed), named by the setter's position; side-out = on their serve, break = on ours" : 'From our serve order (no line-up needed), named by who is in position 1'}
+            categories={inferred.map((r) => r.label)}
+            series={[
+              { name: 'Side-out %', color: SERIES.blue, values: inferred.map((r) => (r.received ? r.sideouts / r.received : null)), notes: inferred.map((r) => `${r.sideouts}/${r.received}`) },
+              { name: 'Break %', color: SERIES.orange, values: inferred.map((r) => (r.served ? r.breaks / r.served : null)), notes: inferred.map((r) => `${r.breaks}/${r.served}`) },
+            ]}
+            yTitle="Points won" fmt={pct} yDomain={[0, 1]} />
+        ) : <p className="muted small chart-note">Tag our serves (with the server) to see side-out and break-point % per rotation.</p>
       ))}
 
       {focus == null && <BarChart title="How we scored" rows={sources.won.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.aqua} fmt={(v) => String(Math.round(v))} />}

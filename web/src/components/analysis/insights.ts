@@ -1,4 +1,5 @@
-import type { VEvent } from '../../lib/api';
+import type { Player, VEvent } from '../../lib/api';
+import { inferRotations, rotationTable } from '../../lib/rotationInfer';
 import { ATTACKS, attackContexts, buildRallies, phaseScoring, SERVES, transitionConversion, winByLength } from '../../lib/sequence';
 import { DIRECTIONS, direction, eff, ERROR_KINDS, errorKind, errorPct, ourZone, pointPct, splitBy, tally } from '../../lib/trajectory';
 import { ERROR_TYPES } from './ErrorsSection';
@@ -13,7 +14,7 @@ const push = (out: Insight[], tone: Tone, text: string, weight: number) => { if 
  * Plain-language strengths and things to work on, from a set of tags (a player's
  * or the whole team's). [rallyEvents] are all tags (for the context of each touch).
  */
-export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'player' | 'team'): Insight[] {
+export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'player' | 'team', players: Player[] = []): Insight[] {
   const out: Insight[] = [];
   const ids = new Set(mine.map((e) => e.id));
 
@@ -96,6 +97,15 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
     if (errs.length >= 6) {
       const top = ERROR_TYPES.map((t) => ({ t, n: errs.filter(t.test).length })).sort((a, b) => b.n - a.n)[0];
       if (top.n / errs.length >= 0.3) push(out, 'bad', `Most points given away: ${top.t.label.toLowerCase()} (${top.n} of ${errs.length} errors)`, 3);
+    }
+    // Rotations (from the serve order): the weakest and strongest for side-out.
+    const rot = rotationTable(inferRotations(rallies, players)).filter((r) => r.received >= 5);
+    if (rot.length >= 3) {
+      const so = (r: (typeof rot)[number]) => r.sideouts / r.received;
+      const sorted = [...rot].sort((a, b) => so(a) - so(b));
+      const worst = sorted[0], best = sorted[sorted.length - 1];
+      if (so(worst) < 0.45) push(out, 'bad', `Weakest rotation ${worst.label}: side-out ${pct(so(worst))} (${worst.sideouts}/${worst.received})`, 3);
+      if (so(best) >= 0.65) push(out, 'good', `Best rotation ${best.label}: side-out ${pct(so(best))} (${best.sideouts}/${best.received})`, 2);
     }
     const long = winByLength(rallies).find((b) => b.label === '7+');
     if (long && long.n >= 5) push(out, judge.win(ratio(long.won, long.n)), `Long rallies (7+ touches): won ${long.won} of ${long.n}`, 1);

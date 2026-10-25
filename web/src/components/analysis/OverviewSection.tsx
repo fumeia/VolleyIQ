@@ -26,7 +26,7 @@ export function OverviewSection({ players, events, matches }: { players: Player[
   const tc = transitionConversion(rallies);
   const team = teamLine(events);
   const sv = tally(events.filter((e) => SERVES.includes(e.action)));
-  const items = useMemo(() => insightsFor(events.filter((e) => e.player_id != null), events, 'team'), [events]);
+  const items = useMemo(() => insightsFor(events.filter((e) => e.player_id != null), events, 'team', players), [events, players]);
   const good = items.filter((i) => i.tone === 'good').slice(0, 4);
   const bad = items.filter((i) => i.tone === 'bad').slice(0, 5);
   const lengths = winByLength(rallies).filter((b) => b.n > 0);
