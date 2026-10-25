@@ -6,7 +6,7 @@ import {
   attackOrigin, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
 } from '../../lib/trajectory';
 import { CourtFull, type PlotPath } from '../CourtFull';
-import { diverge, eff3, enough, HalfZones, judge, pct, StatFigure, Swatch, type ZoneValue } from './ui';
+import { diverge, eff3, enough, HalfZones, judge, pct, PlayBtn, StatFigure, Swatch, type ZoneValue } from './ui';
 
 export const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
 export const OUTCOME = { point: SERIES.aqua, play: SERIES.blue, error: SERIES.orange };
@@ -80,7 +80,8 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             const best = [...d.entries()].sort((a, b) => b[1].n - a[1].n)[0];
             return best && best[1].n ? `${DIRECTIONS.find((x) => x.key === best[0])!.label} ${pct(best[1].n / r.list.filter((e) => direction(e)).length)}` : '–';
           } },
-        ]} />
+        ]}
+        play={(r) => r.list} />
 
       <GroupedColumns title={`Attack after the first contact${forWho}`}
         subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball) — how much the attack depends on the pass"
@@ -140,6 +141,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             {([['all', 'All'], ['point', 'Kills'], ['play', 'In play'], ['error', 'Errors']] as const).map(([k, l]) => (
               <button key={k} className={`chip ${shots === k ? 'on' : ''}`} onClick={() => setShots(k)}>{l}</button>
             ))}
+            <PlayBtn list={attacks.filter((e) => shots === 'all' || result(e.action) === shots)} label="Watch these" />
           </div>
           <div className="plot-wrap paper"><CourtFull paths={paths} /></div>
         </figure>

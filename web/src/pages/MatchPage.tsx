@@ -420,7 +420,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </div>
                 {statsView === 'stats' ? (
                   <>
-                    <StatsView players={players} events={events} matches={[match]} />
+                    <StatsView players={players} events={events} matches={[match]}
+                      onPlay={source ? (list) => { setReel({ list, i: 0 }); window.scrollTo({ top: 0, behavior: 'smooth' }); } : undefined} />
                     <div className="row wrap">
                       <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
                       <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>

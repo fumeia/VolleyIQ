@@ -8,7 +8,7 @@ import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
-import { judge, Val, type Tone } from './analysis/ui';
+import { judge, PlayContext, Val, type Tone } from './analysis/ui';
 import { dec, pct, playerStats, roleStats, zoneCounts, type StatLine } from '../lib/stats';
 import type { PlotPoint } from './CourtHalf';
 import { CourtFull, type PlotPath } from './CourtFull';
@@ -98,7 +98,11 @@ const SECTIONS: [Section, string][] = [
   ['errors', 'Errors'], ['players', 'Players'], ['tables', 'Tables'], ['court', 'Court maps'],
 ];
 
-export function StatsView({ players, events, matches }: { players: Player[]; events: VEvent[]; matches?: Match[] }) {
+export function StatsView({ players, events, matches, onPlay }: {
+  players: Player[]; events: VEvent[]; matches?: Match[];
+  /** Watch tags as clips on the match video (only on the match page, with a video loaded). */
+  onPlay?: (list: VEvent[]) => void;
+}) {
   const confirmed = useMemo(() => events.filter((e) => e.status === 'confirmed'), [events]);
   const [section, setSection] = useState<Section>(() => {
     try { const v = localStorage.getItem('viq:statsSection') as Section; return SECTIONS.some(([k]) => k === v) ? v : 'overview'; } catch { return 'overview'; }
@@ -132,6 +136,7 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
 
   const cols = COLUMNS[tab === 'roles' ? 'overview' : tab];
   return (
+    <PlayContext.Provider value={onPlay ?? null}>
     <div className="stats">
       <div className="tabs stats-tabs">
         {SECTIONS.map(([k, label]) => <button key={k} className={`tab ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)}>{label}</button>)}
@@ -221,6 +226,7 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
       </div>
       </>}
     </div>
+    </PlayContext.Provider>
   );
 }
 

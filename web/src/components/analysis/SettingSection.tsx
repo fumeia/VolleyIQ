@@ -64,7 +64,8 @@ export function SettingSection({ players, events }: { players: Player[]; events:
           { h: 'Out sys.', title: 'Share of out-of-system sets', cell: (r) => share(r.list.filter((c) => !inSystem(c)).length, outSys.length) },
           { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: enough(t.n, 3) ? judge.eff(eff(t)) : null }; } },
           { h: 'K%', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: pct(pointPct(t)), tone: enough(t.n) ? judge.killPct(pointPct(t)) : null }; } },
-        ]} />
+        ]}
+        play={(r) => r.list.flatMap((c) => [c.set!, c.attack])} />
 
       <GroupedColumns title="In system vs out of system" subtitle="Kill % and error % of the attack after the set — what a poor first contact costs"
         categories={['In system', 'Out of system']}

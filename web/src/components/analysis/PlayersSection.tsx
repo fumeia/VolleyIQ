@@ -3,8 +3,9 @@ import { ROLES } from '../../lib/actions';
 import type { Player, VEvent } from '../../lib/api';
 import { playerStats } from '../../lib/stats';
 import { who } from './AttackSection';
+import { ERROR_TYPES } from './ErrorsSection';
 import { insightsFor } from './insights';
-import { avg2, eff3, enough, judge, pct, plural, Val, type Tone } from './ui';
+import { avg2, eff3, enough, judge, pct, PlayBtn, plural, Val, type Tone } from './ui';
 
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
@@ -35,7 +36,9 @@ export function PlayersSection({ players, events }: { players: Player[]; events:
             <article key={p.id} className="chart player-card">
               <header className="pc-head">
                 <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
-                <div><b>{p.name}</b><small>{roleName(p.role)} · {mine.length} touches</small></div>
+                <div className="grow"><b>{p.name}</b><small>{roleName(p.role)} · {mine.length} touches</small></div>
+                <PlayBtn list={mine.filter((e) => ['kill', 'ace', 'block_point'].includes(e.action))} label="Points" />
+                <PlayBtn list={mine.filter((e) => ERROR_TYPES.some((t) => t.test(e)))} label="Errors" />
               </header>
               <div className="pc-tiles">
                 <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} won · ${s.errors} lost`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />

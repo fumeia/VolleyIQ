@@ -4,7 +4,7 @@ import { buildRallies, isClutch, phaseScoring, SERVES, scoringRuns, withScore, t
 import { scoreBySet, teamLine } from '../../lib/stats';
 import { errorPct, tally } from '../../lib/trajectory';
 import { ERROR_TYPES } from './ErrorsSection';
-import { avg2, eff3, judge, pct, plural, ratio, StatFigure } from './ui';
+import { avg2, eff3, judge, pct, PlayBtn, plural, ratio, StatFigure } from './ui';
 
 const isError = (e: VEvent) => ERROR_TYPES.some((t) => t.test(e));
 
@@ -72,6 +72,7 @@ export function MomentumBlock({ players, rallies }: { players: Player[]; rallies
                 <li key={i}>
                   <b className="tone-bad">{r.length}–0</b> Set {r.set}, {r.from.us}:{r.from.them} → {r.to.us}:{r.to.them}
                   <span className="muted"> · {own ? `${plural(own, 'own error')}: ` : ''}{r.rallies.map((x) => cause(x, players)).join(', ')}</span>
+                  {' '}<PlayBtn list={r.rallies.map((x) => x.touches[x.touches.length - 1] ?? x.end).filter((e): e is VEvent => !!e)} />
                 </li>
               );
             })}

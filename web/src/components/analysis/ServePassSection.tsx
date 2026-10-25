@@ -68,7 +68,8 @@ export function ServePassSection({ players, events }: { players: Player[]; event
           { h: 'Net', title: 'Errors into the net', cell: (r) => r.list.filter((e) => errorKind(e) === 'net').length },
           { h: 'Long', title: 'Errors out long', cell: (r) => r.list.filter((e) => errorKind(e) === 'long').length },
           { h: 'Wide', title: 'Errors out wide', cell: (r) => r.list.filter((e) => errorKind(e) === 'wide').length },
-        ]} />
+        ]}
+        play={(r) => r.list.filter((e) => e.action !== 'serve')} playLabel="Aces/err" />
 
       <HalfZones title="Where our serves land" subtitle="Share of our serves per opponent zone (their numbering), with the aces"
         half="theirs" values={serveZoneValues}
@@ -99,7 +100,8 @@ export function ServePassSection({ players, events }: { players: Player[]; event
             const w = zs.sort((a, b) => mean(a.vs)! - mean(b.vs)!)[0];
             return w ? { text: `Z${w.z} (${mean(w.vs)!.toFixed(1)})`, tone: judge.passAvg(mean(w.vs)) === 'bad' ? 'bad' : null } : '–';
           } },
-        ]} />
+        ]}
+        play={(r) => r.list.filter((e) => (e.value ?? 3) <= 1)} playLabel="Poor" />
 
       <GroupedColumns title="Side-out % by the first pass" subtitle="Rallies the opponent served: how often we won the point after a pass of each grade"
         categories={soByGrade.map((x) => `Pass ${x.g}`)}

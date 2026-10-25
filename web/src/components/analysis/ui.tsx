@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
+import type { VEvent } from '../../lib/api';
 import { COURT, zoneOf } from '../../lib/court';
 
 /* ------------------------------------------------------------ formats */
@@ -59,13 +60,22 @@ export const enough = (n: number, min = 5) => n >= min;
 /* -------------------------------------------------------------- table */
 
 export interface Cell { text: ReactNode; tone?: Tone; title?: string }
-export interface Column<R> { h: string; title?: string; cell: (r: R) => Cell | string | number }
+export interface Column<R> {
+  h: string; title?: string; cell: (r: R) => Cell | string | number;
+  /** Only shown when a video is loaded (e.g. a ▶ watch button). */
+  withVideo?: boolean;
+}
 
 /** A figure with a table of numbers, on the same white paper as the charts. */
-export function StatFigure<R>({ title, subtitle, columns, rows, rowKey, first, note }: {
+export function StatFigure<R>({ title, subtitle, columns, rows, rowKey, first, note, play: clips, playLabel = 'Watch' }: {
   title: string; subtitle?: string; columns: Column<R>[]; rows: R[]; rowKey: (r: R) => string | number;
   first: Column<R>; note?: string;
+  /** The row's tags to watch as clips (adds a ▶ column when a video is loaded). */
+  play?: (r: R) => VEvent[]; playLabel?: string;
 }) {
+  const play = useContext(PlayContext);
+  columns = columns.filter((c) => !c.withVideo || play);
+  if (clips && play) columns = [...columns, { h: playLabel, cell: (r) => ({ text: <PlayBtn list={clips(r)} /> }) }];
   return (
     <figure className="chart stat-figure">
       <figcaption>
@@ -195,3 +205,21 @@ export function HalfZones({ title, subtitle, half, values, legend, note }: {
 export const Swatch = ({ fill, label }: { fill: string; label: string }) => (
   <span><i style={{ background: fill }} />{label}</span>
 );
+
+/* ---------------------------------------------------------- video clips */
+
+/** Plays a list of tags as a clip reel on the match video (set by the match page). */
+export const PlayContext = createContext<((list: VEvent[]) => void) | null>(null);
+
+/** "▶" button that plays the given tags as clips; nothing without a video. */
+export function PlayBtn({ list, label }: { list: VEvent[]; label?: string }) {
+  const play = useContext(PlayContext);
+  const clips = list.filter((e) => e.t != null);
+  if (!play || !clips.length) return null;
+  return (
+    <button className="play-btn" title={`Watch ${clips.length} clip${clips.length === 1 ? '' : 's'}`}
+      onClick={() => play([...clips].sort((a, b) => a.t! - b.t!))}>
+      ▶{label ? ` ${label}` : ''}{label ? '' : ` ${clips.length}`}
+    </button>
+  );
+}

@@ -54,7 +54,8 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
           { h: 'Errors', cell: (r) => ({ text: r.errs.length, tone: r.errs.length > r.pts ? 'bad' : null }) },
           { h: 'Points', cell: (r) => ({ text: r.pts, tone: r.pts > r.errs.length ? 'good' : null }) },
           { h: '+/−', cell: (r) => { const v = r.pts - r.errs.length; return { text: v > 0 ? `+${v}` : String(v), tone: v > 0 ? 'good' : v < 0 ? 'bad' : null }; } },
-        ]} />
+        ]}
+        play={(r) => r.errs} playLabel="Errors" />
 
       {rows.filter((r) => r.errs.length >= 2).length > 0 && (
         <StackedBars title="Error mix per player" subtitle="Share of each player's errors by kind"

@@ -67,7 +67,8 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
             const v = ratio(fs.filter((x) => x === 'kill').length, fs.length);
             return { text: pct(v), tone: enough(fs.length) ? judge.conversion(v) : null, title: `${fs.length} possessions` };
           } },
-        ]} />
+        ]}
+        play={(r) => r.list.filter((e) => e.action === 'dig_error')} playLabel="Errors" />
 
       <HalfZones title="Digs kept by zone" subtitle="Share of digs kept in play per zone of our court (where the ball was dug)"
         half="ours" values={zoneValues}
