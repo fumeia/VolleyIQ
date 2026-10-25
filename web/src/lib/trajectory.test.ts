@@ -25,7 +25,11 @@ describe('trajectory', () => {
 
   it('finds origin and target zones and pass distance', () => {
     expect(attackOrigin({ fx: 1, fy: 8 })).toBe('4');
-    expect(attackOrigin({ fx: 4.5, fy: 3 })).toBe('back');
+    expect(attackOrigin({ fx: 4.5, fy: 3 })).toBe('b6');
+    // Back-row attackers land in front of the 3 m line (6 m from our baseline): up to 1 m still counts.
+    expect(attackOrigin({ fx: 1, fy: 6.8 })).toBe('b5');
+    expect(attackOrigin({ fx: 8, fy: 5.5 })).toBe('b1');
+    expect(attackOrigin({ fx: 1, fy: 7.1 })).toBe('4');
     expect(theirZone({ x: 8, y: 16 })).toBe(5); // their left-back, our right-deep
     expect(targetDistance({ x: 6, y: 8 })).toBe(0);
   });
@@ -33,7 +37,7 @@ describe('trajectory', () => {
   it('tallies efficiency per group', () => {
     const list = [E('kill', { fx: 1, fy: 8 }), E('attack_error', { fx: 1, fy: 8 }), E('attack', { fx: 1, fy: 8 }), E('kill', { fx: 8, fy: 8 })];
     expect(eff(tally(list))).toBeCloseTo(0.25);
-    const by = splitBy(list, attackOrigin, ['4', '3', '2', 'back']);
+    const by = splitBy(list, attackOrigin, ['4', '3', '2', 'b5', 'b6', 'b1']);
     expect(by.get('4')).toEqual({ n: 3, points: 1, errors: 1 });
     expect(by.get('2')).toEqual({ n: 1, points: 1, errors: 0 });
   });

@@ -3,10 +3,10 @@ import { BarChart, GroupedColumns, SERIES, StackedBars } from '../../charts/Char
 import type { Player, VEvent } from '../../lib/api';
 import { ATTACKS, attackContexts, buildRallies, type AttackContext } from '../../lib/sequence';
 import {
-  attackOrigin, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
+  attackOrigin, isBackRow, ORIGINS, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
 } from '../../lib/trajectory';
 import { CourtFull, type PlotPath } from '../CourtFull';
-import { diverge, eff3, enough, HalfZones, judge, pct, PlayBtn, StatFigure, Swatch, type ZoneValue } from './ui';
+import { diverge, eff3, enough, HalfZones, judge, pct, PlayBtn, ratio, StatFigure, Swatch, type ZoneValue } from './ui';
 
 export const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
 export const OUTCOME = { point: SERIES.aqua, play: SERIES.blue, error: SERIES.orange };
@@ -37,7 +37,8 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
   const PHASES: [string, string][] = [['p3', 'Pass 3'], ['p2', 'Pass 2'], ['p1', 'Pass 0–1'], ['trans', 'Transition']];
   const dirs = splitBy(attacks, direction, DIRECTIONS.map((d) => d.key));
   const depths = splitBy(attacks, depth, DEPTHS.map((d) => d.key));
-  const origins = splitBy(attacks, attackOrigin, ['4', '3', '2', 'back']);
+  const origins = splitBy(attacks, attackOrigin, ORIGINS.map((o) => o.key));
+  const byRow = splitBy(attacks, (e) => { const o = attackOrigin(e); return o == null ? null : isBackRow(o) ? 'back' : 'front'; }, ['front', 'back']);
   const zones = splitBy(attacks, (e) => { const z = theirZone(e); return z == null ? null : String(z); }, ['1', '2', '3', '4', '5', '6']);
   const withSpots = attacks.filter((e) => e.fx != null && e.x != null).length;
 
@@ -119,12 +120,30 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
         ) : null;
       })()}
 
-      <BarChart title={`Efficiency by where the attack was hit from${forWho}`} subtitle="Front row zones 4 (left), 3 (middle), 2 (right) and back-row attacks; green = plus, red = minus"
-        rows={[['4', 'Zone 4 (left)'], ['3', 'Zone 3 (middle)'], ['2', 'Zone 2 (right)'], ['back', 'Back row']]
-          .map(([k, label]) => ({ t: origins.get(k as '4')!, label }))
+      <BarChart title={`Efficiency by where the attack was hit from${forWho}`}
+        subtitle="Front row zones 4, 3, 2 and back-row attacks from 5, 6 (pipe), 1 — hit behind or up to 1 m in front of the 3 m line; green = plus, red = minus"
+        rows={ORIGINS
+          .map((o) => ({ t: origins.get(o.key)!, label: o.label }))
           .filter((r) => r.t.n > 0)
           .map((r) => ({ label: r.label, value: eff(r.t), note: `${r.t.points}-${r.t.errors}/${r.t.n}` }))}
         valueTitle="Efficiency" fmt={eff3} colorOf={signColor} />
+
+      {byRow.get('back')!.n > 0 && (() => {
+        const rows = [['front', 'Front row'], ['back', 'Back row']].map(([k, label]) => ({ k, label, t: byRow.get(k as 'front')!, list: attacks.filter((e) => { const o = attackOrigin(e); return o != null && isBackRow(o) === (k === 'back'); }) }));
+        return (
+          <StatFigure title={`Front row vs back row${forWho}`} subtitle="Does the back-row attack cost us? Same numbers for both, side by side"
+            rows={rows} rowKey={(r) => r.k}
+            first={{ h: '', cell: (r) => r.label }}
+            columns={[
+              { h: 'Att', cell: (r) => ({ text: r.t.n, title: `${pct(ratio(r.t.n, byRow.get('front')!.n + byRow.get('back')!.n))} of the attacks` }) },
+              { h: 'Kill %', cell: (r) => ({ text: pct(pointPct(r.t)), tone: enough(r.t.n, 4) ? judge.killPct(pointPct(r.t)) : null }) },
+              { h: 'Err %', title: 'Errors and blocked', cell: (r) => ({ text: pct(errorPct(r.t)), tone: enough(r.t.n, 4) ? judge.errPct(errorPct(r.t)) : null }) },
+              { h: 'Blkd', title: 'Blocked', cell: (r) => r.list.filter((e) => e.action === 'attack_blocked').length },
+              { h: 'Eff', cell: (r) => ({ text: eff3(eff(r.t)), tone: enough(r.t.n, 4) ? judge.eff(eff(r.t)) : null }) },
+            ]}
+            play={(r) => r.list} playLabel="Attacks" />
+        );
+      })()}
 
       <HalfZones title={`Kill % by target zone${forWho}`} subtitle="Where our attacks landed on the opponent's court (their zone numbers), drawn as the camera sees it"
         half="theirs" values={zoneValues}

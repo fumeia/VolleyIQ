@@ -55,12 +55,31 @@ export function errorKind(e: Pick<VEvent, 'action' | 'x' | 'y'>): ErrorKind | nu
   return 'other';
 }
 
-/** Where on our side an attack was hit from: front-row zone 4/3/2, or the back row. */
-export function attackOrigin(e: Pick<VEvent, 'fx' | 'fy'>): '4' | '3' | '2' | 'back' | null {
+/**
+ * Back-row attackers take off behind the 3 m line but land (and get tapped) in front
+ * of it, so contacts up to this far in front of the line still count as back row.
+ */
+export const BACKROW_REACH = 1;
+/** Our side: contacts closer to the net than this (m from our baseline) are front-row attacks. */
+export const FRONT_ROW_FROM = COURT.net - COURT.attackLine + BACKROW_REACH;
+
+export type Origin = '4' | '3' | '2' | 'b5' | 'b6' | 'b1';
+export const ORIGINS: { key: Origin; label: string }[] = [
+  { key: '4', label: 'Zone 4 (left)' }, { key: '3', label: 'Zone 3 (middle)' }, { key: '2', label: 'Zone 2 (right)' },
+  { key: 'b5', label: 'Back row left (5)' }, { key: 'b6', label: 'Pipe (6)' }, { key: 'b1', label: 'Back row right (1)' },
+];
+export const isBackRow = (o: Origin | null) => o != null && o.startsWith('b');
+
+/**
+ * Where on our side an attack was hit from: front-row zone 4/3/2, or a back-row
+ * attack from 5 / 6 (pipe) / 1 — the zone behind it — when hit at most
+ * [BACKROW_REACH] in front of the 3 m line.
+ */
+export function attackOrigin(e: Pick<VEvent, 'fx' | 'fy'>): Origin | null {
   if (e.fx == null || e.fy == null) return null;
-  const z = zoneOf({ x: Math.min(9, Math.max(0, e.fx)), y: Math.min(8.99, Math.max(0, e.fy)) });
-  if (z === 4 || z === 3 || z === 2) return String(z) as '4' | '3' | '2';
-  return z ? 'back' : null;
+  const x = Math.min(9, Math.max(0, e.fx)), y = Math.min(8.99, Math.max(0, e.fy));
+  const col = x < 3 ? 0 : x < 6 ? 1 : 2;
+  return y >= FRONT_ROW_FROM ? (['4', '3', '2'] as const)[col] : (['b5', 'b6', 'b1'] as const)[col];
 }
 
 /** How far (m) a pass or dig landed from the ideal target (1 m off the net, between zones 3 and 2). */

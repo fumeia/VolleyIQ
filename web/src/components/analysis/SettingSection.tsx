@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 import { BarChart, GroupedColumns, SERIES } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
 import { attackContexts, buildRallies, realAssists, SETS, type AttackContext } from '../../lib/sequence';
-import { eff, errorPct, pointPct, tally } from '../../lib/trajectory';
+import { eff, errorPct, FRONT_ROW_FROM, pointPct, tally } from '../../lib/trajectory';
 import { signColor, who } from './AttackSection';
 import { eff3, enough, judge, pct, ratio, StatFigure } from './ui';
 
-/** Where a set went along the net: to the left (zone 4), middle, right (zone 2), or the back row. */
+/** Where a set went along the net: to the left (zone 4), middle, right (zone 2), or the back row (as for attacks). */
 export function setLane(e: Pick<VEvent, 'x' | 'y'>): 'left' | 'middle' | 'right' | 'back' | null {
   if (e.x == null || e.y == null) return null;
-  if (e.y < 6) return 'back';
+  if (e.y < FRONT_ROW_FROM) return 'back'; // back-row sets go up to 1 m in front of the 3 m line
   return e.x < 3 ? 'left' : e.x < 6 ? 'middle' : 'right';
 }
 const LANES: [ReturnType<typeof setLane> & string, string][] = [['left', 'Left (zone 4)'], ['middle', 'Middle (zone 3)'], ['right', 'Right (zone 2)'], ['back', 'Back row']];

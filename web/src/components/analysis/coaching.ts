@@ -1,6 +1,6 @@
 import type { Player, VEvent } from '../../lib/api';
 import { attackContexts, buildRallies, SETS } from '../../lib/sequence';
-import { attackOrigin, eff, tally } from '../../lib/trajectory';
+import { attackOrigin, eff, isBackRow, tally } from '../../lib/trajectory';
 import { insightsFor, type Insight } from './insights';
 import { eff3, pct } from './ui';
 
@@ -61,7 +61,7 @@ export function playerCoaching(player: Player, events: VEvent[], players: Player
     const ctx = attackContexts(buildRallies(events)).filter((c) => c.set?.player_id === player.id);
     if (ctx.length >= 15) {
       const lanes = new Map<string, VEvent[]>();
-      for (const c of ctx) { const o = attackOrigin(c.attack) ?? '?'; lanes.set(o, [...(lanes.get(o) ?? []), c.attack]); }
+      for (const c of ctx) { const a = attackOrigin(c.attack); const o = a == null ? '?' : isBackRow(a) ? 'back' : a; lanes.set(o, [...(lanes.get(o) ?? []), c.attack]); }
       const top = [...lanes.entries()].filter(([k]) => k !== '?').sort((a, b) => b[1].length - a[1].length)[0];
       if (top && top[1].length / ctx.length >= 0.6) {
         const where = top[0] === 'back' ? 'the back row' : `position ${top[0]}`;
