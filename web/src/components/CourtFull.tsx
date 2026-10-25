@@ -52,7 +52,10 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
   const VW = sideways ? H : W;
   const VH = sideways ? W : H;
 
-  function pick(e: React.PointerEvent<SVGSVGElement>) {
+  // Pick on click (not pointerup): the sheet closes when a spot is chosen, and a
+  // pointerup handler would let the trailing click fall through to whatever is
+  // rendered underneath (e.g. re-triggering the "Serve · #N" button).
+  function pick(e: React.MouseEvent<SVGSVGElement>) {
     if (!onPick || !svg.current) return;
     const ctm = svg.current.getScreenCTM();
     if (!ctm) return;
@@ -70,7 +73,7 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
   const label_ = (x: number, y: number) => P(x, y);
   return (
     <svg ref={svg} className={`court-svg court-full ${sideways ? 'sideways' : ''} ${onPick ? 'is-pickable' : ''}`} viewBox={`0 0 ${VW} ${VH}`}
-      onPointerUp={pick} role={onPick ? 'button' : 'img'} aria-label={label ?? 'Court'}>
+      onClick={pick} role={onPick ? 'button' : 'img'} aria-label={label ?? 'Court'}>
       <defs>
         <marker id="court-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="court-arrowhead" />
