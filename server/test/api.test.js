@@ -41,6 +41,13 @@ test('team, roster, match, events and jersey resolution', async () => {
   assert.equal(saved.points.length, 4);
   assert.equal(saved.points[0].extra, undefined);
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { points: landmarks.points.slice(0, 3), ourHalf: 'near' } } })).statusCode, 400);
+  // One side switch per set, the second with a new court marking.
+  const sets = { points: saved.points, ourHalf: 'far', switches: [{ t: 610.5, ourHalf: 'far' }, { t: 1300, ourHalf: 'near', points: saved.points }] };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: sets } })).json().calibration, sets);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: { ...landmarks, switches: [{ t: -1, ourHalf: 'far' }] } } })).statusCode, 400);
+  const lineups = { 1: { order: [1, 2, 3, 4, 5, null], libero: 7, weServeFirst: true, subs: [{ t: 312.5, out: 4, in: 8 }] } };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { lineups } })).json().lineups, lineups);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { lineups: { 1: { order: [1, 2] } } } })).statusCode, 400);
   await app.inject({ method: 'PATCH', url: `/api/matches/${match.id}`, payload: { calibration: cal } });
 
   const bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
@@ -64,9 +71,20 @@ test('app suggestions replace earlier unconfirmed suggestions only', async () =>
   assert.ok(bundle.events[0].player_id, 'jersey resolved to roster player');
 
   await app.inject({ method: 'PATCH', url: `/api/events/${bundle.events[0].id}`, payload: { status: 'confirmed' } });
-  await post([{ action: 'dig', t: 9 }]);
+  // Two court spots: played from (fx, fy) and went to (x, y).
+  const two = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'attack', fx: 7.5, fy: 7, x: 1.2, y: 16 } })).json();
+  assert.deepEqual([two.fx, two.fy, two.x, two.y], [7.5, 7, 1.2, 16]);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'attack', fx: 7.5 } })).statusCode, 400);
+  await app.inject({ method: 'DELETE', url: `/api/events/${two.id}` });
+  await post([{ action: 'dig', t: 9, hint: 'gap' }, { action: 'set', t: 10, hint: 'bogus' }]);
   bundle = (await app.inject({ url: `/api/matches/${match.id}` })).json();
-  assert.deepEqual(bundle.events.map((e) => [e.action, e.status]), [['serve', 'confirmed'], ['dig', 'suggested']]);
+  assert.deepEqual(bundle.events.map((e) => [e.action, e.status, e.hint]), [['serve', 'confirmed', null], ['dig', 'suggested', 'gap'], ['set', 'suggested', null]]);
+  // Rally numbers can be changed (join / split rallies in review).
+  const dig = bundle.events.find((e) => e.action === 'dig');
+  const moved = (await app.inject({ method: 'PATCH', url: `/api/events/${dig.id}`, payload: { rally: 42, poss: 3 } })).json();
+  assert.deepEqual([moved.rally, moved.poss], [42, 3]);
+  // A re-run does not suggest the saved serve at t=3 again, but brings back the others.
+  assert.equal((await post([{ action: 'serve', t: 3.1 }, { action: 'dig', t: 9 }])).json().inserted, 1);
   await app.close();
 });
 
@@ -89,6 +107,10 @@ test('password protection and share links', async () => {
   assert.equal(season.team.name, 'T');
   assert.equal(season.team.share_token, undefined);
   assert.equal(season.events.length, 1);
+  // The public season page runs the full analysis: it needs where each ball was played from too.
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, headers: { cookie }, payload: { action: 'kill', fx: 1.5, fy: 8, x: 7, y: 15 } });
+  const kill = (await app.inject({ url: `/api/share/team/${ts.share_token}` })).json().events.find((e) => e.action === 'kill');
+  assert.deepEqual([kill.fx, kill.fy, kill.x, kill.y], [1.5, 8, 7, 15]);
   await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, headers: { cookie }, payload: { revoke: true } });
   assert.equal((await app.inject({ url: `/api/share/team/${ts.share_token}` })).statusCode, 404);
 
@@ -102,5 +124,77 @@ test('password protection and share links', async () => {
   assert.equal(pre.headers['access-control-allow-origin'], 'https://localhost');
   const evil = await app.inject({ method: 'OPTIONS', url: '/api/teams', headers: { origin: 'https://evil.example' } });
   assert.equal(evil.headers['access-control-allow-origin'], undefined);
+  await app.close();
+});
+
+test('analyst effort: active time, corrected and removed auto suggestions', async () => {
+  const app = await setup();
+  const match = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${match.id}/suggestions`, payload: { events: [
+    { action: 'serve', t: 1 }, { action: 'dig', t: 5 }, { action: 'set', t: 6 }, { action: 'attack', t: 7 },
+  ] } });
+  const evs = (await app.inject({ url: `/api/matches/${match.id}` })).json().events;
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[0].id}`, payload: { status: 'confirmed' } });
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[1].id}`, payload: { status: 'confirmed', action: 'receive', value: 2 } });
+  await app.inject({ method: 'DELETE', url: `/api/events/${evs[2].id}` });
+  await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events/bulk`, payload: { op: 'delete', ids: [evs[3].id] } });
+  const manual = (await app.inject({ method: 'POST', url: `/api/matches/${match.id}/events`, payload: { action: 'kill', t: 8 } })).json();
+  await app.inject({ method: 'DELETE', url: `/api/events/${manual.id}` }); // own tag: not a false detection
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/work`, payload: { sec: 30 } })).json().work_sec, 30);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${match.id}/work`, payload: { sec: 5000 } })).statusCode, 400);
+  const m = (await app.inject({ url: '/api/matches' })).json()[0];
+  assert.deepEqual([m.work_sec, m.edited_count, m.removed_count, m.confirmed_count, m.auto_confirmed_count], [30, 1, 2, 2, 2]);
+  await app.close();
+});
+
+test('AI insights: disabled by default, works with an injected generator', async () => {
+  const off = await setup();
+  assert.equal((await off.inject({ url: '/api/insights/enabled' })).json().enabled, false);
+  assert.equal((await off.inject({ method: 'POST', url: '/api/insights/summary', payload: { stats: {} } })).statusCode, 503);
+  await off.close();
+
+  const gen = { enabled: true, model: 't', generate: async (stats, lang) => [`${lang}: eff ${stats.attackEff}`, 'work on reception'] };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-')), WEB_DIST: '/none' }, { insights: gen });
+  assert.equal((await app.inject({ url: '/api/insights/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/insights/summary', payload: {} })).statusCode, 400);
+  const res = (await app.inject({ method: 'POST', url: '/api/insights/summary', payload: { stats: { attackEff: 0.12 }, lang: 'de' } })).json();
+  assert.equal(res.bullets[0], 'de: eff 0.12');
+  assert.equal(res.bullets.length, 2);
+  await app.close();
+});
+
+test('match sheet scan: disabled by default, works with a scanner, validates input', async () => {
+  const off = await setup();
+  assert.equal((await off.inject({ url: '/api/matchsheet/enabled' })).json().enabled, false);
+  assert.equal((await off.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'image/png', data: 'x' }] } })).statusCode, 503);
+  await off.close();
+
+  const fake = { enabled: true, model: 'test', scan: async (images) => ({
+    teams: { A: 'Home VC', B: 'Away VC' }, date: '2026-01-10', league: '3.L', matchNo: '100001',
+    winner: 'B', setsWon: { A: 1, B: 3 }, sets: [{ a: 22, b: 25 }],
+    rosters: { A: [{ number: 5, name: 'A.Player', captain: true, libero: false }], B: [] }, confidence: 'medium', _n: images.length }) };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-')), WEB_DIST: '/none' }, { vision: fake });
+  assert.equal((await app.inject({ url: '/api/matchsheet/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [] } })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'application/pdf', data: 'x' }] } })).statusCode, 400);
+  const res = (await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'image/jpeg', data: 'abc' }] } })).json();
+  assert.equal(res.data.teams.B, 'Away VC');
+  assert.equal(res.data.setsWon.B, 3);
+  assert.equal(res.data.rosters.A[0].captain, true);
+  await app.close();
+});
+
+test('clear unreviewed suggestions keeps confirmed touches', async () => {
+  const app = await setup();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'c' } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions`, payload: { events: [
+    { action: 'serve', t: 1 }, { action: 'dig', t: 2 }, { action: 'set', t: 3 },
+  ] } });
+  const evs = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  await app.inject({ method: 'PATCH', url: `/api/events/${evs[0].id}`, payload: { status: 'confirmed' } });
+  const res = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions/clear` })).json();
+  assert.equal(res.deleted, 2);
+  const left = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  assert.deepEqual(left.map((e) => [e.action, e.status]), [['serve', 'confirmed']]);
   await app.close();
 });

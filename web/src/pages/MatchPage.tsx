@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EventEditor } from '../components/EventEditor';
-import { EventList } from '../components/EventList';
+import { EventList, playerLabel } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
-import { StatsView } from '../components/StatsView';
-import { MatchReportView } from '../report/ReportViews';
-import { DEFAULT_TAG_SETTINGS, TagPad, type TagSettings } from '../components/TagPad';
+import { RallyReview } from '../components/RallyReview';
+import { LineupSheet } from '../components/LineupSheet';
+import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
 import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
-import { actionLabel } from '../lib/actions';
-import { api, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { VideoClock } from '../components/VideoClock';
+import { actionLabel, scoreOf } from '../lib/actions';
+import { outcome } from '../lib/rallyReview';
+import { api, ApiError, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
-import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
+import { pointsOfSet, rotationAfter } from '../lib/rotation';
+import { ourHalfAt, type Calibration } from '../lib/calibration';
+import { useWorkTimer } from '../lib/useWorkTimer';
 
-type Tab = 'tag' | 'events' | 'review' | 'stats' | 'report' | 'ai';
+type Tab = 'tag' | 'events' | 'review' | 'ai';
 
 
 function loadSettings(): TagSettings {
@@ -48,14 +52,31 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [match, setMatch] = useState<Match>(initial.match);
   const players = initial.players;
   const { events, add, update, remove, replaceAll, pendingCount } = useEvents(match.id, initial.events);
+  useWorkTimer(match.id);
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  // Clip reel: the filtered events, each from 3 s before to 2 s after.
+  const [reel, setReel] = useState<{ list: VEvent[]; i: number } | null>(null);
+  useEffect(() => {
+    if (!reel) return;
+    const e = reel.list[reel.i];
+    if (!e || e.t == null) { setReel(null); return; }
+    player.current?.seek(Math.max(0, e.t - 3));
+    player.current?.play();
+    const timer = window.setTimeout(() => setReel((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null)), (5 / rate) * 1000);
+    return () => clearTimeout(timer);
+  }, [reel?.i, reel?.list]);
+  const [lineupSet, setLineupSet] = useState<number | null>(null);
+  const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
+  useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
   const [editing, setEditing] = useState<VEvent | null>(null);
   const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
   // A video file on this device (phone gallery, imported link, or a browser file).
   const [local, setLocal] = useState<LocalVideo | null>(() => (isApp() ? localVideo(initial.match.id) : null));
   const [calibrating, setCalibrating] = useState(false);
+  // Marking the court from this video time on (a later set, camera moved); null = the first marking.
+  const [calibFrom, setCalibFrom] = useState<number | null>(null);
   const calib = useCalibration(initial.match.calibration);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
@@ -72,8 +93,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }, [isLive, local, match.video_type, match.video_ref]);
 
   const suggested = events.filter((e) => e.status === 'suggested');
+  // Keep the rally review open after its last rally, so its Undo stays reachable.
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => { if (tab === 'review' && suggested.length > 0) setReviewing(true); }, [tab, suggested.length > 0]);
   const confirmed = events.filter((e) => e.status === 'confirmed');
   const score = scoreBySet(confirmed).find((s) => s.set === setNo) ?? { us: 0, them: 0 };
+  // A set is over at 25 (15 in the fifth) with a two-point lead.
+  const setOver = Math.max(score.us, score.them) >= (setNo === 5 ? 15 : 25) && Math.abs(score.us - score.them) >= 2;
 
   useEffect(() => { localStorage.setItem('viq:tagSettings', JSON.stringify(settings)); }, [settings]);
 
@@ -129,6 +155,83 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   const getTime = () => player.current?.time() ?? null;
 
+  // Line-up of the current set, rotated by the points tagged so far: on-court players come first.
+  const lineup = match.lineups?.[String(setNo)];
+  const rotationNow = lineup ? rotationAfter(lineup, pointsOfSet(confirmed, setNo, Infinity), players, getTime() ?? Infinity) : null;
+  const onCourt = rotationNow
+    ? [4, 3, 2, 5, 6, 1].map((pos) => rotationNow.positions[pos - 1]).filter((x): x is number => x != null)
+    : undefined;
+
+  /** Deletes saved events; Undo puts them back. */
+  async function deleteEvents(list: VEvent[]) {
+    const copies = list.filter((e) => e.id > 0).map(({ id: _id, client_id: _c, ...rest }) => rest);
+    await removeSuggestions(list);
+    flash(`Deleted ${list.length} event${list.length === 1 ? '' : 's'}`, async () => {
+      for (const e of copies) await api.addEvent(match.id, e);
+      await reload();
+    });
+  }
+
+  // Move selected events to another set (e.g. 6 points accidentally tagged in the
+  // wrong set), keeping their timestamps and everything else. Undoable.
+  async function moveEventsToSet(list: VEvent[], setNo: number) {
+    const originals = list.map((e) => ({ e, set: e.set_no }));
+    for (const e of list) await update(e, { set_no: setNo });
+    flash(`Moved ${list.length} event${list.length === 1 ? '' : 's'} to set ${setNo}`, async () => {
+      for (const { e, set } of originals) await update(e, { set_no: set });
+    });
+  }
+
+  async function removeSuggestions(list: VEvent[]) {
+    // Big clean-ups go to the server in one request; small ones stay optimistic.
+    if (list.length > 5 && list.every((e) => e.id > 0)) {
+      try {
+        await api.bulkEvents(match.id, 'delete', list.map((e) => e.id));
+        await reload();
+        return;
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 0) throw err;
+        // Offline: delete one by one, which queues them until the connection is back.
+      }
+    }
+    await Promise.all(list.map((e) => remove(e)));
+  }
+
+  // Tags since the last point of this set = the rally being tagged.
+  const setTags = confirmed.filter((e) => (e.set_no ?? 1) === setNo);
+  const lastPoint = setTags.map((e) => !!scoreOf(e)).lastIndexOf(true);
+  const rallyTags = setTags.slice(lastPoint + 1);
+  const lastTag = rallyTags[rallyTags.length - 1] ?? null;
+  const server = rotationNow?.weServe ? players.find((p) => p.id === rotationNow.positions[0]) ?? null : null;
+
+  /** "We won" / "They won" for the rally just tagged: the last tag becomes the point or the error. */
+  // A pass graded 0 already gave the opponent the point (aced): don't add a second one.
+  const lastSetTag = setTags[setTags.length - 1] ?? null;
+  const acedJustNow = !lastTag && lastSetTag?.action === 'receive' && lastSetTag.value === 0;
+
+  function settle(won: boolean) {
+    if (acedJustNow && lastSetTag) {
+      if (!won) return flash('Already counted: reception error (0 pass)');
+      // We won after all: it was not an ace, so the pass was at least playable.
+      update(lastSetTag, { value: 1 });
+      return flash('Pass changed to 1 (we won the rally)', () => update(lastSetTag, { value: 0 }));
+    }
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
+    if (o.change && lastTag) {
+      const before = { action: lastTag.action, value: lastTag.value };
+      update(lastTag, { action: o.change.action, ...(o.change.value !== undefined ? { value: o.change.value } : {}) });
+      flash(`${won ? 'Point' : 'Lost'}: ${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}`, () => update(lastTag, before));
+    } else if (o.add) {
+      const t = getTime();
+      commit({ action: o.add, t: t == null ? null : t });
+    }
+  }
+  const outcomeLabel = (won: boolean) => {
+    if (acedJustNow) return won ? 'pass → 1' : 'already counted';
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
+    return o.add ? (o.add === 'opp_error' ? 'their error' : 'their point') : actionLabel({ action: o.change!.action, value: o.change!.value ?? null });
+  };
+
   const pad = (
     <TagPad
       players={players}
@@ -138,6 +241,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       play={() => player.current?.play()}
       isPlaying={() => !!player.current?.isPlaying()}
       onCommit={commit}
+      onCourt={onCourt}
+      server={server}
+      lastAction={lastTag?.action ?? null}
+      farAt={(t) => !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far'}
     />
   );
 
@@ -165,19 +272,25 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <>
                 <div className="video-wrap">
                   <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
+                  <VideoClock player={player} />
                   {calibrating && <CalibrationOverlay session={calib} aspect={player.current?.aspect() ?? 16 / 9} />}
                 </div>
                 {calibrating ? (
                   <CalibrationPanel
                     session={calib}
+                    from={calibFrom}
                     onCancel={() => setCalibrating(false)}
                     onSave={async (c) => {
-                      setMatch(await api.updateMatch(match.id, { calibration: c }));
+                      const cur = match.calibration;
+                      const next: Calibration = calibFrom == null || !cur
+                        ? { ...cur, ...c, corners: undefined }
+                        : { ...cur, switches: [...(cur.switches ?? []).filter((s) => Math.abs(s.t - calibFrom) > 1), { t: calibFrom, ...c }] };
+                      setMatch(await api.updateMatch(match.id, { calibration: next }));
                       setCalibrating(false);
-                      flash('Court calibrated');
+                      flash(calibFrom == null ? 'Court calibrated' : `Court re-marked from ${fmtTime(calibFrom)}`);
                     }}
                   />
-                ) : (
+                ) : tab === 'review' && reviewMode === 'rally' && suggested.length > 0 ? null : (
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -206,34 +319,76 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         <section className="ws-panel">
           <nav className="tabs ws-tabs">
             <button className={`tab ${tab === 'tag' ? 'on' : ''}`} onClick={() => setTab('tag')}>Tag</button>
-            <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
             {!isLive && (
               <button className={`tab ${tab === 'review' ? 'on' : ''}`} onClick={() => setTab('review')}>
                 Review {suggested.length > 0 && <small className="dot">{suggested.length}</small>}
               </button>
             )}
-            <button className={`tab ${tab === 'stats' ? 'on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
-            <button className={`tab ${tab === 'report' ? 'on' : ''}`} onClick={() => setTab('report')}>Report</button>
-            {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto ✨</button>}
+            <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
+            {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto</button>}
           </nav>
 
           <div className="ws-content">
             {tab === 'tag' && (
               <>
+                {setOver && setNo < 5 && (
+                  <div className="set-over">
+                    <span>Set {setNo} {score.us > score.them ? 'won' : 'lost'} {score.us}:{score.them}</span>
+                    <button className="btn btn-primary small" onClick={() => setSetNo(setNo + 1)}>Start set {setNo + 1} ›</button>
+                  </div>
+                )}
                 {pad}
+                <div className="outcome-bar">
+                  <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
+                  <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
+                </div>
+                {confirmed.length > 0 && (() => {
+                  const last = confirmed[confirmed.length - 1];
+                  return (
+                    <button className="btn-ghost small" onClick={() => { remove(last); flash(`Removed ${actionLabel(last)}`); }}>
+                      ↶ Undo last tag ({playerLabel(players, last)} {actionLabel(last)})
+                    </button>
+                  );
+                })()}
                 <h3 className="section-title">Last tags</h3>
                 <EventList events={confirmed} players={players} limit={5} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
               </>
             )}
+            {reel && (
+              <div className="reel-bar">
+                <span>▶ Clip {reel.i + 1}/{reel.list.length} · {playerLabel(players, reel.list[reel.i])} {actionLabel(reel.list[reel.i])}</span>
+                <button className="btn-ghost small" disabled={reel.i === 0} onClick={() => setReel({ ...reel, i: reel.i - 1 })}>◀</button>
+                <button className="btn-ghost small" disabled={reel.i + 1 >= reel.list.length} onClick={() => setReel({ ...reel, i: reel.i + 1 })}>▶</button>
+                <button className="btn-ghost small" onClick={() => { setReel(null); player.current?.pause(); }}>Stop</button>
+              </div>
+            )}
             {tab === 'events' && (
-              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
+              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} onSetMany={moveEventsToSet} filterable
+                onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
             )}
             {tab === 'review' && (
-              suggested.length === 0 ? (
+              suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (
                 <div className="pad">
                   <p className="muted">No AI suggestions to review. Run <b>Auto ✨</b> to detect touches from the video automatically.</p>
                   <button className="btn wide" onClick={() => setTab('ai')}>Open auto-detection</button>
                 </div>
+              ) : reviewMode === 'rally' ? (
+                <RallyReview
+                  match={match}
+                  suggested={suggested}
+                  confirmed={confirmed}
+                  players={players}
+                  spots={{ location: settings.location, scope: settings.spotScope }}
+                  player={player}
+                  update={update}
+                  add={(e) => add(e)}
+                  removeMany={removeSuggestions}
+                  removeByClient={(cid) => { const ev = eventsRef.current.find((x) => x.client_id === cid); if (ev) remove(ev); }}
+                  reload={reload}
+                  onTouchView={() => setReviewMode('touch')}
+                  onLineup={(n) => setLineupSet(n)}
+                  onExit={() => setTab('tag')}
+                />
               ) : (
                 <ReviewPanel
                   events={suggested}
@@ -241,8 +396,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   player={player}
                   update={update}
                   remove={remove}
-                  removeMany={async (list) => { for (const e of list) await remove(e); }}
+                  removeMany={removeSuggestions}
                   onEdit={setEditing}
+                  onRallyView={() => setReviewMode('rally')}
                   onExit={() => setTab('tag')}
                   confirmAll={async () => {
                     await api.bulkEvents(match.id, 'confirm', suggested.filter((e) => e.id > 0).map((e) => e.id));
@@ -251,32 +407,33 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 />
               )
             )}
-            {tab === 'stats' && (
-              <>
-                <StatsView players={players} events={events} />
-                <div className="row wrap">
-                  <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
-                  <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>
-                  <ShareButton match={match} onChange={setMatch} />
-                </div>
-              </>
-            )}
-            {tab === 'report' && (
-              <MatchReportView match={match} players={players} events={events}
-                actions={<ShareButton match={match} onChange={setMatch} />} />
-            )}
             {tab === 'ai' && (
               <AutoPanel
                 match={match}
                 players={players}
                 video={isApp() ? local : null}
-                onCalibrate={() => {
+                getTime={getTime}
+                onCalibration={async (c) => setMatch(await api.updateMatch(match.id, { calibration: c }))}
+                onCalibrate={(from) => {
                   if (!source) return flash('Load the video first');
                   player.current?.pause();
+                  const cur = match.calibration;
+                  // Start from the marking in use at that time: after a small camera move most points are still close.
+                  const prev = from == null ? cur?.points
+                    : [...(cur?.switches ?? [])].filter((s) => s.t <= from && s.points).sort((a, b) => b.t - a.t)[0]?.points ?? cur?.points;
+                  calib.load(prev ?? []);
+                  setCalibFrom(from);
                   setCalibrating(true);
                   window.scrollTo({ top: 0 });
                 }}
                 onDone={async () => { await reload(); setTab('review'); }}
+                pending={suggested.length}
+                onClearSuggestions={async () => {
+                  const n = suggested.length;
+                  try { await api.clearSuggestions(match.id); } catch { /* fall back below */ }
+                  await reload();
+                  flash(`Deleted ${n} unreviewed suggestion${n === 1 ? '' : 's'}`);
+                }}
               />
             )}
           </div>
@@ -301,12 +458,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         />
       )}
 
+      {lineupSet != null && (
+        <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)}
+          onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
+      )}
+
       {showSettings && (
         <div className="sheet-backdrop" onClick={() => setShowSettings(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-head"><b>Tagging settings</b><button className="btn-ghost" onClick={() => setShowSettings(false)}>✕</button></div>
             <label className="toggle"><input type="checkbox" checked={settings.autoPause} onChange={(e) => setSettings({ ...settings, autoPause: e.target.checked })} /> Pause video while tagging, resume afterwards</label>
-            <label className="field-label">Where attacks and serves landed</label>
+            <label className="field-label">Court spots (serves, passes, sets, attacks, digs, blocks)</label>
             <div className="segmented">
               {(['points', 'zones', 'off'] as const).map((m) => (
                 <button key={m} className={settings.location === m ? 'on' : ''} onClick={() => setSettings({ ...settings, location: m })}>
@@ -314,17 +476,31 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </button>
               ))}
             </div>
+            {settings.location !== 'off' && (
+              <div className="segmented">
+                <button className={settings.spotScope !== 'key' ? 'on' : ''} onClick={() => setSettings({ ...settings, spotScope: 'all' })}>All actions</button>
+                <button className={settings.spotScope === 'key' ? 'on' : ''} onClick={() => setSettings({ ...settings, spotScope: 'key' })}>Fast: serve, pass, attack</button>
+              </div>
+            )}
+            {settings.location === 'points' && (
+              <label className="toggle"><input type="checkbox" checked={settings.fromTap} onChange={(e) => setSettings({ ...settings, fromTap: e.target.checked })} /> Also tap where the ball was played from (2 taps)</label>
+            )}
             <label className="field-label">Receive</label>
             <div className="segmented">
               <button className={settings.receiveMode === 'court' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'court' })}>Tap where pass landed</button>
               <button className={settings.receiveMode === 'grade' ? 'on' : ''} onClick={() => setSettings({ ...settings, receiveMode: 'grade' })}>Grade 0–3</button>
             </div>
+            <button className="btn wide" onClick={() => { setShowSettings(false); setLineupSet(setNo); }}>
+              Line-up for set {setNo}{lineup ? ' ✓' : ''} (on-court players first)
+            </button>
             <label className="field-label">Timestamp lead (reaction time): {settings.leadSeconds}s</label>
             <input type="range" min={0} max={3} step={0.5} value={settings.leadSeconds} onChange={(e) => setSettings({ ...settings, leadSeconds: Number(e.target.value) })} />
             {!isLive && source && (
               <button className="btn wide" onClick={() => {
                 player.current?.pause();
                 setShowSettings(false);
+                calib.load(match.calibration?.points ?? []);
+                setCalibFrom(null);
                 setCalibrating(true);
               }}>
                 {match.calibration ? 'Recalibrate court' : 'Calibrate court (tap 4+ court points)'}
@@ -351,19 +527,3 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     </div>
   );
 }
-
-function ShareButton({ match, onChange }: { match: Match; onChange: (m: Match) => void }) {
-  const url = match.share_token ? `${publicBase()}/s/${match.share_token}` : null;
-  return url ? (
-    <>
-      <button className="btn" onClick={async () => {
-        if (navigator.share) navigator.share({ title: match.label, url }).catch(() => {});
-        else { await navigator.clipboard.writeText(url); alert('Link copied'); }
-      }}>🔗 Share report</button>
-      <button className="btn-ghost small" onClick={async () => onChange({ ...match, share_token: (await api.share(match.id, true)).share_token })}>Revoke link</button>
-    </>
-  ) : (
-    <button className="btn" onClick={async () => onChange({ ...match, share_token: (await api.share(match.id)).share_token })}>🔗 Create share link</button>
-  );
-}
-

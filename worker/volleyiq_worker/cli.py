@@ -20,10 +20,14 @@ from . import audio, rallies, video
 
 
 def analyse(path: str, sensitivity: float = 1.0, cuts: bool = True):
-    _, contacts, whistles = audio.analyse_file(path, sensitivity)
+    feat, contacts, whistles = audio.analyse_file(path, sensitivity)
+    sensitive = audio.detect_contacts(feat, sensitivity * rallies.QUIET_BOOST, whistles=whistles)
+    quiet = rallies.quiet_contacts(contacts, sensitive)
     cut_times = video.detect_cuts(*video.frame_diffs(path)) if cuts else []
     found = rallies.segment_rallies(contacts, whistles, cut_times)
+    interval = rallies.typical_interval(found)
     for r in found:
+        rallies.fill_gaps(r, quiet, interval)
         rallies.label_rally(r)
     return found, cut_times
 
@@ -48,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"edit cuts: {', '.join(f'{c:.1f}s' for c in cut_times) or 'none'}")
         for ri, r in enumerate(found, start=1):
-            touches = " ".join(f"{t.t:.1f}:{t.action}" for t in r.touches)
+            touches = " ".join(f"{t.t:.1f}:{t.action}{'?' if t.kind != 'heard' else ''}" for t in r.touches)
             print(f"rally {ri:2d}  {r.start:6.1f}-{r.end:6.1f}s  {touches}")
 
     if args.post:

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ACTIONS, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, ACTIONS, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
-import { receiveGrade, zoneOf } from '../lib/court';
-import { CourtHalf } from './CourtHalf';
+import { courtFields } from '../lib/court';
+import { CourtFull } from './CourtFull';
+import { ActionPicker } from './ActionPicker';
 import { ZoneCourt } from './ZoneCourt';
 
 interface Props {
@@ -19,9 +20,13 @@ interface Props {
 export function EventEditor({ event, players, getTime, onSave, onDelete, onClose }: Props) {
   const [d, setD] = useState<Partial<VEvent>>({
     player_id: event.player_id, jersey: event.jersey, action: event.action,
-    value: event.value, zone: event.zone, x: event.x, y: event.y, t: event.t,
+    value: event.value, zone: event.zone, x: event.x, y: event.y, fx: event.fx, fy: event.fy, t: event.t,
   });
   const point = d.x != null && d.y != null ? { x: d.x, y: d.y } : null;
+  const from = d.fx != null && d.fy != null ? { x: d.fx, y: d.fy } : null;
+  const def = ACTION_BY_CODE[d.action!];
+  // Which spot the next court tap sets.
+  const [tapSets, setTapSets] = useState<'from' | 'to'>('to');
   const roster = players.filter((p) => p.active || p.id === event.player_id)
     .sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const set = (patch: Partial<VEvent>) => setD((x) => ({ ...x, ...patch }));
@@ -48,12 +53,11 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         </div>
 
         <label className="field-label">Action</label>
-        <div className="chips">
-          {ACTIONS.map((a) => (
-            <button key={a.code} className={`chip chip-${a.group} ${d.action === a.code ? 'on' : ''}`}
-              onClick={() => set({ action: a.code as ActionCode, value: a.code === 'receive' ? d.value ?? 2 : null })}>
-              {a.short}
-            </button>
+        <ActionPicker value={d.action} onPick={(code) => set({ action: code, value: code === 'receive' ? d.value ?? 2 : null })} />
+        <div className="chips tight">
+          {ACTIONS.filter((a) => a.needsPlayer === false).map((a) => (
+            <button key={a.code} className={`chip ${d.action === a.code ? 'on' : ''}`}
+              onClick={() => set({ action: a.code as ActionCode, value: null })}>{a.label}</button>
           ))}
         </div>
 
@@ -70,14 +74,25 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
 
         <label className="field-label">
           Location {d.zone ? `(zone ${d.zone})` : ''}
-          {(point || d.zone) && <button className="btn-ghost small" onClick={() => set({ x: null, y: null, zone: null })}>clear</button>}
+          {(point || from || d.zone) && <button className="btn-ghost small" onClick={() => set({ x: null, y: null, fx: null, fy: null, zone: null })}>clear</button>}
         </label>
+        {def?.court === 'path' && (
+          <div className="segmented">
+            <button className={tapSets === 'from' ? 'on' : ''} onClick={() => setTapSets('from')}>⚪ Played from</button>
+            <button className={tapSets === 'to' ? 'on' : ''} onClick={() => setTapSets('to')}>🟠 Went to</button>
+          </div>
+        )}
         <div className="editor-court">
-          <CourtHalf
-            half={d.action === 'receive' || d.action === 'dig' ? 'ours' : 'theirs'}
+          <CourtFull sideways="auto"
             showTarget={d.action === 'receive'}
-            marker={point}
-            onPick={(p) => set({ x: p.x, y: p.y, zone: zoneOf(p), ...(d.action === 'receive' ? { value: receiveGrade(p) } : {}) })}
+            from={from}
+            to={point}
+            onPick={(p) => {
+              if (tapSets === 'from' && def?.court === 'path') {
+                set({ ...courtFields(d.action!, p, point), value: d.value });
+                setTapSets('to');
+              } else set(courtFields(d.action!, from, p));
+            }}
           />
         </div>
         {!point && <ZoneCourt compact selected={d.zone} onPick={(z) => set({ zone: d.zone === z ? null : z })} />}

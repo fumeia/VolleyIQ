@@ -1,5 +1,6 @@
 package com.volleyiq.app.analysis
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.round
@@ -21,6 +22,10 @@ class Touch(
     /** Where the touching player stood, in court meters as the camera sees it (near baseline y = 0). */
     var pos: P? = null,
     var team: String? = null, // "us" | "them" | null
+    /** How it was found: [Rallies.HEARD], [Rallies.QUIET] (faint sound in a gap) or [Rallies.GAP] (guessed from the rhythm). */
+    val kind: String = Rallies.HEARD,
+    /** 1 = ball right at the touching player in the frames, 0 = ball seen far from everyone, null = ball not seen. */
+    var ball: Double? = null,
 )
 
 class Rally(val touches: MutableList<Touch>)
@@ -29,6 +34,76 @@ object Rallies {
     const val MAX_GAP = 3.5
     const val MIN_CONTACTS = 2
     const val CUT_GUARD = 0.15
+
+    const val HEARD = "heard"
+    const val QUIET = "quiet"
+    const val GAP = "gap"
+
+    /** Default time between two touches of a rally, when the match has too few to measure it. */
+    const val TOUCH_INTERVAL = 1.2
+    /** Gaps shorter than this are never filled (a serve or a high free ball takes that long). */
+    const val MIN_FILL_GAP = 1.6
+    /** Quiet sounds count from this much more sensitive a detector, but only where a touch is missing. */
+    const val QUIET_BOOST = 2.0
+    private const val MIN_SPACING = 0.3
+    private const val SNAP = 0.45
+
+    /** Quiet contacts: heard only by a more sensitive detector, away from the normal ones. */
+    fun quietContacts(normal: List<Contact>, sensitive: List<Contact>): List<Contact> =
+        sensitive.filter { q -> normal.none { abs(it.t - q.t) < MIN_SPACING } }
+
+    /**
+     * Far-side touches are often too faint to hear, which leaves holes in the rally
+     * rhythm. Where the gap between two heard touches is long enough to hide one or
+     * two touches, adds them: at a quiet sound in the expected spot if there is one,
+     * otherwise as a guess at the expected time. Both are marked, so the review can
+     * tell them apart from clearly heard touches.
+     */
+    /** The match's own rhythm: median time between consecutive heard touches of a rally. */
+    fun typicalInterval(rallies: List<Rally>): Double {
+        val d = rallies.flatMap { r -> r.touches.zipWithNext { a, b -> b.t - a.t } }.filter { it in 0.3..2.5 }.sorted()
+        return if (d.size < 10) TOUCH_INTERVAL else d[d.size / 2].coerceIn(0.8, 1.3)
+    }
+
+    fun fillGaps(rally: Rally, quiet: List<Contact>, interval: Double = TOUCH_INTERVAL) {
+        val src = rally.touches
+        val out = ArrayList<Touch>(src.size)
+        for (i in src.indices) {
+            out += src[i]
+            val next = src.getOrNull(i + 1) ?: break
+            val gap = next.t - src[i].t
+            val missing = if (gap < MIN_FILL_GAP) 0 else (round(gap / interval).toInt() - 1).coerceIn(0, 2)
+            for (k in 1..missing) {
+                val ideal = src[i].t + gap * k / (missing + 1)
+                val after = out.last().t + MIN_SPACING
+                val q = quiet.filter { abs(it.t - ideal) < SNAP && it.t > after && it.t < next.t - MIN_SPACING }.maxByOrNull { it.strength }
+                when {
+                    q != null -> out += Touch(q.t, q.strength, kind = QUIET)
+                    ideal > after && ideal < next.t - MIN_SPACING -> out += Touch(ideal, 0.0, kind = GAP)
+                }
+            }
+        }
+        src.clear()
+        src.addAll(out)
+    }
+
+    /**
+     * Uses what the camera saw: the bounces of the server before the serve (two
+     * touches in a row behind the same baseline) are dropped, and so are quiet
+     * sounds where the ball was clearly somewhere else.
+     */
+    fun applyVision(rally: Rally) {
+        val ts = rally.touches
+        fun behind(t: Touch) = t.pos?.let { if (it.y < -0.3) -1 else if (it.y > 18.3) 1 else 0 } ?: 0
+        while (true) {
+            val heard = ts.filter { it.kind == HEARD }
+            if (heard.size < 3) break
+            val (bounce, serve) = heard
+            if (behind(bounce) == 0 || behind(bounce) != behind(serve) || serve.t - bounce.t >= 2.5) break
+            ts.removeAll { it.t < serve.t } // the bounce, and anything guessed between it and the serve
+        }
+        ts.removeAll { it.kind == QUIET && (it.ball ?: 1.0) < 0.15 }
+    }
 
     fun segment(contacts: List<Contact>, whistles: List<Interval> = emptyList(), cuts: List<Double> = emptyList()): List<Rally> {
         // The audio splice at an edit cut sounds like a contact.
@@ -53,8 +128,56 @@ object Rallies {
         return rallies.filter { it.touches.size >= MIN_CONTACTS }
     }
 
+    /**
+     * Labels the touches of a rally. With court positions for most touches, a touch on
+     * the other side of the net starts a new possession (handles overpasses, free balls
+     * and two-touch possessions); otherwise touches are counted: serve, then up to three
+     * per side.
+     */
     fun label(rally: Rally) {
-        val touches = rally.touches
+        val ts = rally.touches
+        // -1 = near half, 1 = far half, 0 = unknown or right at the net.
+        val sides = ts.map { t -> t.pos?.let { if (it.y < 8.0) -1 else if (it.y > 10.0) 1 else 0 } ?: 0 }
+        if (sides.count { it != 0 } >= max(3.0, ts.size * 0.6)) labelBySide(ts, sides) else labelByCount(ts)
+    }
+
+    private fun name(k: Int, possession: Int) = when (k) {
+        0 -> if (possession == 1) "receive" else "dig"
+        1 -> "set"
+        else -> "attack"
+    }
+
+    private fun labelBySide(ts: List<Touch>, sides: List<Int>) {
+        ts[0].action = "serve"
+        ts[0].possession = 0
+        var side = sides[0]
+        var possession = 0
+        var k = 3 // the serve ends its possession
+        for (i in 1 until ts.size) {
+            val s = sides[i]
+            // Right at the net just after an attack: the other team's block. It starts their
+            // possession but is not one of their three touches.
+            val atNet = ts[i].pos?.let { abs(it.y - 9.0) < 1.0 } == true
+            if (s == 0 && atNet && ts[i - 1].action == "attack") {
+                possession++
+                side = -side
+                ts[i].action = "block_touch"
+                ts[i].possession = possession
+                k = 0
+                continue
+            }
+            if ((s != 0 && s != side) || k == 3) {
+                possession++
+                k = 0
+                side = if (s != 0) s else -side
+            }
+            ts[i].action = name(k, possession)
+            ts[i].possession = possession
+            k++
+        }
+    }
+
+    private fun labelByCount(touches: List<Touch>) {
         touches[0].action = "serve"
         touches[0].possession = 0
         var possession = 1
@@ -64,11 +187,7 @@ object Rallies {
                 possession++
                 k = 0
             }
-            touch.action = when (k) {
-                0 -> if (possession == 1) "receive" else "dig"
-                1 -> "set"
-                else -> "attack"
-            }
+            touch.action = name(k, possession)
             touch.possession = possession
             k++
         }
@@ -100,27 +219,54 @@ object Rallies {
     }
 
     /** Suggested events, with landing spots inferred from the next touch when positions are known. */
-    fun toEvents(rallies: List<Rally>, ourHalf: String?, dropOpponent: Boolean = true): List<Map<String, Any?>> {
+    fun toEvents(rallies: List<Rally>, ourHalf: String?, dropOpponent: Boolean = true) = toEvents(rallies, { ourHalf }, { null }, dropOpponent)
+
+    /** [ourHalfAt] / [setAt]: our side and the set number at a video time (teams switch sides every set). */
+    fun toEvents(
+        rallies: List<Rally>, ourHalfAt: (Double) -> String?, setAt: (Double) -> Int?, dropOpponent: Boolean = true,
+    ): List<Map<String, Any?>> {
         val events = ArrayList<Map<String, Any?>>()
         for ((ri, rally) in rallies.withIndex()) {
             for ((i, t) in rally.touches.withIndex()) {
                 if (dropOpponent && t.team == "them") continue
-                var conf = 0.35 + 0.3 * t.strength + if (t.action == "serve") 0.1 else 0.0
-                if (t.jersey != null) conf = 0.5 * conf + 0.5 * t.jerseyConf
-                val landing = landingSpot(rally, i, ourHalf)
+                val half = ourHalfAt(t.t)
+                val landing = landingSpot(rally, i, half)
+                // Where the touching player stood = where the ball was played from.
+                val from = t.pos?.let { p -> half?.let { toApp(p, it) } }
                 events += mapOf(
                     "t" to round2(max(0.0, t.t)),
                     "action" to t.action,
                     "jersey" to t.jersey,
-                    "confidence" to round2(min(conf, 0.95)),
+                    "confidence" to round2(confidence(t)),
+                    "hint" to t.kind.takeIf { it != HEARD },
                     "x" to landing?.x?.let(::round2),
                     "y" to landing?.y?.let(::round2),
+                    "fx" to from?.x?.let(::round2),
+                    "fy" to from?.y?.let(::round2),
                     "rally" to ri + 1,
                     "poss" to t.possession,
+                    "set_no" to setAt(t.t),
                 )
             }
         }
         return events
+    }
+
+    /**
+     * How sure the suggestion is. The sound alone says little (a clap is as loud as
+     * a dig, a far-side touch quieter than either), so when the ball was seen the
+     * picture decides most of it: ball at the touching player = likely a touch.
+     */
+    fun confidence(t: Touch): Double {
+        var c = when (t.kind) {
+            HEARD -> 0.35 + 0.3 * t.strength
+            QUIET -> 0.3
+            else -> 0.2
+        }
+        if (t.action == "serve") c += 0.1
+        t.ball?.let { c = 0.4 * c + 0.6 * (0.15 + 0.8 * it) }
+        if (t.jersey != null) c = 0.5 * c + 0.5 * t.jerseyConf
+        return min(c, 0.95)
     }
 
     /**
@@ -139,8 +285,11 @@ object Rallies {
         }
         val p = next.pos ?: return null
         if (!wanted) return null
-        return if (ourHalf == "near") p else P(9.0 - p.x, 18.0 - p.y)
+        return toApp(p, ourHalf)
     }
+
+    /** Camera court frame (near baseline y = 0) -> app frame (our baseline y = 0). */
+    private fun toApp(p: P, ourHalf: String) = if (ourHalf == "near") p else P(9.0 - p.x, 18.0 - p.y)
 
     private fun round2(v: Double) = round(v * 100) / 100
 }

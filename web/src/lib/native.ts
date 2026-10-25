@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isApp } from './api';
+import type { Segment } from './calibration';
 
 /** Native side of the Android app (web/android/.../VolleyIQPlugin.kt). */
 export interface WorkState {
@@ -24,6 +25,8 @@ interface VolleyIQPlugin {
   analyze(o: {
     matchId: number; uri: string; apiBase: string; token: string | null; roster: number[];
     readJerseys: boolean; detectCuts: boolean; sensitivity?: number; ourHalf?: 'near' | 'far' | null; points?: number[] | null;
+    /** Per set: from each side switch on, our half (and the court marking if it was re-marked). */
+    segments?: Segment[] | null;
   }): Promise<{ id: string; uploadId: string }>;
   analysisStatus(o: { matchId: number }): Promise<{ analysis: WorkState | null; upload: WorkState | null }>;
   cancelAnalysis(o: { matchId: number }): Promise<void>;

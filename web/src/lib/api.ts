@@ -1,5 +1,6 @@
 import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
+import type { Lineups } from './rotation';
 
 export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -7,14 +8,31 @@ export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
-  calibration?: Calibration | null; created_at?: string; event_count?: number; suggested_count?: number;
+  calibration?: Calibration | null; lineups?: Lineups | null; created_at?: string; event_count?: number; suggested_count?: number;
+  /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
+  work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
-  value: number | null; zone: number | null; x: number | null; y: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
+  value: number | null; zone: number | null; x: number | null; y: number | null;
+  /** Where the ball was played from (x, y: where it went). */
+  fx?: number | null; fy?: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
+  /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
+  hint?: 'quiet' | 'gap' | null;
 }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
+
+/** Summary fields read off a photo of an official match sheet (best-effort). */
+export interface SheetPlayer { number: number | null; name: string; role?: string | null; captain: boolean; libero: boolean }
+export interface MatchSheet {
+  teams: { A: string | null; B: string | null };
+  date: string | null; time?: string | null; venue?: string | null; league: string | null; matchNo: string | null;
+  winner: 'A' | 'B' | null; setsWon: { A: number; B: number } | null;
+  sets: { a: number; b: number }[];
+  rosters: { A: SheetPlayer[]; B: SheetPlayer[] };
+  confidence: 'high' | 'medium' | 'low';
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -109,6 +127,14 @@ export const api = {
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),
   deleteEvent: (id: number) => req('DELETE', `/api/events/${id}`),
+  addWork: (matchId: number, sec: number) => req<{ work_sec: number }>('POST', `/api/matches/${matchId}/work`, { sec }),
+  matchsheetEnabled: () => req<{ enabled: boolean }>('GET', '/api/matchsheet/enabled'),
+  scanMatchsheet: (images: { media_type: string; data: string }[]) =>
+    req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
+  insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
+  insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
+    req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
+  clearSuggestions: (matchId: number) => req<{ deleted: number }>('POST', `/api/matches/${matchId}/suggestions/clear`),
 };

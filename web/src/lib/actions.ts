@@ -1,13 +1,19 @@
 // Keep in sync with server/src/actions.js
 export type ActionCode =
-  | 'attack_error' | 'serve_error' | 'dig_error' | 'block_error'
+  | 'attack_error' | 'serve_error' | 'dig_error' | 'block_error' | 'attack_blocked'
   | 'attack' | 'serve' | 'dig' | 'block_touch'
   | 'kill' | 'ace' | 'block_point'
-  | 'set' | 'assist' | 'assist_error'
-  | 'receive'
+  | 'set' | 'assist' | 'assist_error' | 'set_error'
+  | 'receive' | 'freeball'
   | 'opp_point' | 'opp_error';
 
 export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team';
+
+/**
+ * Court taps for an action: 'path' = where the ball was played from, then where it
+ * went (two taps, either can be skipped); 'at' = one spot (a block, along the net).
+ */
+export type CourtTaps = 'path' | 'at';
 
 export interface ActionDef {
   code: ActionCode;
@@ -15,32 +21,79 @@ export interface ActionDef {
   short: string;
   group: Group;
   key?: string;           // desktop hotkey, same layout as VolleyTag
-  zone?: boolean;         // ask where the ball landed (opponent court)
+  court?: CourtTaps;
+  fromPrompt?: string;    // 'path': first tap
+  toPrompt?: string;      // 'path': second tap; 'at': the one tap
   needsPlayer?: boolean;  // false for team-level actions
   score?: 'us' | 'them';  // effect on the scoreboard
 }
 
 export const ACTIONS: ActionDef[] = [
-  { code: 'attack_error', label: 'Attack Error', short: 'Att Err', group: 'errors', key: 'q', zone: true, score: 'them' },
-  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', zone: true, score: 'them' },
-  { code: 'dig_error', label: 'Dig Error', short: 'Dig Err', group: 'errors', key: 'e', score: 'them' },
-  { code: 'block_error', label: 'Block Error', short: 'Blk Err', group: 'errors', key: 'r', score: 'them' },
-  { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', zone: true },
-  { code: 'serve', label: 'Serve', short: 'Serve', group: 'actions', key: 's', zone: true },
-  { code: 'dig', label: 'Dig', short: 'Dig', group: 'actions', key: 'd' },
-  { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f' },
-  { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', zone: true, score: 'us' },
-  { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', zone: true, score: 'us' },
-  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', score: 'us' },
-  { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g' },
-  { code: 'assist', label: 'Assist', short: 'Assist', group: 'setting', key: 't' },
-  { code: 'assist_error', label: 'Assist Error', short: 'Ast Err', group: 'setting', key: 'y', score: 'them' },
-  { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive' },
+  { code: 'attack_error', label: 'Attack Error', short: 'Att Err', group: 'errors', key: 'q', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it go (out / net)?', score: 'them' },
+  { code: 'serve_error', label: 'Serve Error', short: 'Srv Err', group: 'errors', key: 'w', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it go (out / net)?', score: 'them' },
+  { code: 'dig_error', label: 'Dig Error', short: 'Dig Err', group: 'errors', key: 'e', court: 'path', fromPrompt: 'Where was the dig?', toPrompt: 'Where did it go?', score: 'them' },
+  { code: 'attack_blocked', label: 'Attack Blocked', short: 'Blocked', group: 'errors', key: 'c', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where was it blocked?', score: 'them' },
+  { code: 'block_error', label: 'Block Error', short: 'Blk Err', group: 'errors', key: 'r', court: 'at', toPrompt: 'Where along the net?', score: 'them' },
+  { code: 'attack', label: 'Attack', short: 'Attack', group: 'actions', key: 'a', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it go?' },
+  { code: 'serve', label: 'Serve', short: 'Serve', group: 'actions', key: 's', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?' },
+  { code: 'dig', label: 'Dig', short: 'Dig', group: 'actions', key: 'd', court: 'path', fromPrompt: 'Where was the dig?', toPrompt: 'Where did it go?' },
+  { code: 'freeball', label: 'Free Ball', short: 'Free', group: 'actions', key: 'b', court: 'path', fromPrompt: 'Where was the free ball played?', toPrompt: 'Where did it go?' },
+  { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', court: 'at', toPrompt: 'Where along the net?' },
+  { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
+  { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
+  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
+  { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
+  { code: 'assist', label: 'Bump set', short: 'Bump set', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
+  { code: 'assist_error', label: 'Bump set error', short: 'Bump err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
+  { code: 'set_error', label: 'Set Error', short: 'Set Err', group: 'setting', key: 'u', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
+  { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', court: 'path', fromPrompt: 'Where was it received?', toPrompt: 'Where did the pass go?' },
   { code: 'opp_error', label: 'Opponent Error', short: 'Opp Err', group: 'team', needsPlayer: false, score: 'us' },
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },
 ];
 
+/** Action choices in review, grouped serve, pass, set, attack, defence, block: every player action. */
+export const REVIEW_ACTIONS: ActionCode[] = [
+  'serve', 'ace', 'serve_error', 'receive', 'set', 'assist', 'set_error', 'assist_error',
+  'attack', 'kill', 'attack_error', 'attack_blocked', 'dig', 'dig_error', 'freeball',
+  'block_touch', 'block_point', 'block_error',
+];
+
+/** "Fast" court mode: the court spots that matter most for the stats. */
+export const KEY_SPOTS: ActionCode[] = ['serve', 'ace', 'serve_error', 'receive', 'attack', 'kill', 'attack_error', 'attack_blocked'];
+
+/** Whether to ask for court spots for [code] under the tagging settings. */
+export function wantsSpots(code: ActionCode, location: 'points' | 'zones' | 'off', scope: 'all' | 'key'): boolean {
+  return !!ACTIONS.find((a) => a.code === code)?.court && location !== 'off' && (scope !== 'key' || KEY_SPOTS.includes(code));
+}
+
+/** The action pad, one row per skill: you know the skill first, then the outcome. */
+export const SKILLS: { label: string; codes: ActionCode[] }[] = [
+  { label: 'Serve', codes: ['serve', 'ace', 'serve_error'] },
+  { label: 'Pass', codes: ['receive'] },
+  { label: 'Set', codes: ['set', 'assist', 'set_error', 'assist_error'] },
+  { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
+  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
+  { label: 'Defence', codes: ['dig', 'freeball', 'dig_error'] },
+];
+/** Labels inside a skill row (the row already names the skill). */
+export const SHORT: Partial<Record<ActionCode, string>> = {
+  serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
+  set: 'Set', assist: 'Bump set', set_error: 'Error', assist_error: 'Bump err',
+  attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
+  block_touch: 'Touch', block_point: 'Point', block_error: 'Error',
+  dig: 'Dig', freeball: 'Free ball', dig_error: 'Error',
+};
+
 export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])) as Record<ActionCode, ActionDef>;
+
+/**
+ * Who a tag gives the point to: the action's own effect, and a reception error
+ * (pass graded 0 = aced) is the opponent's point too.
+ */
+export function scoreOf(e: { action: ActionCode; value?: number | null }): 'us' | 'them' | undefined {
+  if (e.action === 'receive') return e.value === 0 ? 'them' : undefined;
+  return ACTION_BY_CODE[e.action]?.score;
+}
 
 export const GROUPS: { id: Group; label: string }[] = [
   { id: 'points', label: 'Points' },

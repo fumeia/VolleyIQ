@@ -87,6 +87,7 @@ class AnalysisTest {
         assertEquals(listOf("serve", "dig"), ev.map { it["action"] })
         assertEquals(4.0, ev[0]["x"]) // serve landed where they received it
         assertEquals(15.0, ev[0]["y"])
+        assertEquals(listOf(7.0, -1.0), listOf(ev[0]["fx"], ev[0]["fy"])) // served from where the server stood
     }
 
     @Test

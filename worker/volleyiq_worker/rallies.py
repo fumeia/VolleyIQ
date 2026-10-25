@@ -13,6 +13,11 @@ from dataclasses import dataclass, field
 MAX_GAP = 3.5          # seconds without a contact ends a rally
 CUT_GUARD = 0.15       # seconds around an edit cut where contacts are splice artefacts
 MIN_CONTACTS = 2
+TOUCH_INTERVAL = 1.2   # default time between touches, when a match has too few to measure it
+MIN_FILL_GAP = 1.6     # shorter gaps are never filled (a serve or a high free ball takes that long)
+QUIET_BOOST = 2.0      # quiet sounds come from this much more sensitive a detector
+MIN_SPACING = 0.3
+SNAP = 0.45
 
 
 @dataclass
@@ -24,6 +29,7 @@ class Touch:
     jersey: int | None = None
     jersey_conf: float = 0.0
     team: str | None = None        # "us" | "them" | None (unknown)
+    kind: str = "heard"            # "heard" | "quiet" (faint sound in a gap) | "gap" (guessed from the rhythm)
 
 
 @dataclass
@@ -64,6 +70,40 @@ def segment_rallies(
     if cur:
         rallies.append(Rally(cur))
     return [r for r in rallies if len(r.touches) >= MIN_CONTACTS]
+
+
+def quiet_contacts(normal: list[tuple[float, float]], sensitive: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Contacts only a more sensitive detector hears, away from the normal ones."""
+    return [(t, s) for t, s in sensitive if not any(abs(t - n) < MIN_SPACING for n, _ in normal)]
+
+
+def typical_interval(found: list[Rally]) -> float:
+    """The match's own rhythm: median time between consecutive heard touches of a rally."""
+    d = sorted(b.t - a.t for r in found for a, b in zip(r.touches, r.touches[1:]) if 0.3 <= b.t - a.t <= 2.5)
+    return TOUCH_INTERVAL if len(d) < 10 else min(1.3, max(0.8, d[len(d) // 2]))
+
+
+def fill_gaps(rally: Rally, quiet: list[tuple[float, float]], interval: float = TOUCH_INTERVAL) -> None:
+    """Adds touches where the rally rhythm has a hole (far-side touches are often too faint to hear):
+    at a quiet sound in the expected spot if there is one, else as a guess at the expected time."""
+    src, out = rally.touches, []
+    for i, cur in enumerate(src):
+        out.append(cur)
+        if i + 1 == len(src):
+            break
+        nxt = src[i + 1]
+        gap = nxt.t - cur.t
+        missing = 0 if gap < MIN_FILL_GAP else min(2, max(0, round(gap / interval) - 1))
+        for k in range(1, missing + 1):
+            ideal = cur.t + gap * k / (missing + 1)
+            after = out[-1].t + MIN_SPACING
+            near = [(t, s) for t, s in quiet if abs(t - ideal) < SNAP and after < t < nxt.t - MIN_SPACING]
+            if near:
+                t, s = max(near, key=lambda q: q[1])
+                out.append(Touch(t, s, kind="quiet"))
+            elif after < ideal < nxt.t - MIN_SPACING:
+                out.append(Touch(ideal, 0.0, kind="gap"))
+    rally.touches = out
 
 
 def label_rally(rally: Rally) -> None:
@@ -112,7 +152,7 @@ def to_events(rallies: list[Rally], drop_opponent: bool = True) -> list[dict]:
         for touch in rally.touches:
             if drop_opponent and touch.team == "them":
                 continue
-            base = 0.35 + 0.3 * touch.strength
+            base = {"heard": 0.35 + 0.3 * touch.strength, "quiet": 0.3}.get(touch.kind, 0.2)
             if touch.action == "serve":
                 base += 0.1
             conf = base
@@ -125,5 +165,6 @@ def to_events(rallies: list[Rally], drop_opponent: bool = True) -> list[dict]:
                 "confidence": round(min(conf, 0.95), 2),
                 "rally": ri,
                 "poss": touch.possession,
+                "hint": None if touch.kind == "heard" else touch.kind,
             })
     return events

@@ -6,7 +6,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /** What the vision pass found for one touch. */
-data class VisionResult(val jersey: Int?, val jerseyConf: Double, val pos: P?)
+data class VisionResult(val jersey: Int?, val jerseyConf: Double, val pos: P?, val ball: Double? = null)
 
 /**
  * Saved progress of an analysis, so a job that Android stops (app update,
@@ -14,7 +14,7 @@ data class VisionResult(val jersey: Int?, val jerseyConf: Double, val pos: P?)
  *
  *  - features.bin  audio features (the slow decode); independent of the sensitivity setting
  *  - diffs.bin     frame differences for edit-cut detection
- *  - vision-<variant>.bin  per-touch player results, appended in batches; the variant
+ *  - vision2-<variant>.bin  per-touch player results, appended in batches; the variant
  *    covers settings that change them (jersey reading on/off, calibration)
  *
  * Every write goes to a temp file that is then renamed, so a kill mid-write
@@ -43,7 +43,7 @@ class CheckpointStore(root: File, videoKey: String) {
     fun saveDiffs(d: FloatArray) = write("diffs.bin") { writeFloats(it, d) }
 
     fun loadVision(variant: String): MutableMap<Long, VisionResult> =
-        read("vision-${sha1(variant).take(12)}.bin") { s ->
+        read(visionFile(variant)) { s ->
             val n = s.readInt()
             val out = HashMap<Long, VisionResult>(n * 2)
             repeat(n) {
@@ -51,12 +51,13 @@ class CheckpointStore(root: File, videoKey: String) {
                 val jersey = s.readInt().takeIf { it >= 0 }
                 val conf = s.readDouble()
                 val pos = if (s.readBoolean()) P(s.readDouble(), s.readDouble()) else null
-                out[key] = VisionResult(jersey, conf, pos)
+                val ball = s.readDouble().takeIf { it >= 0 }
+                out[key] = VisionResult(jersey, conf, pos, ball)
             }
             out
         } ?: HashMap()
 
-    fun saveVision(variant: String, results: Map<Long, VisionResult>) = write("vision-${sha1(variant).take(12)}.bin") { s ->
+    fun saveVision(variant: String, results: Map<Long, VisionResult>) = write(visionFile(variant)) { s ->
         s.writeInt(results.size)
         for ((key, r) in results) {
             s.writeLong(key)
@@ -64,8 +65,12 @@ class CheckpointStore(root: File, videoKey: String) {
             s.writeDouble(r.jerseyConf)
             s.writeBoolean(r.pos != null)
             r.pos?.let { s.writeDouble(it.x); s.writeDouble(it.y) }
+            s.writeDouble(r.ball ?: -1.0)
         }
     }
+
+    // v2 adds the ball closeness; files of the older layout simply are not found and get recomputed.
+    private fun visionFile(variant: String) = "vision2-${sha1(variant).take(12)}.bin"
 
     private fun <T> read(name: String, f: (DataInputStream) -> T): T? {
         val file = File(dir, name)

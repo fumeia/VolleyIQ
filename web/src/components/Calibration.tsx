@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { apply, COURT_LINES, evaluate, LANDMARKS, type CalPoint, type Calibration } from '../lib/calibration';
+import { apply, COURT_LINES, evaluate, LANDMARKS, ourHalfAt, type CalPoint, type Calibration, type OurHalf } from '../lib/calibration';
+import { fmtTime } from './TagPad';
 
 /** State of one calibration session, shared by the video overlay and the control panel. */
 export function useCalibration(initial?: Calibration | null) {
@@ -17,6 +18,8 @@ export function useCalibration(initial?: Calibration | null) {
 
   return {
     points, active, setActive, result, place,
+    /** Start over from an earlier marking (re-marking after the camera moved: most points are still close). */
+    load: (pts: CalPoint[]) => { setPoints(pts); setActive(nextFree(pts) ?? LANDMARKS[0].id); },
     undo: () => setPoints(points.slice(0, -1)),
     reset: () => { setPoints([]); setActive(LANDMARKS[0].id); },
   };
@@ -70,8 +73,10 @@ export function CalibrationOverlay({ session, aspect }: { session: CalibrationSe
 }
 
 /** Controls below the video: pick which landmark to mark on a mini court, then save. */
-export function CalibrationPanel({ session, onSave, onCancel }: {
-  session: CalibrationSession; onSave: (c: Calibration) => void; onCancel: () => void;
+export function CalibrationPanel({ session, onSave, onCancel, from }: {
+  session: CalibrationSession; onSave: (c: { points: CalPoint[]; ourHalf: OurHalf }) => void; onCancel: () => void;
+  /** Marking again from this video time on (new set, camera moved); null = the first marking. */
+  from?: number | null;
 }) {
   const active = LANDMARKS.find((l) => l.id === session.active)!;
   const s = 13; // px per meter in the diagram
@@ -94,6 +99,7 @@ export function CalibrationPanel({ session, onSave, onCancel }: {
       </svg>
       <div className="calib-side">
         <span className="small muted">Tap a numbered point on the mini court, then tap the same spot on the video. Any 4+ points work; corners are optional.</span>
+        {from != null && <b className="small">Court marking from {fmtTime(from)} on</b>}
         <b className="small">Now marking {LANDMARKS.indexOf(active) + 1}: {active.label}</b>
         <span className={`small ${session.result.ok ? 'ok-text' : 'muted'}`}>
           {session.result.ok ? `✓ Court fits (${session.points.length} points). Check the green lines, then choose your half:` : session.result.reason}
@@ -110,6 +116,51 @@ export function CalibrationPanel({ session, onSave, onCancel }: {
           <button className="btn-ghost small" onClick={onCancel}>Cancel</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Teams switch sides after every set. Each switch is a video time from which we play
+ * on the other half; the court marking carries over unless it is marked again there.
+ */
+export function SidesPanel({ calibration, getTime, onChange, onMark }: {
+  calibration: Calibration;
+  getTime: () => number | null;
+  onChange: (c: Calibration) => void;
+  /** Open the court marking from this time on (null = the first marking). */
+  onMark: (from: number | null) => void;
+}) {
+  const switches = [...(calibration.switches ?? [])].sort((a, b) => a.t - b.t);
+  const now = getTime();
+  const side = (h: OurHalf) => (h === 'near' ? 'near the camera' : 'on the far side');
+  function addSwitch() {
+    const t = getTime();
+    if (t == null) return;
+    const ourHalf: OurHalf = ourHalfAt(calibration, t) === 'near' ? 'far' : 'near';
+    onChange({ ...calibration, switches: [...switches.filter((s) => Math.abs(s.t - t) > 1), { t: Math.round(t * 10) / 10, ourHalf }] });
+  }
+  return (
+    <div className="sides">
+      <div className="sides-row">
+        <span className="small"><b>Set 1</b> · from 0:00 · we play {side(calibration.ourHalf)}</span>
+        <button className="btn-ghost small" onClick={() => onChange({ ...calibration, ourHalf: calibration.ourHalf === 'near' ? 'far' : 'near' })}>⇄</button>
+        <button className="btn-ghost small" onClick={() => onMark(null)}>Re-mark</button>
+      </div>
+      {switches.map((s, i) => (
+        <div key={s.t} className="sides-row">
+          <span className="small"><b>Set {i + 2}</b> · from {fmtTime(s.t)} · we play {side(s.ourHalf)}{s.points ? ' · court re-marked' : ''}</span>
+          <button className="btn-ghost small" onClick={() => onChange({ ...calibration, switches: switches.map((x) => (x === s ? { ...x, ourHalf: x.ourHalf === 'near' ? 'far' : 'near' } : x)) })}>⇄</button>
+          <button className="btn-ghost small" aria-label="Remove" onClick={() => onChange({ ...calibration, switches: switches.filter((x) => x !== s) })}>✕</button>
+        </div>
+      ))}
+      <div className="row wrap">
+        <button className="btn small" disabled={now == null || switches.length >= 10} onClick={addSwitch}>
+          ⇄ Teams switch sides here{now != null ? ` (${fmtTime(now)})` : ''}
+        </button>
+        <button className="btn-ghost small" disabled={now == null} onClick={() => onMark(now)}>Camera moved: re-mark court from here</button>
+      </div>
+      <span className="small muted">Pause the video at the start of each new set, then tap "Teams switch sides here".</span>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apply, evaluate, flatPoints, LANDMARKS, solveHomography, type CalPoint } from './calibration';
+import { apply, evaluate, flatPoints, LANDMARKS, ourHalfAt, segments, solveHomography, type CalPoint } from './calibration';
 
 // A plausible camera: perspective view from behind the near baseline (court -> image).
 const camera = solveHomography(
@@ -39,5 +39,17 @@ describe('calibration from landmarks', () => {
   it('flattens new and legacy calibrations for the app', () => {
     expect(flatPoints({ ourHalf: 'near', points: [tap('netL')] })).toHaveLength(4);
     expect(flatPoints({ ourHalf: 'near', points: [], corners: [[0, 1], [1, 1], [1, 0], [0, 0]] }).slice(8, 12)).toEqual([1, 0, 9, 18]);
+  });
+});
+
+describe('side switches', () => {
+  it('splits the video into stretches, keeping the last court marking', () => {
+    const base = { ourHalf: 'near' as const, points: [tap('netL')] };
+    const c = { ...base, switches: [{ t: 1500, ourHalf: 'near' as const, points: [tap('netR')] }, { t: 700, ourHalf: 'far' as const }] };
+    const s = segments(c);
+    expect(s.map((x) => [x.from, x.ourHalf])).toEqual([[0, 'near'], [700, 'far'], [1500, 'near']]);
+    expect(s[1].points).toEqual(s[0].points);
+    expect(s[2].points).not.toEqual(s[0].points);
+    expect(ourHalfAt(c, 800)).toBe('far');
   });
 });

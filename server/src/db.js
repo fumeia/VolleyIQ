@@ -89,6 +89,26 @@ const MIGRATIONS = [
   ALTER TABLE teams ADD COLUMN share_token TEXT;
   CREATE UNIQUE INDEX teams_share ON teams(share_token) WHERE share_token IS NOT NULL;
   `,
+  // v6: how an auto suggestion was found: NULL = heard clearly, 'quiet' = faint sound, 'gap' = guessed from the rally rhythm
+  `
+  ALTER TABLE events ADD COLUMN hint TEXT;
+  `,
+  // v7: where the ball was played from (fx, fy); x, y stay where it went
+  `
+  ALTER TABLE events ADD COLUMN fx REAL;
+  ALTER TABLE events ADD COLUMN fy REAL;
+  `,
+  // v8: starting line-up per set, JSON { "1": { order: [6 player ids, position 1..6], libero, weServeFirst } }
+  `
+  ALTER TABLE matches ADD COLUMN lineups TEXT;
+  `,
+  // v9: analyst effort per match: active seconds spent tagging/reviewing, auto suggestions
+  // removed as wrong, and auto suggestions corrected (other player or action) before saving
+  `
+  ALTER TABLE matches ADD COLUMN work_sec INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE matches ADD COLUMN removed_count INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE matches ADD COLUMN edited_count INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function migrate(db) {

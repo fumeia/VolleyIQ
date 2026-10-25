@@ -102,6 +102,7 @@ class VolleyIQPlugin : Plugin() {
                     AnalysisWorker.KEY_SENSITIVITY to (call.getDouble("sensitivity") ?: 1.0),
                     AnalysisWorker.KEY_OUR_HALF to call.getString("ourHalf"),
                     AnalysisWorker.KEY_POINTS to points,
+                    AnalysisWorker.KEY_SEGMENTS to call.getArray("segments")?.toString(),
                 ),
             )
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

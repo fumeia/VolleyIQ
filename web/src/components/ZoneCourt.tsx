@@ -12,7 +12,7 @@ export function ZoneCourt({ counts, onPick, selected, compact }: Props) {
   const max = counts ? Math.max(1, ...counts.slice(1)) : 1;
   const total = counts ? counts.slice(1).reduce((a, b) => a + b, 0) : 0;
   return (
-    <div className={`court ${compact ? 'court-compact' : ''}`}>
+    <div className={`court ${compact ? 'court-compact' : ''} ${counts ? 'paper' : ''}`}>
       <div className="court-net">NET</div>
       {ZONE_LAYOUT.map((row, i) => (
         <div className="court-row" key={i}>
@@ -25,7 +25,7 @@ export function ZoneCourt({ counts, onPick, selected, compact }: Props) {
                 key={z}
                 type={onPick ? 'button' : undefined}
                 className={`court-zone ${selected === z ? 'is-selected' : ''}`}
-                style={counts ? { background: `rgba(249, 115, 22, ${0.08 + heat * 0.72})` } : undefined}
+                style={counts ? { background: `rgba(42, 120, 214, ${0.06 + heat * 0.84})`, color: heat > 0.5 ? '#fff' : undefined } : undefined}
                 onClick={onPick ? () => onPick(z) : undefined}
               >
                 <span className="court-zone-label">Zone {z}</span>

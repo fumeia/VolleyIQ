@@ -2,6 +2,7 @@ import { ROLES } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
 import { scoreBySet, statLine } from '../lib/stats';
 import { longestRuns, pointSources, setsWon, type MatchReport, type PlayerRow, type TrendPoint } from './analytics';
+import type { RotationRow } from '../lib/analysis';
 import {
   C, Card, clip, CourtSvg, fmtAvg, fmtEff, fmtPct, GradeLegend, H, Heading, HBars, OutcomeLegend, Tile, W, type CourtDot, type Outcome,
 } from './ui';
@@ -11,12 +12,15 @@ const footerFor = (rep: { title: string }) => `${rep.title} · made with VolleyI
 
 function outcomeOf(e: VEvent): Outcome {
   if (e.action === 'kill' || e.action === 'ace') return 'point';
-  if (e.action === 'attack_error' || e.action === 'serve_error') return 'error';
+  if (e.action === 'block_point') return 'point';
+  if (['attack_error', 'serve_error', 'attack_blocked', 'block_error', 'dig_error'].includes(e.action)) return 'error';
   return 'play';
 }
 
-const dotsFor = (events: VEvent[], actions: string[], players: Player[]): CourtDot[] =>
-  events.filter((e) => e.x != null && e.y != null && actions.includes(e.action)).map((e) => {
+/** Dots at where the ball went (x, y), or with [from] at where it was played from (fx, fy). */
+const dotsFor = (events: VEvent[], actions: string[], players: Player[], from = false): CourtDot[] =>
+  events.map((e) => (from ? { ...e, x: e.fx ?? null, y: e.fy ?? null } : e))
+    .filter((e) => e.x != null && e.y != null && actions.includes(e.action)).map((e) => {
     const p = players.find((x) => x.id === e.player_id);
     const label = `${p ? who(p) : 'Unknown'} · ${e.action.replace('_', ' ')}`;
     return e.action === 'receive'
@@ -43,10 +47,13 @@ export function SummaryCard({ rep }: { rep: MatchReport }) {
           <text x={W / 2} y={300} fill={C.muted} fontSize={24} fontWeight={700} textAnchor="middle" letterSpacing={2}>SETS (TAGGED POINTS)</text>
           {rep.sets.map((s, i) => {
             const n = rep.sets.length;
-            const x = W / 2 + (i - (n - 1) / 2) * Math.min(220, (W - 160) / n);
+            const step = (W - 160) / n;
+            const x = W / 2 + (i - (n - 1) / 2) * step;
+            // "25:23" is ~2.9 em wide: size each score to its slot so neighbours never touch.
+            const size = Math.min(90, Math.floor((step * 0.85) / 2.9));
             return (
               <g key={s.set}>
-                <text x={x} y={400} fill={C.ink} fontSize={n > 3 ? 72 : 90} fontWeight={800} textAnchor="middle">{`${s.us}:${s.them}`}</text>
+                <text x={x} y={400} fill={C.ink} fontSize={size} fontWeight={800} textAnchor="middle">{`${s.us}:${s.them}`}</text>
                 <text x={x} y={450} fill={C.ink2} fontSize={26} textAnchor="middle">Set {s.set}</text>
               </g>
             );
@@ -110,6 +117,10 @@ export function FlowCard({ rep }: { rep: MatchReport }) {
               </g>
             ))}
             <line x1={x0} x2={x1} y1={py(0)} y2={py(0)} stroke={C.axis} strokeWidth={2} />
+            {Array.from({ length: Math.floor(maxX / 10) + 1 }, (_, j) => j * 10).map((r) => (
+              <text key={r} x={px(r)} y={py(0) + 26} fill={C.muted} fontSize={18} textAnchor="middle">{r}</text>
+            ))}
+            {k === sets.length - 1 && <text x={x1} y={py(0) + 52} fill={C.muted} fontSize={20} textAnchor="end">rally →</text>}
             <path d={line('them')} fill="none" stroke={C.orange} strokeWidth={5} strokeLinejoin="round" />
             <path d={line('us')} fill="none" stroke={C.blue} strokeWidth={5} strokeLinejoin="round" />
             <text x={x1 + 16} y={py(last.us) + (last.us >= last.them ? -4 : 26)} fill={C.ink} fontSize={30} fontWeight={800}>{last.us}</text>
@@ -167,6 +178,26 @@ export function ServeCard({ rep, players }: { rep: MatchReport; players: Player[
       <OutcomeLegend x={72} y={300} labels={['Ace', 'In play', 'Error']} />
       <CourtSvg x={(W - 13 * 46) / 2} y={325} scale={46} half="theirs" dots={dots} />
       <ServerTable y={940} rows={servers} />
+    </Card>
+  );
+}
+
+/** Blocks and digs: where along the net we block and get blocked, and where we dig. */
+export function NetDefenceCard({ rep, players }: { rep: MatchReport; players: Player[] }) {
+  const blocks = dotsFor(rep.confirmed, ['block_point', 'block_touch', 'block_error'], players);
+  const blocked = dotsFor(rep.confirmed, ['attack_blocked'], players);
+  const digs = dotsFor(rep.confirmed, ['dig', 'dig_error'], players, true);
+  const t = rep.team;
+  const s = 34;
+  return (
+    <Card kind="Net & defence" title={rep.title} subtitle={`${t.blockPoints} block points · ${t.blockTouches} touches · ${t.blocked} times blocked · ${t.digs} digs`} footer={footerFor(rep)}>
+      <OutcomeLegend x={72} y={300} labels={['Point', 'In play', 'Error']} />
+      <Heading x={72} y={370}>{`Our blocks · ${blocks.length}`}</Heading>
+      <CourtSvg x={72} y={385} scale={s} half="ours" dots={blocks} zoneLabels />
+      <Heading x={W - 72 - 13 * s} y={370}>{`We got blocked · ${blocked.length}`}</Heading>
+      <CourtSvg x={W - 72 - 13 * s} y={385} scale={s} half="ours" dots={blocked} zoneLabels />
+      <Heading x={72} y={880}>{`Digs · ${t.digs} · errors ${t.digErrors}`}</Heading>
+      <CourtSvg x={(W - 13 * 28) / 2} y={895} scale={28} half="ours" dots={digs} zoneLabels />
     </Card>
   );
 }
@@ -278,7 +309,7 @@ export function PlayerCard({ row, events, players, context }: { row: PlayerRow; 
         { label: 'Pass avg', value: fmtAvg(s.recAvg), sub: `${s.receptions} passes` },
         { label: 'Defense', value: String(s.digs), sub: `digs · ${s.digErrors} errors` },
         p.role === 'S'
-          ? { label: 'Setting', value: String(s.assists), sub: `assists · ${s.assistErrors} errors` }
+          ? { label: 'Setting', value: String(s.assists), sub: `assists (set → kill) · ${s.setErrors + s.assistErrors} errors` }
           : { label: 'Block', value: String(s.blockPoints), sub: `points · ${s.blockTouches} touches` },
       ].map((k, i) => <Tile key={k.label} x={72 + (i % 3) * (tileW + 20)} y={280 + Math.floor(i / 3) * 170} w={tileW} {...k} />)}
       {showPass ? (
@@ -408,6 +439,56 @@ export function LeaderboardCard({ title, rows }: { title: string; rows: PlayerRo
           </g>
         );
       })}
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------- rotations */
+
+/** Side-out % (their serve) and break-point % (our serve) per rotation, named by the setter's position. */
+export function RotationCard({ title, rows }: { title: string; rows: RotationRow[] }) {
+  const x0 = 150, x1 = W - 72, y0 = 380, y1 = 1060;
+  const Y = (v: number) => y1 - v * (y1 - y0);
+  const band = (x1 - x0) / 6;
+  const colW = 60;
+  const total = rows.reduce((a, r) => ({ rec: a.rec + r.receiving, so: a.so + r.sideOuts, srv: a.srv + r.serving, br: a.br + r.breaks }), { rec: 0, so: 0, srv: 0, br: 0 });
+  const pctOf = (a: number, b: number) => (b ? a / b : null);
+  return (
+    <Card kind="Rotations" title={title}
+      subtitle={`Side-out ${fmtPct(pctOf(total.so, total.rec))} (${total.so}/${total.rec}) · break ${fmtPct(pctOf(total.br, total.srv))} (${total.br}/${total.srv})`}
+      footer={`${title} · made with VolleyIQ`}>
+      <g transform="translate(72,300)">
+        <rect x={0} y={-22} width={28} height={28} rx={6} fill={C.blue} />
+        <text x={40} y={0} fill={C.ink2} fontSize={26}>Side-out % (their serve)</text>
+        <rect x={420} y={-22} width={28} height={28} rx={6} fill={C.orange} />
+        <text x={460} y={0} fill={C.ink2} fontSize={26}>Break % (our serve)</text>
+      </g>
+      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
+        <g key={v}>
+          <line x1={x0} x2={x1} y1={Y(v)} y2={Y(v)} stroke={v === 0 ? C.axis : C.grid} strokeWidth={2} />
+          <text x={x0 - 16} y={Y(v) + 9} fill={C.muted} fontSize={24} textAnchor="end">{Math.round(v * 100)}%</text>
+        </g>
+      ))}
+      <text transform={`translate(${72},${(y0 + y1) / 2}) rotate(-90)`} fill={C.muted} fontSize={24} textAnchor="middle">Points won</text>
+      {rows.map((r, i) => {
+        const cx = x0 + band * i + band / 2;
+        const so = pctOf(r.sideOuts, r.receiving), br = pctOf(r.breaks, r.serving);
+        const col = (v: number | null, x: number, color: string, n: string) => v == null ? null : (
+          <g>
+            <path d={`M${x},${y1}V${Y(v) + 6}Q${x},${Y(v)} ${x + 6},${Y(v)}H${x + colW - 6}Q${x + colW},${Y(v)} ${x + colW},${Y(v) + 6}V${y1}Z`} fill={color} />
+            <text x={x + colW / 2} y={Y(v) - 12} fill={C.ink} fontSize={22} fontWeight={700} textAnchor="middle">{Math.round(v * 100)}</text>
+            <text x={x + colW / 2} y={y1 + 70} fill={C.muted} fontSize={18} textAnchor="middle">{n}</text>
+          </g>
+        );
+        return (
+          <g key={r.rotation}>
+            {col(so, cx - colW - 3, C.blue, `${r.sideOuts}/${r.receiving}`)}
+            {col(br, cx + 3, C.orange, `${r.breaks}/${r.serving}`)}
+            <text x={cx} y={y1 + 40} fill={C.ink} fontSize={28} fontWeight={800} textAnchor="middle">S{r.rotation}</text>
+          </g>
+        );
+      })}
+      <text x={x0} y={y1 + 120} fill={C.muted} fontSize={22}>Rotation = setter's court position · numbers under the columns: points won / rallies</text>
     </Card>
   );
 }
