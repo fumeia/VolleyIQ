@@ -5,8 +5,6 @@ import { EventList, playerLabel } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { RallyReview } from '../components/RallyReview';
 import { LineupSheet } from '../components/LineupSheet';
-import { StatsView } from '../components/StatsView';
-import { MatchReportView } from '../report/ReportViews';
 import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
 import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
@@ -15,16 +13,15 @@ import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
 import { actionLabel, scoreOf } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
-import { api, ApiError, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { api, ApiError, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
-import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
 
-type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
+type Tab = 'tag' | 'events' | 'review' | 'ai';
 
 
 function loadSettings(): TagSettings {
@@ -59,7 +56,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
-  const [statsView, setStatsView] = useState<'stats' | 'images'>('stats');
   // Clip reel: the filtered events, each from 3 s before to 2 s after.
   const [reel, setReel] = useState<{ list: VEvent[]; i: number } | null>(null);
   useEffect(() => {
@@ -329,7 +325,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </button>
             )}
             <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
-            <button className={`tab ${tab === 'stats' ? 'on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
             {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto</button>}
           </nav>
 
@@ -411,28 +406,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   }}
                 />
               )
-            )}
-            {tab === 'stats' && (
-              <>
-                <div className="segmented">
-                  <button className={statsView === 'stats' ? 'on' : ''} onClick={() => setStatsView('stats')}>Stats &amp; charts</button>
-                  <button className={statsView === 'images' ? 'on' : ''} onClick={() => setStatsView('images')}>📤 Share images</button>
-                </div>
-                {statsView === 'stats' ? (
-                  <>
-                    <StatsView players={players} events={events} matches={[match]}
-                      onPlay={source ? (list) => { setReel({ list, i: 0 }); window.scrollTo({ top: 0, behavior: 'smooth' }); } : undefined} />
-                    <div className="row wrap">
-                      <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
-                      <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>
-                      <ShareButton match={match} onChange={setMatch} />
-                    </div>
-                  </>
-                ) : (
-                  <MatchReportView match={match} players={players} events={events}
-                    actions={<ShareButton match={match} onChange={setMatch} />} />
-                )}
-              </>
             )}
             {tab === 'ai' && (
               <AutoPanel
@@ -554,19 +527,3 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     </div>
   );
 }
-
-function ShareButton({ match, onChange }: { match: Match; onChange: (m: Match) => void }) {
-  const url = match.share_token ? `${publicBase()}/s/${match.share_token}` : null;
-  return url ? (
-    <>
-      <button className="btn" onClick={async () => {
-        if (navigator.share) navigator.share({ title: match.label, url }).catch(() => {});
-        else { await navigator.clipboard.writeText(url); alert('Link copied'); }
-      }}>🔗 Share report</button>
-      <button className="btn-ghost small" onClick={async () => onChange({ ...match, share_token: (await api.share(match.id, true)).share_token })}>Revoke link</button>
-    </>
-  ) : (
-    <button className="btn" onClick={async () => onChange({ ...match, share_token: (await api.share(match.id)).share_token })}>🔗 Create share link</button>
-  );
-}
-

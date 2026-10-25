@@ -5,10 +5,11 @@ import { DIRECTIONS, direction, eff, ERROR_KINDS, errorKind, errorPct, ourZone, 
 import { ERROR_TYPES } from './ErrorsSection';
 import { eff3, judge, pct, plural, ratio, type Tone } from './ui';
 
-export interface Insight { tone: Exclude<Tone, null>; text: string; weight: number }
+/** [key] names what the finding is about (e.g. 'pass-zone:5'), for the coaching suggestions. */
+export interface Insight { tone: Exclude<Tone, null>; text: string; weight: number; key?: string }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-const push = (out: Insight[], tone: Tone, text: string, weight: number) => { if (tone) out.push({ tone, text, weight }); };
+const push = (out: Insight[], tone: Tone, text: string, weight: number, key?: string) => { if (tone) out.push({ tone, text, weight, key }); };
 
 /**
  * Plain-language strengths and things to work on, from a set of tags (a player's
@@ -21,13 +22,13 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
   // Attack
   const attacks = mine.filter((e) => ATTACKS.includes(e.action));
   const at = tally(attacks);
-  if (at.n >= 5) push(out, judge.eff(eff(at)), `Attack efficiency ${eff3(eff(at))} (${plural(at.points, 'kill')}, ${plural(at.errors, 'error')} in ${at.n})`, 3);
+  if (at.n >= 5) push(out, judge.eff(eff(at)), `Attack efficiency ${eff3(eff(at))} (${plural(at.points, 'kill')}, ${plural(at.errors, 'error')} in ${at.n})`, 3, 'attack');
   const ctx = attackContexts(buildRallies(rallyEvents)).filter((c) => ids.has(c.attack.id));
   const so = tally(ctx.filter((c) => c.phase === 'sideout').map((c) => c.attack));
   const tr = tally(ctx.filter((c) => c.phase === 'transition').map((c) => c.attack));
   if (so.n >= 4 && tr.n >= 4 && Math.abs((eff(so) ?? 0) - (eff(tr) ?? 0)) >= 0.2) {
-    const worse = (eff(so) ?? 0) < (eff(tr) ?? 0) ? ['side-out (after our pass)', so] as const : ['transition (after a dig)', tr] as const;
-    push(out, 'bad', `Weaker in ${worse[0]}: ${eff3(eff(worse[1]))} on ${worse[1].n} attacks`, 2);
+    const worse = (eff(so) ?? 0) < (eff(tr) ?? 0) ? ['side-out (after our pass)', so, 'sideout'] as const : ['transition (after a dig)', tr, 'transition'] as const;
+    push(out, 'bad', `Weaker in ${worse[0]}: ${eff3(eff(worse[1]))} on ${worse[1].n} attacks`, 2, `attack-${worse[2]}`);
   }
   const p3 = tally(ctx.filter((c) => c.phase === 'sideout' && c.quality === 3).map((c) => c.attack));
   const pLow = tally(ctx.filter((c) => c.phase === 'sideout' && c.quality != null && c.quality <= 1).map((c) => c.attack));
@@ -37,18 +38,18 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
     else if ((eff(pLow) ?? 0) > 0.15) push(out, 'good', `Attack holds up after poor passes: ${eff3(eff(pLow))} (${pLow.n} attacks)`, 2);
   }
   const dirs = splitBy(attacks, direction, DIRECTIONS.map((d) => d.key));
-  const dirRows = DIRECTIONS.map((d) => ({ label: d.label, t: dirs.get(d.key)! })).filter((r) => r.t.n >= 4);
+  const dirRows = DIRECTIONS.map((d) => ({ key: d.key, label: d.label, t: dirs.get(d.key)! })).filter((r) => r.t.n >= 4);
   if (dirRows.length >= 2) {
     const best = [...dirRows].sort((a, b) => (eff(b.t) ?? 0) - (eff(a.t) ?? 0))[0];
     const worst = [...dirRows].sort((a, b) => (eff(a.t) ?? 0) - (eff(b.t) ?? 0))[0];
-    if ((eff(best.t) ?? 0) > 0.15) push(out, 'good', `${best.label} shots work: ${eff3(eff(best.t))}, ${pct(pointPct(best.t))} kills (${best.t.n})`, 2);
-    if (worst !== best && (eff(worst.t) ?? 0) < 0) push(out, 'bad', `${worst.label} shots ${eff3(eff(worst.t))} (${worst.t.n} attacks)`, 2);
+    if ((eff(best.t) ?? 0) > 0.15) push(out, 'good', `${best.label} shots work: ${eff3(eff(best.t))}, ${pct(pointPct(best.t))} kills (${best.t.n})`, 2, `shot-good:${best.key}`);
+    if (worst !== best && (eff(worst.t) ?? 0) < 0) push(out, 'bad', `${worst.label} shots ${eff3(eff(worst.t))} (${worst.t.n} attacks)`, 2, `shot-bad:${worst.key}`);
   }
   const attErr = attacks.filter((e) => e.action === 'attack_error' || e.action === 'attack_blocked');
   if (attErr.length >= 3) {
     const kinds = ERROR_KINDS.map((k) => ({ k, n: attErr.filter((e) => errorKind(e) === k.key).length })).sort((a, b) => b.n - a.n);
     if (kinds[0].n >= 2 && kinds[0].n / attErr.length >= 0.4 && kinds[0].k.key !== 'other') {
-      push(out, 'bad', `${kinds[0].n} of ${attErr.length} attack errors: ${kinds[0].k.label.toLowerCase()}`, 2);
+      push(out, 'bad', `${kinds[0].n} of ${attErr.length} attack errors: ${kinds[0].k.label.toLowerCase()}`, 2, `attack-err:${kinds[0].k.key}`);
     }
   }
 
@@ -56,23 +57,23 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
   const serves = mine.filter((e) => SERVES.includes(e.action));
   const sv = tally(serves);
   if (sv.n >= 6) {
-    push(out, judge.serveErrPct(errorPct(sv)), `Serve errors ${pct(errorPct(sv))} (${sv.errors} of ${sv.n})`, 2);
-    if ((pointPct(sv) ?? 0) >= 0.1) push(out, 'good', `${plural(sv.points, 'ace')} (${pct(pointPct(sv))} of serves)`, 2);
+    push(out, judge.serveErrPct(errorPct(sv)), `Serve errors ${pct(errorPct(sv))} (${sv.errors} of ${sv.n})`, 2, 'serve-err');
+    if ((pointPct(sv) ?? 0) >= 0.1) push(out, 'good', `${plural(sv.points, 'ace')} (${pct(pointPct(sv))} of serves)`, 2, 'aces');
     const serr = serves.filter((e) => e.action === 'serve_error');
     const net = serr.filter((e) => errorKind(e) === 'net').length, long = serr.filter((e) => errorKind(e) === 'long').length;
-    if (serr.length >= 3 && Math.max(net, long) / serr.length >= 0.5) push(out, 'bad', `Missed serves mostly ${net >= long ? 'into the net' : 'long'} (${Math.max(net, long)} of ${serr.length})`, 1);
+    if (serr.length >= 3 && Math.max(net, long) / serr.length >= 0.5) push(out, 'bad', `Missed serves mostly ${net >= long ? 'into the net' : 'long'} (${Math.max(net, long)} of ${serr.length})`, 1, `serve-miss:${net >= long ? 'net' : 'long'}`);
   }
 
   // Serve receive
   const passes = mine.filter((e) => e.action === 'receive' && e.value != null);
   if (passes.length >= 5) {
     const a = mean(passes.map((e) => e.value!));
-    push(out, judge.passAvg(a), `Pass average ${a!.toFixed(2)} on ${passes.length} serves (${pct(ratio(passes.filter((e) => e.value === 3).length, passes.length))} perfect)`, 3);
+    push(out, judge.passAvg(a), `Pass average ${a!.toFixed(2)} on ${passes.length} serves (${pct(ratio(passes.filter((e) => e.value === 3).length, passes.length))} perfect)`, 3, 'pass');
     const zs = [1, 6, 5, 4, 3, 2].map((z) => ({ z, vs: passes.filter((e) => ourZone(e) === z).map((e) => e.value!) })).filter((x) => x.vs.length >= 3);
     const weak = zs.sort((x, y) => mean(x.vs)! - mean(y.vs)!)[0];
-    if (weak && mean(weak.vs)! < 1.6) push(out, 'bad', `Passes taken in zone ${weak.z}: average ${mean(weak.vs)!.toFixed(1)} (${weak.vs.length})`, 2);
+    if (weak && mean(weak.vs)! < 1.6) push(out, 'bad', `Passes taken in zone ${weak.z}: average ${mean(weak.vs)!.toFixed(1)} (${weak.vs.length})`, 2, `pass-zone:${weak.z}`);
     const aced = passes.filter((e) => e.value === 0).length;
-    if (aced >= 3) push(out, 'bad', `Aced ${aced} times`, 2);
+    if (aced >= 3) push(out, 'bad', `Aced ${aced} times`, 2, 'aced');
   }
 
   // Defence & block
@@ -80,10 +81,10 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
   if (digs.length >= 5) {
     const lost = digs.filter((e) => e.action === 'dig_error').length;
     const kept = 1 - lost / digs.length;
-    push(out, kept >= 0.8 ? 'good' : kept < 0.6 ? 'bad' : null, `${pct(kept)} of digs kept in play (${digs.length - lost} of ${digs.length})`, 1);
+    push(out, kept >= 0.8 ? 'good' : kept < 0.6 ? 'bad' : null, `${pct(kept)} of digs kept in play (${digs.length - lost} of ${digs.length})`, 1, 'dig');
   }
   const bp = mine.filter((e) => e.action === 'block_point').length;
-  if (bp >= 2) push(out, 'good', `${bp} block points`, 1);
+  if (bp >= 2) push(out, 'good', `${bp} block points`, 1, 'block');
 
   // Team-only: phases, transition, errors, rally length
   if (scope === 'team') {
@@ -99,7 +100,8 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
       if (top.n / errs.length >= 0.3) push(out, 'bad', `Most points given away: ${top.t.label.toLowerCase()} (${top.n} of ${errs.length} errors)`, 3);
     }
     // Setting: does the best hitter get the ball when the pass is good?
-    const inSys = attackContexts(rallies).filter((c) => c.set && c.phase === 'sideout' && (c.quality ?? 0) >= 2 && c.attack.player_id != null);
+    const setterIds = new Set(players.filter((p) => p.role === 'S').map((p) => p.id));
+    const inSys = attackContexts(rallies).filter((c) => c.set && c.phase === 'sideout' && (c.quality ?? 0) >= 2 && c.attack.player_id != null && !setterIds.has(c.attack.player_id));
     if (inSys.length >= 15) {
       const byHitter = new Map<number, VEvent[]>();
       for (const c of inSys) byHitter.set(c.attack.player_id!, [...(byHitter.get(c.attack.player_id!) ?? []), c.attack]);
@@ -141,7 +143,7 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
     // Player: overall balance
     const pts = mine.filter((e) => ['kill', 'ace', 'block_point'].includes(e.action)).length;
     const errs = mine.filter((e) => ERROR_TYPES.some((t) => t.test(e))).length;
-    if (pts + errs >= 6) push(out, judge.plusMinus(pts - errs), `${plural(pts, 'point')} won, ${errs} given away (${pts - errs > 0 ? '+' : ''}${pts - errs})`, 2);
+    if (pts + errs >= 6) push(out, judge.plusMinus(pts - errs), `${plural(pts, 'point')} won, ${errs} given away (${pts - errs > 0 ? '+' : ''}${pts - errs})`, 2, 'balance');
   }
 
   return out.sort((a, b) => b.weight - a.weight);

@@ -655,3 +655,25 @@ button.court-zone:active { background: #2a2f3a; }
 .print-page .stat-figure, .print-page .zone-figure, .print-page .player-card { break-inside: avoid; }
 .print-page .play-btn, .print-page .chips .chip { display: none; }
 @media print { .print-part { break-before: page; } .print-part:first-of-type { break-before: auto; } }
+
+/* Public team site (share links) */
+.public-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+.public-head .brand { text-decoration: none; color: inherit; }
+.public-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.public-nav a { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); text-decoration: none; color: inherit; font-weight: 600; }
+.public-nav a.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.public-nav .input { width: auto; max-width: 220px; }
+.player-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.player-chips .chip { text-decoration: none; color: inherit; }
+
+/* Player learning page */
+.learning-head h1 { margin: 0; font-size: 22px; }
+.learn-cols { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 720px) { .learn-cols { grid-template-columns: 1fr 1fr; } }
+.learn-box h3 { margin: 0 0 6px; font-size: 16px; }
+.learn-box ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+.learn-tips { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.learn-tips li { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.link-like { background: none; border: 0; padding: 4px 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.list-item form.grow { flex: 1; flex-wrap: wrap; min-width: 0; }
+.list-item form .input.grow { flex: 1; min-width: 120px; }

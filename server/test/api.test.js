@@ -107,6 +107,10 @@ test('password protection and share links', async () => {
   assert.equal(season.team.name, 'T');
   assert.equal(season.team.share_token, undefined);
   assert.equal(season.events.length, 1);
+  // The public season page runs the full analysis: it needs where each ball was played from too.
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, headers: { cookie }, payload: { action: 'kill', fx: 1.5, fy: 8, x: 7, y: 15 } });
+  const kill = (await app.inject({ url: `/api/share/team/${ts.share_token}` })).json().events.find((e) => e.action === 'kill');
+  assert.deepEqual([kill.fx, kill.fy, kill.x, kill.y], [1.5, 8, 7, 15]);
   await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, headers: { cookie }, payload: { revoke: true } });
   assert.equal((await app.inject({ url: `/api/share/team/${ts.share_token}` })).statusCode, 404);
 

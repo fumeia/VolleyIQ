@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { ROLES } from '../../lib/actions';
 import type { Player, VEvent } from '../../lib/api';
-import { playerStats } from '../../lib/stats';
+import { playerStats, type StatLine } from '../../lib/stats';
 import { who } from './AttackSection';
 import { ERROR_TYPES } from './ErrorsSection';
 import { insightsFor } from './insights';
 import { avg2, eff3, enough, judge, pct, PlayBtn, plural, Val, type Tone } from './ui';
 
-const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
+export const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
   return (
@@ -15,6 +15,21 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
       <span className="pc-label">{label}</span>
       <span className="pc-value"><Val tone={tone}>{value}</Val></span>
       {sub && <span className="pc-sub">{sub}</span>}
+    </div>
+  );
+}
+
+/** The key numbers of one player (only the skills they actually played). */
+export function PlayerTiles({ player: p, s }: { player: Player; s: StatLine }) {
+  return (
+    <div className="pc-tiles">
+      <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} won · ${s.errors} lost`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />
+      {s.attempts > 0 && <Tile label="Attack eff" value={eff3(s.attackEff)} sub={`${s.kills}-${s.attackErrors}/${s.attempts}`} tone={enough(s.attempts, 3) ? judge.eff(s.attackEff) : null} />}
+      {s.receptions > 0 && <Tile label="Pass avg" value={avg2(s.recAvg)} sub={`${s.receptions} passes`} tone={enough(s.receptions) ? judge.passAvg(s.recAvg) : null} />}
+      {s.serves > 0 && <Tile label="Serve err" value={pct(s.serves ? s.serveErrors / s.serves : null)} sub={s.aces ? `${s.serves} · ${plural(s.aces, 'ace')}` : plural(s.serves, 'serve')} tone={enough(s.serves) ? judge.serveErrPct(s.serves ? s.serveErrors / s.serves : null) : null} />}
+      {s.digs + s.digErrors > 0 && <Tile label="Digs" value={String(s.digs)} sub={plural(s.digErrors, 'error')} />}
+      {s.sets > 0 && <Tile label="Sets" value={String(s.sets)} sub={s.bumpSets ? `${s.bumpSets} bump sets` : plural(s.assists, 'assist')} />}
+      {s.blockPoints + s.blockTouches > 0 && <Tile label="Block pts" value={String(s.blockPoints)} sub={plural(s.blockTouches, 'touch', 'touches')} />}
     </div>
   );
 }
@@ -29,7 +44,7 @@ export function PlayersSection({ players, events }: { players: Player[]; events:
       <div className="pc-grid">
         {rows.map(({ player: p, stats: s }) => {
           const mine = events.filter((e) => e.player_id === p.id);
-          const items = insightsFor(mine, events, 'player');
+          const items = insightsFor(mine, events, 'player', players);
           const good = items.filter((i) => i.tone === 'good').slice(0, 3);
           const bad = items.filter((i) => i.tone === 'bad').slice(0, 3);
           return (
@@ -40,15 +55,7 @@ export function PlayersSection({ players, events }: { players: Player[]; events:
                 <PlayBtn list={mine.filter((e) => ['kill', 'ace', 'block_point'].includes(e.action))} label="Points" />
                 <PlayBtn list={mine.filter((e) => ERROR_TYPES.some((t) => t.test(e)))} label="Errors" />
               </header>
-              <div className="pc-tiles">
-                <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} won · ${s.errors} lost`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />
-                {s.attempts > 0 && <Tile label="Attack eff" value={eff3(s.attackEff)} sub={`${s.kills}-${s.attackErrors}/${s.attempts}`} tone={enough(s.attempts, 3) ? judge.eff(s.attackEff) : null} />}
-                {s.receptions > 0 && <Tile label="Pass avg" value={avg2(s.recAvg)} sub={`${s.receptions} passes`} tone={enough(s.receptions) ? judge.passAvg(s.recAvg) : null} />}
-                {s.serves > 0 && <Tile label="Serve err" value={pct(s.serves ? s.serveErrors / s.serves : null)} sub={s.aces ? `${s.serves} · ${plural(s.aces, 'ace')}` : plural(s.serves, 'serve')} tone={enough(s.serves) ? judge.serveErrPct(s.serves ? s.serveErrors / s.serves : null) : null} />}
-                {s.digs + s.digErrors > 0 && <Tile label="Digs" value={String(s.digs)} sub={plural(s.digErrors, 'error')} />}
-                {s.sets > 0 && <Tile label="Sets" value={String(s.sets)} sub={s.bumpSets ? `${s.bumpSets} bump sets` : plural(s.assists, 'assist')} />}
-                {s.blockPoints + s.blockTouches > 0 && <Tile label="Block pts" value={String(s.blockPoints)} sub={plural(s.blockTouches, 'touch', 'touches')} />}
-              </div>
+              <PlayerTiles player={p} s={s} />
               {(good.length > 0 || bad.length > 0) && (
                 <div className="pc-notes">
                   {good.map((i, k) => <p key={`g${k}`} className="tone-good">▲ {i.text}</p>)}

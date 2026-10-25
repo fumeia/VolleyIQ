@@ -27,14 +27,16 @@ export function RotationsSection({ players, events }: { players: Player[]; event
   const touchesOf = (label: string) => ralliesOf(label).flatMap((r) => r.touches);
   const attackIds = (label: string) => new Set(touchesOf(label).filter((e) => ATTACKS.includes(e.action)).map((e) => e.id));
 
+  const setters = new Set(players.filter((p) => p.role === 'S').map((p) => p.id));
   const rows = table.map((t) => {
     const touches = touchesOf(t.label);
     const passes = touches.filter((e) => e.action === 'receive' && e.value != null);
     const ids = attackIds(t.label);
     const fb = ctx.filter((c) => c.phase === 'sideout' && ids.has(c.attack.id)).map((c) => c.attack);
     const serves = touches.filter((e) => SERVES.includes(e.action));
+    // Main hitter: the setter's dumps and second-ball attacks don't count (role S, any number).
     const hitters = new Map<number, number>();
-    for (const e of touches) if (ATTACKS.includes(e.action) && e.player_id != null) hitters.set(e.player_id, (hitters.get(e.player_id) ?? 0) + 1);
+    for (const e of touches) if (ATTACKS.includes(e.action) && e.player_id != null && !setters.has(e.player_id)) hitters.set(e.player_id, (hitters.get(e.player_id) ?? 0) + 1);
     const top = [...hitters.entries()].sort((a, b) => b[1] - a[1])[0];
     const nAtt = [...hitters.values()].reduce((a, b) => a + b, 0);
     return { t, passes, fb, serves, top, nAtt };
@@ -57,7 +59,7 @@ export function RotationsSection({ players, events }: { players: Player[]; event
           { h: '1st-ball eff', title: 'Attack efficiency on the first ball after our pass', cell: (r) => { const t = tally(r.fb); return { text: eff3(eff(t)), tone: enough(t.n, 4) ? judge.eff(eff(t)) : null, title: `${t.points}-${t.errors}/${t.n}` }; } },
           { h: 'Break', cell: (r) => { const v = ratio(r.t.breaks, r.t.served); return { text: pct(v), tone: r.t.served >= 5 ? judge.break(v) : null, title: `${r.t.breaks}/${r.t.served}` }; } },
           { h: 'Srv err', cell: (r) => { const t = tally(r.serves); return { text: pct(errorPct(t)), tone: enough(t.n) ? judge.serveErrPct(errorPct(t)) : null }; } },
-          { h: 'Main hitter', cell: (r) => {
+          { h: 'Main hitter', title: 'Share of the attacks in this rotation (setter excluded)', cell: (r) => {
             if (!r.top) return '–';
             const p = players.find((x) => x.id === r.top![0]);
             return `${p ? who(p) : '?'} ${pct(r.top[1] / Math.max(1, r.nAtt))}`;

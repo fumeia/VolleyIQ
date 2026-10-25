@@ -268,7 +268,7 @@ export function registerRoutes(app, { db, vision, insights }) {
     const team = db.prepare('SELECT id, name FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     const matches = db.prepare('SELECT id, label, opponent, played_on FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
-    const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.t, e.set_no, e.status
+    const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
     return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events };

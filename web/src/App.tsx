@@ -14,7 +14,7 @@ const NAV = [
   { to: '/', label: 'Home', icon: '⌂', end: true },
   { to: '/teams', label: 'Teams', icon: '👥' },
   { to: '/new', label: 'Tag', icon: '＋' },
-  { to: '/reports', label: 'Reports', icon: '📊' },
+  { to: '/reports', label: 'Stats', icon: '📊' },
 ];
 
 export function App() {
@@ -35,6 +35,8 @@ export function App() {
     return (
       <Routes>
         <Route path="/s/t/:token" element={<TeamSharePage />} />
+        <Route path="/s/t/:token/m/:matchId" element={<TeamSharePage />} />
+        <Route path="/s/t/:token/p/:playerId" element={<TeamSharePage />} />
         <Route path="/s/:token" element={<SharePage />} />
       </Routes>
     );

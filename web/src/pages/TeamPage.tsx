@@ -10,6 +10,8 @@ export function TeamPage() {
   const [team, setTeam] = useState<(Team & { players: Player[] }) | null>(null);
   const [draft, setDraft] = useState({ name: '', number: '', role: 'OH' as RoleCode });
   const [paste, setPaste] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: number; name: string; number: string } | null>(null);
 
   const load = () => api.team(id).then(setTeam);
   useEffect(() => { load(); }, [id]);
@@ -22,7 +24,20 @@ export function TeamPage() {
   return (
     <div className="page">
       <header className="page-head">
-        <h1>{team.name}</h1>
+        {teamName == null ? (
+          <h1 className="row">{team.name} <button className="btn-ghost small" onClick={() => setTeamName(team.name)} title="Rename the team">✎ Rename</button></h1>
+        ) : (
+          <form className="row" onSubmit={async (e) => {
+            e.preventDefault();
+            if (teamName.trim()) await api.updateTeam(team.id, { name: teamName.trim() });
+            setTeamName(null);
+            load();
+          }}>
+            <input className="input" autoFocus value={teamName} onChange={(e) => setTeamName(e.target.value)} aria-label="Team name" />
+            <button className="btn btn-primary">Save</button>
+            <button type="button" className="btn-ghost" onClick={() => setTeamName(null)}>Cancel</button>
+          </form>
+        )}
         <div className="row">
           <button className="btn-ghost small" onClick={async () => {
             const data = await api.teamReport(team.id);
@@ -88,8 +103,27 @@ export function TeamPage() {
       <ul className="list">
         {team.players.map((p) => (
           <li key={p.id} className={`list-item ${p.active ? '' : 'inactive'}`}>
-            <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
-            <span className="grow">{p.name}</span>
+            {editing?.id === p.id ? (
+              <form className="row grow" onSubmit={async (e) => {
+                e.preventDefault();
+                const n = editing.number === '' ? null : Number(editing.number);
+                if (n != null && team.players.some((o) => o.id !== p.id && o.active && o.number === n)) { alert(`Jersey #${n} is already taken.`); return; }
+                await api.updatePlayer(p.id, { name: editing.name.trim() || p.name, number: n });
+                setEditing(null);
+                load();
+              }}>
+                <input className="input num" inputMode="numeric" value={editing.number} aria-label="Jersey number"
+                  onChange={(e) => setEditing({ ...editing, number: e.target.value.replace(/\D/g, '').slice(0, 2) })} />
+                <input className="input grow" autoFocus value={editing.name} aria-label="Player name" onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+                <button className="btn btn-primary small">Save</button>
+                <button type="button" className="btn-ghost small" onClick={() => setEditing(null)}>Cancel</button>
+              </form>
+            ) : (
+              <>
+                <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
+                <button className="grow link-like" title="Edit name and number" onClick={() => setEditing({ id: p.id, name: p.name, number: p.number == null ? '' : String(p.number) })}>{p.name} <small className="muted">✎</small></button>
+              </>
+            )}
             <select className="input slim" value={p.role} onChange={async (e) => { await api.updatePlayer(p.id, { role: e.target.value as RoleCode }); load(); }}>
               {ROLES.map((r) => <option key={r.code} value={r.code}>{r.code}</option>)}
             </select>
