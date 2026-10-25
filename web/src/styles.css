@@ -508,3 +508,5 @@ button.court-zone:active { background: #2a2f3a; }
   .rally-review .rally-actions .btn { min-height: 40px; }
   .rally-review .crumbs > button { padding: 2px 8px; }
 }
+.set-over { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--accent); background: rgba(249,115,22,.1); font-weight: 700; }

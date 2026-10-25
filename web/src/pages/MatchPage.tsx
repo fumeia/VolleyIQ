@@ -88,6 +88,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   useEffect(() => { if (tab === 'review' && suggested.length > 0) setReviewing(true); }, [tab, suggested.length > 0]);
   const confirmed = events.filter((e) => e.status === 'confirmed');
   const score = scoreBySet(confirmed).find((s) => s.set === setNo) ?? { us: 0, them: 0 };
+  // A set is over at 25 (15 in the fifth) with a two-point lead.
+  const setOver = Math.max(score.us, score.them) >= (setNo === 5 ? 15 : 25) && Math.abs(score.us - score.them) >= 2;
 
   useEffect(() => { localStorage.setItem('viq:tagSettings', JSON.stringify(settings)); }, [settings]);
 
@@ -294,6 +296,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <div className="ws-content">
             {tab === 'tag' && (
               <>
+                {setOver && setNo < 5 && (
+                  <div className="set-over">
+                    <span>Set {setNo} {score.us > score.them ? 'won' : 'lost'} {score.us}:{score.them}</span>
+                    <button className="btn btn-primary small" onClick={() => setSetNo(setNo + 1)}>Start set {setNo + 1} ›</button>
+                  </div>
+                )}
                 {pad}
                 <div className="outcome-bar">
                   <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
