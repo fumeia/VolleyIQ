@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ACTIONS, ACTION_BY_CODE, SHORT, SKILLS, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
-import { CourtFull } from './CourtFull';
+import { SpotSheet } from './SpotSheet';
 import { ZoneCourt } from './ZoneCourt';
 
 export interface TagSettings {
@@ -30,6 +30,8 @@ interface Props {
   server?: Player | null;
   /** The previous tag of this rally: the likely next actions come first. */
   lastAction?: ActionCode | null;
+  /** Whether we play on the far half at video time t (court drawn as the camera sees it). */
+  farAt?: (t: number | null) => boolean;
 }
 
 /** What usually follows a touch of ours, for the "likely" row. */
@@ -61,7 +63,7 @@ interface Draft {
  * where the ball went. The video pauses on the first tap and resumes once the
  * tag is stored, so no keyboard and no separate pause button is needed.
  */
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   // Each step (action, court spots) starts at the top of the panel, so nothing is scrolled away.
@@ -178,11 +180,23 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
             ))}
           </div>
         )}
-        <CourtFull sideways="auto" label={prompt} from={draft.from} showTarget={a.code === 'receive' && !first}
-          onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))} />
-        <button className="btn wide" onClick={() => (first ? setDraft({ ...draft, stage: 'to' }) : finish(draft))}>
-          {first ? 'Skip: not sure where from' : 'Skip: no landing spot'}
-        </button>
+        <SpotSheet
+          title={`${draft.player ? `#${draft.player.number ?? '–'} ` : ''}${a.label}`}
+          prompt={prompt}
+          step={steps ? steps.replace(/[() ]/g, '') : undefined}
+          from={draft.from}
+          flip={!!farAt?.(draft.t)}
+          showTarget={a.code === 'receive' && !first}
+          onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))}
+          skipLabel={first ? 'Skip: not sure where from ▶' : 'Skip: no landing spot ✓'}
+          onSkip={() => (first ? setDraft({ ...draft, stage: 'to' }) : finish(draft))}
+          extra={a.code === 'receive' ? (
+            <div className="pad-grid pad-grid-4 receive-quick">
+              {[0, 1, 2, 3].map((v) => <button key={v} className={`act act-receive r${v}`} onClick={() => finish({ ...draft, value: v })}>{v}</button>)}
+            </div>
+          ) : undefined}
+          onBack={() => (first || a.court !== 'path' ? setDraft({ ...draft, action: undefined, stage: undefined, from: null }) : setDraft({ ...draft, stage: 'from' }))}
+        />
       </div>
     );
   }

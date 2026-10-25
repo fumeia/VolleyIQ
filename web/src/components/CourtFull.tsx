@@ -17,6 +17,8 @@ interface Props {
   label?: string;
   /** Drawn on its side (our half left, net upright): half as tall. 'auto' = on phones held upright. */
   sideways?: boolean | 'auto';
+  /** We play on the far half in the video: draw the court as the camera sees it (our half at the top, mirrored). */
+  flip?: boolean;
 }
 
 const W = FULL_VIEW.x1 - FULL_VIEW.x0;
@@ -25,7 +27,7 @@ const CELL = 1.5;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** The whole court with run-off, for tapping spots on either side and for plots. */
-export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side }: Props) {
+export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const portrait = usePortraitPhone();
   const sideways = side === 'auto' ? portrait : !!side;
@@ -34,7 +36,11 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
   const vx = (x: number) => x - FULL_VIEW.x0;
   const vy = (y: number) => FULL_VIEW.y1 - y;
   // rect/line in court meters, mapped for either orientation.
-  const P = (x: number, y: number) => (sideways ? { x: y - FULL_VIEW.y0, y: x - FULL_VIEW.x0 } : { x: vx(x), y: vy(y) });
+  const P = (x0: number, y0: number) => {
+    // Our court frame -> what the camera shows (turned around when we play far).
+    const x = flip ? COURT.width - x0 : x0, y = flip ? COURT.length - y0 : y0;
+    return sideways ? { x: y - FULL_VIEW.y0, y: x - FULL_VIEW.x0 } : { x: vx(x), y: vy(y) };
+  };
   const box = (x0: number, y0: number, x1: number, y1: number) => {
     const a = P(x0, y0), b = P(x1, y1);
     return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) };
@@ -54,7 +60,7 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
     const u = Math.max(0, Math.min(VW, p.x)), v = Math.max(0, Math.min(VH, p.y));
     const x = (sideways ? v : u) + FULL_VIEW.x0;
     const y = sideways ? u + FULL_VIEW.y0 : FULL_VIEW.y1 - v;
-    onPick({ x: round(x), y: round(y) });
+    onPick(flip ? { x: round(COURT.width - x), y: round(COURT.length - y) } : { x: round(x), y: round(y) });
   }
 
   const cells = heat && points ? bins(points) : null;
@@ -79,14 +85,14 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
       {sideways ? (
         <>
           <text x={label_(FULL_VIEW.x0, COURT.net).x + 0.2} y={0.6} className="court-side">NET</text>
-          <text x={0.3} y={VH - 0.3} className="court-side">US</text>
-          <text x={VW - 0.3} y={VH - 0.3} className="court-side end">THEM</text>
+          <text x={0.3} y={VH - 0.3} className="court-side">{flip ? 'THEM' : 'US'}</text>
+          <text x={VW - 0.3} y={VH - 0.3} className="court-side end">{flip ? 'US' : 'THEM'}</text>
         </>
       ) : (
         <>
           <text x={W - 0.3} y={vy(COURT.net) - 0.25} className="court-side end">NET</text>
-          <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">THEM</text>
-          <text x={0.3} y={vy(0) + 1.1} className="court-side">US</text>
+          <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">{flip ? 'US' : 'THEM'}</text>
+          <text x={0.3} y={vy(0) + 1.1} className="court-side">{flip ? 'THEM' : 'US'}</text>
         </>
       )}
       {showTarget && <circle cx={P(PASS_TARGET.x, PASS_TARGET.y).x} cy={P(PASS_TARGET.x, PASS_TARGET.y).y} r={1.5} className="court-target" />}

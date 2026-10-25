@@ -21,7 +21,7 @@ import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
-import type { Calibration } from '../lib/calibration';
+import { ourHalfAt, type Calibration } from '../lib/calibration';
 
 type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
 
@@ -225,6 +225,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       onCourt={onCourt}
       server={server}
       lastAction={lastTag?.action ?? null}
+      farAt={(t) => !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far'}
     />
   );
 

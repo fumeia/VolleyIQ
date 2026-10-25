@@ -5,7 +5,8 @@ import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
-import { CourtFull } from './CourtFull';
+import { SpotSheet } from './SpotSheet';
+import { ourHalfAt } from '../lib/calibration';
 import { fmtTime } from './TagPad';
 import type { PlayerHandle } from './VideoPlayer';
 
@@ -259,6 +260,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     else setSel(null);
   }
 
+  /** The touch before [e] in this rally (any side), to step back. */
+  const prevTouch = (e: VEvent) => [...r.events].reverse().find((x) => (x.t ?? 0) < (e.t ?? 0) && !removed.has(x.id)) ?? null;
+
   function chooseAction(e: VEvent, code: ActionCode) {
     const v = view(e);
     patch(e, { action: code, value: code === 'receive' ? v.value : null });
@@ -511,6 +515,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
                 <button className="btn-ghost small" disabled={busy} title="A new rally starts with this touch" onClick={() => splitAt(selected)}>✂ Split</button>
               )}
               <button className="btn-ghost small danger" onClick={() => removeTouch(selected)}>✕ Not a touch</button>
+              <button className="btn-ghost small" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)}>◂</button>
               <button className="btn-ghost small" onClick={() => advance(selected)}>Next ▸</button>
             </span>
           </div>
@@ -528,16 +533,23 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           )}
 
           {(step === 'from' || step === 'to') && (
-            <div className="review-court">
-              <div className="row between">
-                <span className="small"><b>{step === 'from' ? def.fromPrompt : def.toPrompt}</b>{def.court === 'path' ? ` (${step === 'from' ? 1 : 2}/2)` : ''}</span>
-                <button className="btn-ghost small" onClick={() => (step === 'from' ? setStep('to') : advance(selected))}>
-                  {step === 'from' ? (from ? 'Keep ⚪' : 'Skip') : sv.x != null ? 'Keep 🟠' : 'Skip'}
-                </button>
-              </div>
-              <CourtFull sideways="auto" from={from} to={sv.x != null && sv.y != null ? { x: sv.x, y: sv.y } : null}
-                showTarget={sv.action === 'receive' && step === 'to'} onPick={(p) => pickSpot(selected, p)} />
-            </div>
+            <SpotSheet
+              title={`${num(sv) || '?'} ${def.short}`}
+              prompt={(step === 'from' ? def.fromPrompt : def.toPrompt) ?? 'Where?'}
+              step={def.court === 'path' ? (step === 'from' ? '1/2' : '2/2') : undefined}
+              from={from} to={sv.x != null && sv.y != null ? { x: sv.x, y: sv.y } : null}
+              flip={!!match.calibration && selected.t != null && ourHalfAt(match.calibration, selected.t) === 'far'}
+              showTarget={sv.action === 'receive' && step === 'to'}
+              onPick={(p) => pickSpot(selected, p)}
+              skipLabel={step === 'from' ? (from ? 'Keep ⚪ ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep 🟠 ▶' : 'Skip ▶'}
+              onSkip={() => (step === 'from' ? setStep('to') : advance(selected))}
+              onBack={() => setStep(step === 'to' && def.court === 'path' ? 'from' : 'action')}
+              extra={sv.action === 'receive' ? (
+                <div className="pad-grid pad-grid-4 receive-quick">
+                  {[0, 1, 2, 3].map((g) => <button key={g} className={`act act-receive r${g}`} onClick={() => { patch(selected, { value: g }); advance(selected); }}>{g}</button>)}
+                </div>
+              ) : undefined}
+            />
           )}
 
           {step === 'grade' && (
@@ -557,9 +569,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         <button className="btn btn-danger" disabled={busy} onClick={notARally}>✕ <small>not a rally</small></button>
       </div>
       <div className="row between">
-        <button className="btn-ghost small" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Prev</button>
+        <button className="btn-ghost small" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Rally</button>
         {last && <button className="btn-ghost small" disabled={busy} onClick={runUndo}>↶ Undo {last.text}</button>}
-        <button className="btn-ghost small" disabled={idx >= rallies.length - 1} onClick={() => setIdx((i) => i + 1)}>Skip ▶</button>
+        <button className="btn-ghost small" disabled={idx >= rallies.length - 1} onClick={() => setIdx((i) => i + 1)}>Rally ▶</button>
       </div>
     </div>
   );
