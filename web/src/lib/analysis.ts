@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE } from './actions';
+import { scoreOf } from './actions';
 import type { Player, VEvent } from './api';
 import { rotationAfter, type Lineups } from './rotation';
 import { playerStats, statLine } from './stats';
@@ -53,7 +53,7 @@ export function rotationStats(events: VEvent[], lineupsByMatch: Map<number, Line
   const rows: RotationRow[] = [1, 2, 3, 4, 5, 6].map((rotation) => ({ rotation, receiving: 0, sideOuts: 0, serving: 0, breaks: 0 }));
   const groups = new Map<string, VEvent[]>();
   for (const e of events) {
-    if (e.status !== 'confirmed' || !ACTION_BY_CODE[e.action]?.score) continue;
+    if (e.status !== 'confirmed' || !scoreOf(e)) continue;
     const k = `${e.match_id}:${e.set_no ?? 1}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(e);
@@ -66,7 +66,7 @@ export function rotationStats(events: VEvent[], lineupsByMatch: Map<number, Line
     for (const e of list.sort(byTime)) {
       const state = rotationAfter(lineup, points, players, e.t ?? Infinity);
       const setter = state.positions.findIndex((id) => players.find((p) => p.id === id)?.role === 'S') + 1;
-      const won = ACTION_BY_CODE[e.action].score === 'us';
+      const won = scoreOf(e) === 'us';
       const row = rows[(setter || 1) - 1];
       if (state.weServe) { row.serving++; if (won) row.breaks++; } else { row.receiving++; if (won) row.sideOuts++; }
       points.push(won ? 'us' : 'them');

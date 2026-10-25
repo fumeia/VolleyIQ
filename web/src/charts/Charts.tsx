@@ -20,7 +20,7 @@ const FONT = 11;
 export interface Table { head: string[]; rows: (string | number | null)[][] }
 export interface Key { name: string; color: string }
 
-function useWidth<T extends HTMLElement>() {
+export function useWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [w, setW] = useState(340);
   useLayoutEffect(() => {
@@ -34,10 +34,10 @@ function useWidth<T extends HTMLElement>() {
   return [ref, w] as const;
 }
 
-interface Tip { x: number; y: number; lines: string[] }
+export interface Tip { x: number; y: number; lines: string[] }
 
 /** Figure: title, subtitle, legend, the plot, a hover tooltip, and a table toggle. */
-function Frame({ title, subtitle, legend, table, children, tip, wrap }: {
+export function Frame({ title, subtitle, legend, table, children, tip, wrap }: {
   title: string; subtitle?: string; legend?: Key[]; table: Table; children: ReactNode; tip: Tip | null;
   wrap: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -205,15 +205,17 @@ export function LineChart({ title, subtitle, series, xTitle, yTitle, yFmt, xFmt,
 export interface BarRow { label: string; value: number | null; note?: string }
 
 /** Horizontal bars from a common baseline (negative values go left of zero). */
-export function BarChart({ title, subtitle, rows, valueTitle, fmt, color = SERIES.blue, domain }: {
+export function BarChart({ title, subtitle, rows, valueTitle, fmt, color = SERIES.blue, colorOf, domain }: {
   title: string; subtitle?: string; rows: BarRow[]; valueTitle: string; fmt?: (v: number) => string; color?: string;
+  /** Per-bar colour, e.g. green above zero and red below (the side of zero carries the sign too). */
+  colorOf?: (v: number) => string;
   domain?: [number, number];
 }) {
   const [wrap, w] = useWidth<HTMLDivElement>();
   const [tip, setTip] = useState<Tip | null>(null);
   const shown = rows.filter((r) => r.value != null) as (BarRow & { value: number })[];
   const rowH = 28, barH = 14;
-  const m = { l: labelColumn(rows.map((r) => r.label), w), r: 70, t: 6, b: 36 };
+  const m = { l: labelColumn(rows.map((r) => r.label), w), r: Math.min(140, 46 + 6 * Math.max(0, ...rows.map((r) => (r.note ? r.note.length + 3 : 0)))), t: 6, b: 36 };
   const height = m.t + m.b + Math.max(1, shown.length) * rowH;
   const vals = shown.map((r) => r.value);
   const ticks = niceTicks(domain?.[0] ?? Math.min(0, ...vals), domain?.[1] ?? Math.max(0.0001, ...vals), Math.max(2, Math.floor((w - m.l - m.r) / 70)));
@@ -238,7 +240,7 @@ export function BarChart({ title, subtitle, rows, valueTitle, fmt, color = SERIE
                 onPointerLeave={() => setTip(null)}>
                 <rect x={0} y={m.t + i * rowH} width={w} height={rowH} fill="transparent" />
                 <text x={m.l - 8} y={y + barH - 3} textAnchor="end" fill={INK} fontSize={12}>{fit(r.label, m.l)}</text>
-                <path d={hbar(x0, x1, y, barH)} fill={color} />
+                <path d={hbar(x0, x1, y, barH)} fill={colorOf ? colorOf(r.value) : color} />
                 <text x={r.value >= 0 ? x1 + 5 : x0 + 5} y={y + barH - 3} fill={MUTED} fontSize={FONT} className="tnum">{f(r.value)}{r.note ? ` · ${r.note}` : ''}</text>
               </g>
             );
@@ -320,6 +322,12 @@ export function GroupedColumns({ title, subtitle, categories, series, yTitle, fm
   const band = (w - m.l - m.r) / Math.max(1, categories.length);
   const colW = Math.min(20, (band - 10) / series.length - 2);
   const f = (v: number) => (fmt ? fmt(v) : tickLabel(v));
+  // Values on top of the columns when there is room (few series, wide enough columns).
+  const labels = series.length <= 2 && colW >= 14;
+  const fitC = (label: string, room: number) => {
+    const n = Math.max(4, Math.floor(room / 6.2));
+    return label.length > n ? label.slice(0, n - 1) + '…' : label;
+  };
   return (
     <Frame title={title} subtitle={subtitle} legend={series.map((s) => ({ name: s.name, color: s.color }))} tip={tip} wrap={wrap}
       table={{ head: ['', ...series.map((s) => s.name)], rows: categories.map((c, i) => [c, ...series.map((s) => (s.values[i] == null ? null : f(s.values[i]!) + (s.notes?.[i] ? ` (${s.notes[i]})` : '')))]) }}>
@@ -336,15 +344,18 @@ export function GroupedColumns({ title, subtitle, categories, series, yTitle, fm
           const x0 = cx - (series.length * (colW + 2)) / 2;
           return (
             <g key={c}>
-              <text x={cx} y={height - m.b + 15} textAnchor="middle" fill={INK} fontSize={FONT}>{c}</text>
+              <text x={cx} y={height - m.b + 15} textAnchor="middle" fill={INK} fontSize={FONT}>{fitC(c, band)}</text>
               {series.map((s, k) => {
                 const v = s.values[i];
                 if (v == null) return null;
                 const x = x0 + k * (colW + 2);
                 return (
-                  <path key={s.name} d={vbar(x, colW, Y(Math.max(ticks[0], 0)), Y(v))} fill={s.color}
-                    onPointerEnter={() => setTip({ x: Math.min(x, w - 150), y: Y(v) - 4, lines: [c, `${s.name}: ${f(v)}${s.notes?.[i] ? ` (${s.notes[i]})` : ''}`] })}
-                    onPointerLeave={() => setTip(null)} />
+                  <g key={s.name}>
+                    <path d={vbar(x, colW, Y(Math.max(ticks[0], 0)), Y(v))} fill={s.color}
+                      onPointerEnter={() => setTip({ x: Math.min(x, w - 150), y: Y(v) - 4, lines: [c, `${s.name}: ${f(v)}${s.notes?.[i] ? ` (${s.notes[i]})` : ''}`] })}
+                      onPointerLeave={() => setTip(null)} />
+                    {labels && <text x={x + colW / 2} y={Y(v) - 4} textAnchor="middle" fill={MUTED} fontSize={10} className="tnum">{f(v)}</text>}
+                  </g>
                 );
               })}
             </g>

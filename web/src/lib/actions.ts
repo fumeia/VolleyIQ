@@ -86,6 +86,15 @@ export const SHORT: Partial<Record<ActionCode, string>> = {
 
 export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])) as Record<ActionCode, ActionDef>;
 
+/**
+ * Who a tag gives the point to: the action's own effect, and a reception error
+ * (pass graded 0 = aced) is the opponent's point too.
+ */
+export function scoreOf(e: { action: ActionCode; value?: number | null }): 'us' | 'them' | undefined {
+  if (e.action === 'receive') return e.value === 0 ? 'them' : undefined;
+  return ACTION_BY_CODE[e.action]?.score;
+}
+
 export const GROUPS: { id: Group; label: string }[] = [
   { id: 'points', label: 'Points' },
   { id: 'actions', label: 'Actions' },

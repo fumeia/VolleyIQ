@@ -66,3 +66,15 @@ describe('rally metrics', () => {
     expect(tc.kills).toBe(1);
   });
 });
+
+describe('transition possessions', () => {
+  it('a block touch and the dig after it are one possession, credited with the kill', async () => {
+    const { transitionPossessions } = await import('./sequence');
+    const rs = buildRallies([ev('serve'), ev('block_touch', { player_id: 4 }), ev('dig', { player_id: 7 }), ev('set'), ev('kill')]);
+    const ps = transitionPossessions(rs);
+    expect(ps).toHaveLength(1);
+    expect(ps[0].result).toBe('kill');
+    expect(ps[0].touches.map((e) => e.action)).toEqual(['block_touch', 'dig', 'set', 'kill']);
+    expect(transitionConversion(rs)).toMatchObject({ n: 1, kills: 1 });
+  });
+});

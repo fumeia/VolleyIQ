@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE, type ActionCode, type RoleCode } from './actions';
+import { scoreOf, type ActionCode, type RoleCode } from './actions';
 import type { Player, VEvent } from './api';
 
 /** Roles that attack (not the setter, libero or defensive specialist). */
@@ -71,7 +71,7 @@ export function pointsOfSet(events: VEvent[], set: number, before: number): ('us
   return events
     .filter((e) => e.status === 'confirmed' && (e.set_no ?? 1) === set && (e.t ?? 0) < before)
     .sort((a, b) => (a.t ?? 0) - (b.t ?? 0))
-    .map((e) => ACTION_BY_CODE[e.action]?.score)
+    .map((e) => scoreOf(e))
     .filter((s): s is 'us' | 'them' => !!s);
 }
 

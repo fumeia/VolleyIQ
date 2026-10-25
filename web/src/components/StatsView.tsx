@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 import { ROLES, type ActionCode } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
-import { AnalysisCharts } from './AnalysisCharts';
-import { dec, pct, playerStats, roleStats, statLine, zoneCounts, type StatLine } from '../lib/stats';
+import { AttackSection } from './analysis/AttackSection';
+import { DefenseSection } from './analysis/DefenseSection';
+import { ErrorsSection } from './analysis/ErrorsSection';
+import { OverviewSection } from './analysis/OverviewSection';
+import { PlayersSection } from './analysis/PlayersSection';
+import { ServePassSection } from './analysis/ServePassSection';
+import { SettingSection } from './analysis/SettingSection';
+import { judge, Val, type Tone } from './analysis/ui';
+import { dec, pct, playerStats, roleStats, zoneCounts, type StatLine } from '../lib/stats';
 import type { PlotPoint } from './CourtHalf';
 import { CourtFull, type PlotPath } from './CourtFull';
 import { RAMP, SERIES } from '../charts/Charts';
@@ -53,21 +60,23 @@ const LEGEND: Record<string, [string, string][]> = {
 
 type Tab = 'overview' | 'attack' | 'serve' | 'pass' | 'block' | 'roles';
 
-const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => string | number }[]> = {
+type CellV = string | number | { text: string | number; tone: Tone };
+const t = (text: string | number, tone: Tone) => ({ text, tone });
+const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => CellV }[]> = {
   overview: [
     { h: 'Pts', v: (s) => s.points }, { h: 'K', v: (s) => s.kills }, { h: 'A', v: (s) => s.aces },
-    { h: 'BS', v: (s) => s.blockPoints }, { h: 'Err', v: (s) => s.errors }, { h: '+/−', v: (s) => s.plusMinus },
+    { h: 'BS', v: (s) => s.blockPoints }, { h: 'Err', v: (s) => s.errors }, { h: '+/−', v: (s) => t(s.plusMinus > 0 ? `+${s.plusMinus}` : s.plusMinus, judge.plusMinus(s.plusMinus)) },
   ],
   attack: [
     { h: 'K', v: (s) => s.kills }, { h: 'E', v: (s) => s.attackErrors }, { h: 'BA', v: (s) => s.blocked }, { h: 'TA', v: (s) => s.attempts },
-    { h: 'K%', v: (s) => pct(s.killPct) }, { h: 'Eff', v: (s) => dec(s.attackEff, 3) },
+    { h: 'K%', v: (s) => t(pct(s.killPct), s.attempts >= 5 ? judge.killPct(s.killPct) : null) }, { h: 'Eff', v: (s) => t(dec(s.attackEff, 3), s.attempts >= 3 ? judge.eff(s.attackEff) : null) },
   ],
   serve: [
     { h: 'SA', v: (s) => s.serves }, { h: 'Ace', v: (s) => s.aces }, { h: 'SE', v: (s) => s.serveErrors },
-    { h: 'Ace%', v: (s) => pct(s.acePct) }, { h: 'In%', v: (s) => pct(s.serveInPct) },
+    { h: 'Ace%', v: (s) => t(pct(s.acePct), s.serves >= 5 ? judge.acePct(s.acePct) : null) }, { h: 'Err%', v: (s) => { const v = s.serves ? s.serveErrors / s.serves : null; return t(pct(v), s.serves >= 5 ? judge.serveErrPct(v) : null); } },
   ],
   pass: [
-    { h: 'Rec', v: (s) => s.receptions }, { h: 'Avg', v: (s) => dec(s.recAvg) }, { h: '3%', v: (s) => pct(s.recPerfectPct) },
+    { h: 'Rec', v: (s) => s.receptions }, { h: 'Avg', v: (s) => t(dec(s.recAvg), s.receptions >= 5 ? judge.passAvg(s.recAvg) : null) }, { h: '3%', v: (s) => t(pct(s.recPerfectPct), s.receptions >= 5 ? judge.perfectPct(s.recPerfectPct) : null) },
     { h: 'RE', v: (s) => s.recErrors }, { h: 'Dig', v: (s) => s.digs }, { h: 'DE', v: (s) => s.digErrors }, { h: 'FB', v: (s) => s.freeballs },
   ],
   block: [
@@ -83,10 +92,18 @@ const playerName = (players: Player[], id: number | null) => {
 
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
+type Section = 'overview' | 'attack' | 'servepass' | 'setting' | 'defense' | 'errors' | 'players' | 'tables' | 'court';
+const SECTIONS: [Section, string][] = [
+  ['overview', 'Overview'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'], ['defense', 'Defence'],
+  ['errors', 'Errors'], ['players', 'Players'], ['tables', 'Tables'], ['court', 'Court maps'],
+];
+
 export function StatsView({ players, events, matches }: { players: Player[]; events: VEvent[]; matches?: Match[] }) {
   const confirmed = useMemo(() => events.filter((e) => e.status === 'confirmed'), [events]);
-  const [section, setSection] = useState<'charts' | 'tables' | 'court'>(() => (localStorage.getItem('viq:statsSection') as 'charts') ?? 'charts');
-  const pickSection = (s: 'charts' | 'tables' | 'court') => { setSection(s); try { localStorage.setItem('viq:statsSection', s); } catch { /* private mode */ } };
+  const [section, setSection] = useState<Section>(() => {
+    try { const v = localStorage.getItem('viq:statsSection') as Section; return SECTIONS.some(([k]) => k === v) ? v : 'overview'; } catch { return 'overview'; }
+  });
+  const pickSection = (s: Section) => { setSection(s); try { localStorage.setItem('viq:statsSection', s); } catch { /* private mode */ } };
   const [tab, setTab] = useState<Tab>('overview');
   const [heat, setHeat] = useState(HEAT_MODES[0].id);
   const [heatPlayer, setHeatPlayer] = useState<number | 'all'>('all');
@@ -96,7 +113,6 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
 
   const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
   const roles = useMemo(() => roleStats(players, confirmed), [players, confirmed]);
-  const team = useMemo(() => statLine(confirmed.filter((e) => e.player_id != null)), [confirmed]);
   const heatEvents = heatPlayer === 'all' ? confirmed : confirmed.filter((e) => e.player_id === heatPlayer);
   const counts = zoneCounts(heatEvents, HEAT_MODES.find((m) => m.id === heat)!.actions);
   const plotMode = PLOT_MODES.find((m) => m.id === plot)!;
@@ -117,22 +133,17 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
   const cols = COLUMNS[tab === 'roles' ? 'overview' : tab];
   return (
     <div className="stats">
-      <div className="kpis">
-        <Kpi label="Attack eff." value={dec(team.attackEff, 3)} sub={`${team.kills}K / ${team.attackErrors}E / ${team.attempts}TA`} />
-        <Kpi label="Kill %" value={pct(team.killPct)} />
-        <Kpi label="Serve in" value={pct(team.serveInPct)} sub={`${team.aces} aces`} />
-        <Kpi label="Pass avg" value={dec(team.recAvg)} sub={`${team.receptions} rec`} />
-        <Kpi label="Blocks" value={String(team.blockPoints)} sub={`${team.blockTouches} touches`} />
-        <Kpi label="Errors" value={String(team.errors)} />
+      <div className="tabs stats-tabs">
+        {SECTIONS.map(([k, label]) => <button key={k} className={`tab ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)}>{label}</button>)}
       </div>
 
-      <div className="segmented">
-        <button className={section === 'charts' ? 'on' : ''} onClick={() => pickSection('charts')}>Charts</button>
-        <button className={section === 'tables' ? 'on' : ''} onClick={() => pickSection('tables')}>Player tables</button>
-        <button className={section === 'court' ? 'on' : ''} onClick={() => pickSection('court')}>Court maps</button>
-      </div>
-
-      {section === 'charts' && <AnalysisCharts players={players} events={events} matches={matches} />}
+      {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
+      {section === 'attack' && <AttackSection players={players} events={confirmed} />}
+      {section === 'servepass' && <ServePassSection players={players} events={confirmed} />}
+      {section === 'setting' && <SettingSection players={players} events={confirmed} />}
+      {section === 'defense' && <DefenseSection players={players} events={confirmed} />}
+      {section === 'errors' && <ErrorsSection players={players} events={confirmed} />}
+      {section === 'players' && <PlayersSection players={players} events={confirmed} />}
 
       {section === 'tables' && <>
       <div className="tabs">
@@ -156,13 +167,13 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
               ? roles.map((r) => (
                 <tr key={r.role}>
                   <td>{roleName(r.role)}</td>
-                  {ROLE_COLS.map((c) => <td key={c.h}>{c.v(r.stats)}</td>)}
+                  {ROLE_COLS.map((c) => <td key={c.h}>{cellOut(c.v(r.stats))}</td>)}
                 </tr>
               ))
               : rows.map((r) => (
                 <tr key={r.player.id}>
                   <td><span className={`num-dot role-${r.player.role}`}>{r.player.number ?? '–'}</span> {r.player.name}</td>
-                  {cols.map((c) => <td key={c.h}>{c.v(r.stats)}</td>)}
+                  {cols.map((c) => <td key={c.h}>{cellOut(c.v(r.stats))}</td>)}
                 </tr>
               ))}
           </tbody>
@@ -213,17 +224,10 @@ export function StatsView({ players, events, matches }: { players: Player[]; eve
   );
 }
 
-const ROLE_COLS: { h: string; v: (s: StatLine) => string | number }[] = [
-  { h: 'Pts', v: (s) => s.points }, { h: 'Eff', v: (s) => dec(s.attackEff, 3) }, { h: 'Ace', v: (s) => s.aces },
-  { h: 'Pass', v: (s) => dec(s.recAvg) }, { h: 'Dig', v: (s) => s.digs }, { h: 'BS', v: (s) => s.blockPoints }, { h: 'Err', v: (s) => s.errors },
+const ROLE_COLS: { h: string; v: (s: StatLine) => CellV }[] = [
+  { h: 'Pts', v: (s) => s.points }, { h: 'Eff', v: (s) => t(dec(s.attackEff, 3), s.attempts >= 3 ? judge.eff(s.attackEff) : null) }, { h: 'Ace', v: (s) => s.aces },
+  { h: 'Pass', v: (s) => t(dec(s.recAvg), s.receptions >= 5 ? judge.passAvg(s.recAvg) : null) }, { h: 'Dig', v: (s) => s.digs }, { h: 'BS', v: (s) => s.blockPoints }, { h: 'Err', v: (s) => s.errors },
 ];
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="kpi">
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
-      {sub && <span className="kpi-sub">{sub}</span>}
-    </div>
-  );
-}
+const cellOut = (c: CellV) => (typeof c === 'object' ? <Val tone={c.tone}>{c.text}</Val> : c);
+

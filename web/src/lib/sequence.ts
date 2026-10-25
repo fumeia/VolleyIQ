@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE, type ActionCode } from './actions';
+import { ACTION_BY_CODE, scoreOf, type ActionCode } from './actions';
 import type { VEvent } from './api';
 import { receiveGrade } from './court';
 
@@ -47,7 +47,7 @@ export function buildRallies(events: VEvent[]): Rally[] {
       const touches = cur.filter((e) => !isTeam(e));
       if (!touches.length && !end) return;
       const first = touches[0]?.action;
-      const score = end ? ACTION_BY_CODE[end.action]?.score : undefined;
+      const score = end ? scoreOf(end) : undefined;
       out.push({
         set: list[0].set_no ?? 1,
         touches,
@@ -59,7 +59,7 @@ export function buildRallies(events: VEvent[]): Rally[] {
     };
     for (const e of list) {
       cur.push(e);
-      if (ACTION_BY_CODE[e.action]?.score) close(e);
+      if (scoreOf(e)) close(e);
     }
     close(null);
   }
@@ -163,23 +163,55 @@ export function winByLength(rallies: Rally[]): { label: string; won: number; n: 
   return buckets.map(({ label, won, n }) => ({ label, won, n }));
 }
 
+export interface Possession {
+  /** The touches of one transition possession: a dig / free ball (after a block touch, both). */
+  touches: VEvent[];
+  result: 'kill' | 'error' | 'none';
+}
+
 /**
- * Transition: of our digs (and free balls, block touches) that stayed in play, how many
- * possessions we turned into a kill, and how many ended with our error.
+ * Our transition possessions: they start with a dig, free ball or block touch and
+ * run until our kill, our error, or the ball going back over (the next first contact).
+ * A block touch and the dig right after it are one possession.
+ */
+export function transitionPossessions(rallies: Rally[]): Possession[] {
+  const out: Possession[] = [];
+  const START = ['dig', 'dig_error', 'freeball', 'block_touch'];
+  for (const r of rallies) {
+    const ts = r.touches;
+    for (let i = 0; i < ts.length; i++) {
+      const e = ts[i];
+      if (!START.includes(e.action)) continue;
+      // The dig after our own block touch belongs to the block touch's possession.
+      if (e.action !== 'block_touch' && ts[i - 1]?.action === 'block_touch') continue;
+      const touches = [e];
+      let result: Possession['result'] = e.action === 'dig_error' ? 'error' : 'none';
+      let j = i + 1;
+      if (result === 'none' && e.action === 'block_touch' && ts[j] && ['dig', 'dig_error', 'freeball'].includes(ts[j].action)) {
+        touches.push(ts[j]);
+        if (ts[j].action === 'dig_error') result = 'error';
+        j++;
+      }
+      for (; result === 'none' && j < ts.length; j++) {
+        const x = ts[j];
+        if (FIRST_CONTACTS.includes(x.action)) break;
+        touches.push(x);
+        if (x.action === 'kill') result = 'kill';
+        else if (scoreOf(x) === 'them') result = 'error';
+      }
+      out.push({ touches, result });
+    }
+  }
+  return out;
+}
+
+/**
+ * Transition: of our possessions after a dig, free ball or block touch, how many we
+ * turned into a kill, and how many ended with our error.
  */
 export function transitionConversion(rallies: Rally[]) {
-  let n = 0, kills = 0, errors = 0;
-  for (const r of rallies) {
-    r.touches.forEach((e, i) => {
-      if (!['dig', 'freeball', 'block_touch'].includes(e.action)) return;
-      n++;
-      // Follow our possession until the next first contact or the end of the rally.
-      for (const x of r.touches.slice(i + 1)) {
-        if (FIRST_CONTACTS.includes(x.action)) break;
-        if (x.action === 'kill') { kills++; break; }
-        if (ACTION_BY_CODE[x.action]?.score === 'them') { errors++; break; }
-      }
-    });
-  }
-  return { n, kills, errors, killPct: n ? kills / n : null };
+  const ps = transitionPossessions(rallies).filter((p) => p.touches[0].action !== 'dig_error');
+  const kills = ps.filter((p) => p.result === 'kill').length;
+  const errors = ps.filter((p) => p.result === 'error').length;
+  return { n: ps.length, kills, errors, killPct: ps.length ? kills / ps.length : null };
 }

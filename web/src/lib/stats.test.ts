@@ -66,3 +66,11 @@ describe('assists', () => {
     expect(by(3).points).toBe(0);
   });
 });
+
+describe('score with reception errors', () => {
+  it('a 0-pass is the opponent point (aced), other passes are not', async () => {
+    const { scoreBySet } = await import('./stats');
+    const s = scoreBySet([ev('receive', { value: 0 }), ev('receive', { value: 2 }), ev('kill')]);
+    expect(s[0]).toMatchObject({ us: 1, them: 1 });
+  });
+});

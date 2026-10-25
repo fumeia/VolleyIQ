@@ -13,7 +13,7 @@ import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../compone
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
-import { ACTION_BY_CODE, actionLabel } from '../lib/actions';
+import { actionLabel, scoreOf } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
 import { api, ApiError, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
@@ -203,13 +203,23 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   // Tags since the last point of this set = the rally being tagged.
   const setTags = confirmed.filter((e) => (e.set_no ?? 1) === setNo);
-  const lastPoint = setTags.map((e) => !!ACTION_BY_CODE[e.action]?.score).lastIndexOf(true);
+  const lastPoint = setTags.map((e) => !!scoreOf(e)).lastIndexOf(true);
   const rallyTags = setTags.slice(lastPoint + 1);
   const lastTag = rallyTags[rallyTags.length - 1] ?? null;
   const server = rotationNow?.weServe ? players.find((p) => p.id === rotationNow.positions[0]) ?? null : null;
 
   /** "We won" / "They won" for the rally just tagged: the last tag becomes the point or the error. */
+  // A pass graded 0 already gave the opponent the point (aced): don't add a second one.
+  const lastSetTag = setTags[setTags.length - 1] ?? null;
+  const acedJustNow = !lastTag && lastSetTag?.action === 'receive' && lastSetTag.value === 0;
+
   function settle(won: boolean) {
+    if (acedJustNow && lastSetTag) {
+      if (!won) return flash('Already counted: reception error (0 pass)');
+      // We won after all: it was not an ace, so the pass was at least playable.
+      update(lastSetTag, { value: 1 });
+      return flash('Pass changed to 1 (we won the rally)', () => update(lastSetTag, { value: 0 }));
+    }
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
     if (o.change && lastTag) {
       const before = { action: lastTag.action, value: lastTag.value };
@@ -221,6 +231,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     }
   }
   const outcomeLabel = (won: boolean) => {
+    if (acedJustNow) return won ? 'pass → 1' : 'already counted';
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
     return o.add ? (o.add === 'opp_error' ? 'their error' : 'their point') : actionLabel({ action: o.change!.action, value: o.change!.value ?? null });
   };

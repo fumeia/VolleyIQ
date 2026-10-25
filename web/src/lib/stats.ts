@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE, type ActionCode } from './actions';
+import { scoreOf, type ActionCode } from './actions';
 import type { Player, VEvent } from './api';
 import { zoneOf } from './court';
 import { buildRallies, realAssists } from './sequence';
@@ -111,7 +111,7 @@ export function scoreBySet(events: Pick<VEvent, 'action' | 'set_no'>[]): SetScor
   for (const e of events) {
     const s = e.set_no ?? 1;
     if (!sets.has(s)) sets.set(s, { set: s, us: 0, them: 0 });
-    const effect = ACTION_BY_CODE[e.action]?.score;
+    const effect = scoreOf(e);
     if (effect === 'us') sets.get(s)!.us++;
     else if (effect === 'them') sets.get(s)!.them++;
   }
