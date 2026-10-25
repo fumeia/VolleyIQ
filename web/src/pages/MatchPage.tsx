@@ -23,7 +23,7 @@ import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import type { Calibration } from '../lib/calibration';
 
-type Tab = 'tag' | 'events' | 'review' | 'stats' | 'report' | 'ai';
+type Tab = 'tag' | 'events' | 'review' | 'stats' | 'ai';
 
 
 function loadSettings(): TagSettings {
@@ -57,6 +57,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [statsView, setStatsView] = useState<'stats' | 'images'>('stats');
   const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
   useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
@@ -282,15 +283,14 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         <section className="ws-panel">
           <nav className="tabs ws-tabs">
             <button className={`tab ${tab === 'tag' ? 'on' : ''}`} onClick={() => setTab('tag')}>Tag</button>
-            <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
             {!isLive && (
               <button className={`tab ${tab === 'review' ? 'on' : ''}`} onClick={() => setTab('review')}>
                 Review {suggested.length > 0 && <small className="dot">{suggested.length}</small>}
               </button>
             )}
+            <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
             <button className={`tab ${tab === 'stats' ? 'on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
-            <button className={`tab ${tab === 'report' ? 'on' : ''}`} onClick={() => setTab('report')}>Report</button>
-            {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto ✨</button>}
+            {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto</button>}
           </nav>
 
           <div className="ws-content">
@@ -357,17 +357,24 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             {tab === 'stats' && (
               <>
-                <StatsView players={players} events={events} matches={[match]} />
-                <div className="row wrap">
-                  <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
-                  <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>
-                  <ShareButton match={match} onChange={setMatch} />
+                <div className="segmented">
+                  <button className={statsView === 'stats' ? 'on' : ''} onClick={() => setStatsView('stats')}>Stats &amp; charts</button>
+                  <button className={statsView === 'images' ? 'on' : ''} onClick={() => setStatsView('images')}>📤 Share images</button>
                 </div>
+                {statsView === 'stats' ? (
+                  <>
+                    <StatsView players={players} events={events} matches={[match]} />
+                    <div className="row wrap">
+                      <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
+                      <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>
+                      <ShareButton match={match} onChange={setMatch} />
+                    </div>
+                  </>
+                ) : (
+                  <MatchReportView match={match} players={players} events={events}
+                    actions={<ShareButton match={match} onChange={setMatch} />} />
+                )}
               </>
-            )}
-            {tab === 'report' && (
-              <MatchReportView match={match} players={players} events={events}
-                actions={<ShareButton match={match} onChange={setMatch} />} />
             )}
             {tab === 'ai' && (
               <AutoPanel
