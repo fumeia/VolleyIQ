@@ -502,3 +502,9 @@ button.court-zone:active { background: #2a2f3a; }
   background: rgba(249,115,22,.08); color: var(--text); text-decoration: none; margin-bottom: 12px; }
 .continue-card b { display: block; }
 .continue-card .go { margin-left: auto; font-size: 22px; color: var(--accent); }
+/* Phones held sideways: the panel is low, so the court and buttons shrink to fit. */
+@media (max-height: 600px) {
+  .review-court .court-full.sideways, .pad .court-full.sideways { max-height: calc(100dvh - 215px); width: auto; max-width: 100%; margin: 0 auto; }
+  .rally-review .rally-actions .btn { min-height: 40px; }
+  .rally-review .crumbs > button { padding: 2px 8px; }
+}

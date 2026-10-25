@@ -128,9 +128,10 @@ function bins(points: Pt[]) {
   return out;
 }
 
-/** A phone held upright: a tall court would not fit next to the video. */
+/** A phone (upright or sideways): a tall court would not fit next to the video. */
 function usePortraitPhone() {
-  const q = '(orientation: portrait) and (max-width: 700px)';
+  // Upright phones (narrow) and phones held sideways (low panel next to the video).
+  const q = '((orientation: portrait) and (max-width: 700px)), (max-height: 600px)';
   const [on, setOn] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(q).matches);
   useEffect(() => {
     const m = window.matchMedia?.(q);
