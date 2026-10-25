@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
 import { api, type Player, type Team } from '../lib/api';
+import { parseRoster } from '../lib/roster';
 
 export function TeamPage() {
   const id = Number(useParams().id);
   const nav = useNavigate();
   const [team, setTeam] = useState<(Team & { players: Player[] }) | null>(null);
   const [draft, setDraft] = useState({ name: '', number: '', role: 'OH' as RoleCode });
+  const [paste, setPaste] = useState<string | null>(null);
 
   const load = () => api.team(id).then(setTeam);
   useEffect(() => { load(); }, [id]);
@@ -45,6 +47,32 @@ export function TeamPage() {
         <button className="btn btn-primary">Add</button>
       </form>
       {duplicate && <p className="error small">Jersey #{draft.number} is already taken.</p>}
+      {paste == null ? (
+        <button className="btn-ghost small" onClick={() => setPaste('')}>Paste a whole roster…</button>
+      ) : (() => {
+        const lines = parseRoster(paste);
+        return (
+          <div className="card paste-roster">
+            <span className="small muted">One player per line, e.g. <code>7 Bea OH</code> or <code>Anna Meier 12 libero</code>.</span>
+            <textarea className="input" rows={6} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'7 Bea OH\n3 Anna OH\n5 Fia S\n1 Gina L'} />
+            {lines.length > 0 && (
+              <ul className="small">
+                {lines.map((l, i) => (
+                  <li key={i}>#{l.number ?? '–'} {l.name} · {l.role}{l.number != null && numbers.includes(l.number) ? ' (number taken: skipped)' : ''}</li>
+                ))}
+              </ul>
+            )}
+            <div className="row">
+              <button className="btn btn-primary" disabled={!lines.length} onClick={async () => {
+                for (const l of lines) if (l.number == null || !numbers.includes(l.number)) await api.addPlayer(team.id, l);
+                setPaste(null);
+                load();
+              }}>Add {lines.length} players</button>
+              <button className="btn-ghost" onClick={() => setPaste(null)}>Cancel</button>
+            </div>
+          </div>
+        );
+      })()}
 
       <ul className="list">
         {team.players.map((p) => (

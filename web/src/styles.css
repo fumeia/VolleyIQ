@@ -521,3 +521,6 @@ button.court-zone:active { background: #2a2f3a; }
 .reel-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px;
   background: var(--surface); border: 1px solid var(--accent); font-size: 13px; }
 .reel-bar > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paste-roster { display: flex; flex-direction: column; gap: 8px; }
+.paste-roster textarea { font-family: inherit; resize: vertical; }
+.paste-roster ul { margin: 0; padding-left: 18px; }
