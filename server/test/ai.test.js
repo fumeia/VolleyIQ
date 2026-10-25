@@ -23,11 +23,11 @@ test('openai-compatible path builds a chat request with image + json_object and 
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"teams":{"A":"X","B":"Y"}}' } }] }) };
   };
   try {
-    const cfg = aiConfig({ LITELLM_BASE_URL: 'https://litellm.uni.ch', LITELLM_API_KEY: 'sk', LITELLM_MODEL: 'gpt-4o' });
+    const cfg = aiConfig({ LITELLM_BASE_URL: 'https://litellm.example.com', LITELLM_API_KEY: 'sk', LITELLM_MODEL: 'gpt-4o' });
     const text = await aiComplete(cfg, { system: 'sys', text: 'read it', images: [{ media_type: 'image/jpeg', data: 'AAA' }], jsonHint: 'return json' });
     assert.deepEqual(parseJson(text).teams, { A: 'X', B: 'Y' });
     const c = calls[0];
-    assert.equal(c.url, 'https://litellm.uni.ch/v1/chat/completions');
+    assert.equal(c.url, 'https://litellm.example.com/v1/chat/completions');
     assert.equal(c.auth, 'Bearer sk');
     assert.equal(c.body.model, 'gpt-4o');
     assert.equal(c.body.response_format.type, 'json_object');

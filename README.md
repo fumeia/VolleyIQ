@@ -1,119 +1,196 @@
+<div align="center">
+
+<img src="web/public/icon.svg" width="72" alt="">
+
 # VolleyIQ
 
-Volleyball match tagging and stats, built for the phone: an **Android app**
-for tagging from video or live courtside with **automatic first-pass
-detection** on the phone, plus a small self-hosted **website** that stores the
-tags and shows stats, heatmaps and court plots and shares reports.
+**Volleyball match tagging and analysis — tag on the phone, share the stats with a link.**
 
-```
- Android app (does the heavy work)                     Your server (tiny: ~80 MB RAM)
- ┌──────────────────────────────────────────────┐      ┌─────────────────────────────┐
- │ videos stay on the phone                      │      │ Node + SQLite               │
- │ import: WeTransfer, Drive, Dropbox, YouTube…  │ HTTPS│ tags, rosters, matches      │
- │ tag pad, review, stats (same UI as website)   │─────▶│ website: stats, heatmaps,   │
- │ auto-detection in the background:             │      │ court plots, share links    │
- │  sound → contacts, picture → cuts, rallies,   │      └─────────────────────────────┘
- │  jersey OCR + court side (on-device ML)       │
- └──────────────────────────────────────────────┘
-```
+Android app · self-hosted website · Node + SQLite · on-device auto-detection
+
+</div>
+
+<p align="center">
+  <img src="docs/screenshots/overview.png" width="860" alt="Match overview: headline numbers and what went well / what to work on">
+</p>
+
+VolleyIQ turns a match video into a coach's analysis. You tag every touch on
+the phone (player, action, and two taps on the court: where the ball was
+played from and where it went). The website then shows what those tags mean —
+side-out and break-point %, rotations, shot charts, passing by zone, errors,
+and a learning page for every player — and shares it all through one public link.
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/player-page.png" alt="Player learning page"></td>
+    <td width="67%">
+      <img src="docs/screenshots/rotations.png" alt="Rotation report"><br><br>
+      <img src="docs/screenshots/shot-chart.png" alt="Shot chart">
+    </td>
+  </tr>
+</table>
+
+## Contents
+
+- [Features](#features)
+- [How it fits together](#how-it-fits-together)
+- [Install the Android app](#install-the-android-app)
+- [Run the server](#run-the-server)
+- [Optional AI features](#optional-ai-features)
+- [How auto-detection works](#how-auto-detection-works)
+- [Development](#development)
 
 ## Features
 
-| Area | What you get |
+### Tagging (Android app)
+
+- **Tag pad** — tap the jersey, then the action, then where the ball was played from and where it went. The likely next action comes first (pass → set → attack, dig → set → attack), the setter is picked for sets, and only attackers are offered for attacks.
+- **Rally flow** — a **Serve · #7** button for the player in position 1, and **We won / They won** to close a rally (it turns the last touch into the kill, ace or error).
+- **Line-up and rotation** — starting six, libero and substitutions; players on court are listed first.
+- **Video** — any file on the phone or an imported link (WeTransfer, Google Drive, Dropbox, YouTube, Vimeo, …); seek buttons, 0.5–2× speed, portrait or landscape.
+- **Offline** — tags are queued without a connection and synced later.
+- **Match sheet scan** (optional) — photograph the official score sheet to pre-fill the teams, rosters and set scores.
+
+### Analysis (website)
+
+| Section | What it shows |
 | --- | --- |
-| Tag pad | **Tap the jersey, then the action** (one row per skill: serve, pass, set, attack, block, defence, with the outcomes side by side), then tap **where the ball was played from and where it went** on the full court. The likely next actions come first, a **Serve · #7** button starts the serve by the player in position 1, and **We won / They won** turns the last tag into the kill, ace or error (or records the opponent's). The video pauses while you tag. When a set is over, one tap starts the next. |
-| Line-up | Starting six per set, libero, who serves first, substitutions at a video time. The app follows the rotation (side-outs, libero for the middles in the back row) and lists the players on court first. |
-| Video | −10/−2/+2/+10 s, speeds 0.5–2×, the current time shown on the video. Portrait (video on top) or landscape (side by side). |
-| Sources | App: a video on the phone, or **import a link**: WeTransfer, Google Drive, Dropbox, YouTube, Vimeo and the ~1800 sites yt-dlp supports, or any direct video link. Website: YouTube, a local file, or a direct link. |
-| Auto-detection | Runs on the phone as a background job with a notification. Finds ball contacts from the sound, fills holes in a rally's rhythm (quiet far-side touches), finds edit cuts, groups touches into rallies, reads **jersey numbers**, finds the ball near the players, and with a **calibrated court** (any 4+ court points, one side switch per set) labels possessions by court side and drops the opponent's touches. Progress is saved, so app updates and reboots resume it. |
-| Review | **Rally by rally**: the rally plays, its touches show as chips, and tapping a chip walks through player → action → court spots → next touch. **We won / They won** saves the rally and records how the point ended; **Not a rally** removes noise. Touches heard twice or already saved are folded automatically; touches can be added at the video time, rallies joined or split, and the last rally undone. A touch-by-touch view remains. |
-| Charts | Score progression per set, attack efficiency by player and volume vs efficiency, reception quality, serve outcomes, side-out and break-point % per rotation, how each side scored, kill % by zone; per match over a season. Real axes, legends, tooltips and a table view for each; focus on one player. |
-| Stats | Attack (K, E, BA, TA, K%, efficiency), serve, pass, digs, free balls, blocks, setting, points, +/−, per player and per role; court maps (where the ball went, where it was played from, paths, heatmaps) for every action; filters by set, player and skill in the event list. |
-| Reports | Per match or per season, leaderboards, CSV export (both court spots in meters), and a print-ready **PDF report** (headline numbers, key findings, every chart, player table). |
-| Match sheet | Optional: photograph the official Swiss Volley / FIVB sheet on the New match screen and a vision model reads the teams, rosters and set scores, so you can create the opponent's team and pre-fill the match instead of typing. Needs an AI backend configured on the server — a LiteLLM / OpenAI-compatible gateway (e.g. a university proxy) or `ANTHROPIC_API_KEY`; hidden otherwise. |
-| Effort tracking | The Dashboard shows active analysis time per match, seconds per touch, and how many auto-detected touches were right, corrected or removed — to measure accuracy and the time per match. |
-| Share images | **Report** tab per match and per season: chat-ready 1080×1350 images (match summary, score flow, how points were won/lost, attack/serve/reception maps, blocks & digs, rotations, box score, one card per player, season trends and leaderboard). Share them straight to WhatsApp & co., or send teammates a read-only link (`/s/…` for a match, `/s/t/…` for the season) that shows the same images plus the charts. |
-| Offline | Tags are queued on the phone without a connection, and analysis results upload when it is back online. |
+| Overview | Side-out %, break-point %, attack and serve efficiency, pass average, transition; what went well and what to work on; set-by-set scores, scoring runs, points by rally length. |
+| Rotations | Side-out, pass, first-ball attack, break point and main hitter per rotation — worked out from the serve order, no line-up needed. |
+| Attack | Efficiency by phase and pass quality, shot direction (line / cross / sharp cut) and depth, where attacks were hit from (front row vs back row), kill % by target zone, shot chart. |
+| Serve & pass | Servers and error types, where serves land, receivers, pass quality by zone, side-out % by pass grade. |
+| Setting · Defence · Errors | Set distribution in and out of system, real assists, dig and block numbers, who gives points away and how. |
+| Players | A card per player, and a **learning page** with strengths, faults and what to practise, generated from their own touches. |
+| Reports | Chat-ready report images, a print-ready PDF, CSV export, leaderboards. |
+
+Good values are marked **▲ green**, poor ones **▼ red** (only when there are enough attempts to judge).
+
+### Sharing
+
+One **public link** per team (no login) opens the season, every match and
+every player's learning page. It updates as more matches are tagged and can be
+revoked at any time. Tagging, rosters and editing stay behind the login.
+
+## How it fits together
+
+```
+ Android app                                       Server (≈80 MB RAM)
+ ┌────────────────────────────────────────┐       ┌──────────────────────────────┐
+ │ videos stay on the phone                │ HTTPS │ Node (Fastify) + SQLite      │
+ │ tagging, line-ups, review               │──────▶│ tags, rosters, matches       │
+ │ auto-detection in the background        │       │ website: analysis + sharing  │
+ │  (sound, picture, jersey OCR, on-device)│       └──────────────────────────────┘
+ └────────────────────────────────────────┘
+```
+
+The server never receives video and does no heavy work. All match data lives in
+one SQLite file on your server.
 
 ## Install the Android app
 
-GitHub Actions builds the APK on every push. On your phone:
+Every push builds a signed APK with GitHub Actions and attaches it to the
+**VolleyIQ Android (latest build)** release of this repository.
 
-1. Open **https://github.com/fumeia/VolleyIQ/releases** and choose **VolleyIQ Android (latest build)**.
-2. Tap **VolleyIQ.apk**, open it, and allow installing apps from your browser if Android asks.
-3. In the app, enter your server address (e.g. `https://volleyiq.mydomain.com`) and your password.
+1. On the phone, open the repository's **Releases** page and download **VolleyIQ.apk**.
+2. Open it and allow installing apps from your browser if Android asks.
+3. In the app, enter your server address (e.g. `https://volleyiq.example.com`) and password.
 
-Updates install over the old version, because every build is signed with the
-same key (`web/android/keystore/sideload.jks`, committed for personal
-sideloading). Before publishing the app anywhere, switch to a private key by
-setting the `ANDROID_KEYSTORE_*` variables (see `web/android/app/build.gradle`).
+Updates install over the old version because every build is signed with the
+same key (`web/android/keystore/sideload.jks`, committed for sideloading).
+Before publishing the app anywhere, use a private key via the
+`ANDROID_KEYSTORE_*` variables (see `web/android/app/build.gradle`).
 
-## Run the server (Hetzner or any Docker host)
+## Run the server
 
-The server only stores tags and serves the website. It never receives videos
-and does no analysis.
+Any machine with Docker works.
 
 ```bash
-git clone https://github.com/fumeia/VolleyIQ.git volleyiq && cd volleyiq
+git clone <this repository> volleyiq && cd volleyiq
 cp .env.example .env      # set APP_PASSWORD and SESSION_SECRET (openssl rand -hex 32)
 docker compose up -d --build
 ```
 
-It listens on `127.0.0.1:3080`, with a memory limit of 192 MB. Point your
-existing reverse proxy at it. For nginx:
+It listens on `127.0.0.1:3080` (memory limit 192 MB). Put it behind your
+reverse proxy with HTTPS, for example:
+
+<details>
+<summary>nginx</summary>
 
 ```nginx
 server {
-    server_name volleyiq.mydomain.com;
-    listen 443 ssl;   # plus your usual certificate lines
-    location / { proxy_pass http://127.0.0.1:3080; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }
+    server_name volleyiq.example.com;
+    listen 443 ssl;   # plus your certificate lines
+    location / {
+        proxy_pass http://127.0.0.1:3080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+</details>
+
+<details>
+<summary>Caddy</summary>
+
+```
+volleyiq.example.com {
+    reverse_proxy 127.0.0.1:3080
 }
 ```
 
-For Caddy: `volleyiq.mydomain.com { reverse_proxy 127.0.0.1:3080 }`.
+On a host where Caddy runs as a system service, `deploy/install.sh` does all of
+the above (run it from a clone; safe to re-run for updates):
 
-Data lives in `./data/volleyiq.db`, a single SQLite file, so back that up.
+```bash
+sudo bash deploy/install.sh volleyiq.example.com              # install or update
+sudo bash deploy/install.sh --uninstall volleyiq.example.com  # remove (database saved first)
+```
 
-On a server whose web server is Caddy, `deploy/install.sh` does all of the above in one go, and is safe to re-run for updates:
-`sudo bash install.sh volleyiq.yourdomain.com`. It shows a plan and asks before changing anything.
-It checks the Caddy config before touching it, backs up the Caddyfile and the database, and only
-touches `/opt/volleyiq`, its own Docker project, and a marked block in the Caddyfile.
-`sudo bash install.sh --uninstall volleyiq.yourdomain.com` removes everything again (the database is saved to `/root` first).
+It shows a plan and asks before changing anything, validates the Caddy config,
+backs up the Caddyfile and the database, and only touches `/opt/volleyiq`, its
+own Docker project and a marked block in the Caddyfile.
+</details>
 
-To see what an existing server already runs (read-only, prints a report):
-`curl -fsSL https://raw.githubusercontent.com/fumeia/VolleyIQ/main/deploy/diagnose.sh -o diagnose.sh && sudo bash diagnose.sh`
+**Back up** `data/volleyiq.db` — it is the only state.
+
+## Optional AI features
+
+Two features are hidden unless an AI backend is configured in `.env`:
+
+- **Match sheet scan** reads the teams, rosters and set scores off a photo of the score sheet.
+- **Coach summary** writes a few plain-language points (English or German) from the computed stats; it only uses the numbers it is given.
+
+Use either an OpenAI-compatible gateway such as LiteLLM (`LITELLM_BASE_URL`,
+`LITELLM_API_KEY`, `LITELLM_MODEL`) or the Anthropic API (`ANTHROPIC_API_KEY`).
+See `.env.example`.
 
 ## How auto-detection works
 
-1. **Sound**: indoor ball contacts are short broadband "thuds", spikes in spectral flux. Referee whistles are long tones at 2–4.5 kHz.
-2. **Picture**: in edited videos a cut makes every player jump at once, a spike in frame-to-frame difference. Cuts and whistles bound the rallies. The audio splice at a cut is ignored.
-3. **Rally model**: serve, then up to three touches per side, alternating sides.
-4. **Gap fill**: far-side touches are often too quiet to hear. Where a rally has a hole longer than the match's own touch rhythm, a touch is added: at a quiet sound in that spot (`quiet`), or as a guess (`gap`). Review marks them, and they have their own remove button.
-5. **Vision (optional)**:
-   - Around each contact, an on-device detector (MediaPipe EfficientDet-Lite0) finds the players and the ball. When the full frame shows no ball, it searches again in zoomed tiles around the players, so a ball across the court is found too.
-   - The confidence mostly comes from the picture: the ball right at a player means a likely touch; the ball seen far from everyone (claps, a bounce in the corner) means likely noise. Quiet sounds with the ball elsewhere are dropped, and so are the server's bounces before the serve (with a calibration).
-   - ML Kit reads the jersey number of the player nearest the ball.
-   - With a **court calibration** (tap the 4 corners once per video), that player's feet are placed on the court, which tells our touches from theirs. The next touch's position gives the landing spot of passes and attacks.
+The app can pre-fill touches from the video in the background; you confirm or
+fix them in Review.
 
-Expect to correct things in Review: it's a big head start, not a referee.
-- Audio works best on a camera recording with the gym sound, and poorly with music over the video.
-- Jersey OCR needs readable numbers (720p or higher, camera behind a baseline).
-- Small balls in low-resolution video often go undetected; then use "Ours / Theirs" in Review.
+1. **Sound** — ball contacts are short broadband thuds; referee whistles are long tones at 2–4.5 kHz.
+2. **Picture** — edit cuts show up as a jump in frame difference; cuts and whistles bound the rallies.
+3. **Rally model** — serve, then up to three touches per side, alternating sides; holes in a rally's rhythm get a `quiet` or `gap` suggestion.
+4. **Vision** — an on-device detector (MediaPipe EfficientDet-Lite0) finds players and the ball, ML Kit reads the jersey number nearest the ball, and a court calibration tells our touches from theirs.
 
-The Python package in `worker/` is the reference implementation the app's
-Kotlin code was ported from, and doubles as a desktop CLI:
-`python -m volleyiq_worker.cli match.mp4` (`--post SERVER --match ID` to send suggestions).
+It is a head start, not a referee: it works best on a camera recording with
+gym sound, readable jersey numbers (720p+) and the camera behind a baseline.
+The Python package in `worker/` is the reference implementation the Kotlin code
+was ported from, and doubles as a desktop CLI
+(`python -m volleyiq_worker.cli match.mp4`).
 
-## Develop
+## Development
 
 ```bash
-cd server && npm install && npm run dev        # API on :3000 (no APP_PASSWORD = no login)
-cd web && npm install && npm run dev           # UI on :5173, proxies /api to :3000
-cd web && npm run build && npx cap sync android   # then build the APK in Android Studio or with ./gradlew
+cd server && npm install && npm run dev            # API on :3000 (no APP_PASSWORD = no login)
+cd web && npm install && npm run dev               # UI on :5173, proxies /api to :3000
+cd web && npm run build && npx cap sync android    # then build the APK with ./gradlew
 ```
 
-Tests:
-- `cd server && npm test`
-- `cd web && npm test`
-- `cd worker && python -m pytest tests`
-- Android unit tests (analysis core, link parsing) run in CI with `./gradlew testReleaseUnitTest`.
+| Tests | Command |
+| --- | --- |
+| Server | `cd server && npm test` |
+| Web | `cd web && npm test` |
+| Worker | `cd worker && python -m pytest tests` |
+| Android | `./gradlew testReleaseUnitTest` (runs in CI) |

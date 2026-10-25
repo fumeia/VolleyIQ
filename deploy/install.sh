@@ -19,8 +19,11 @@
 set -euo pipefail
 
 DIR="${VOLLEYIQ_DIR:-/opt/volleyiq}"
-REPO="${VOLLEYIQ_REPO:-https://github.com/fumeia/VolleyIQ.git}"
-BRANCH="${BRANCH:-claude/volleyball-tagging-mobile-2dnlu1}"
+# Where the code comes from: VOLLEYIQ_REPO / BRANCH if set; otherwise an existing install keeps
+# its own remote and branch, and a fresh install clones the checkout this script is run from.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="${VOLLEYIQ_REPO:-$(git -C "$DIR" remote get-url origin 2>/dev/null || git -C "$HERE" remote get-url origin 2>/dev/null || true)}"
+BRANCH="${BRANCH:-$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || git -C "$HERE" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
 CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
 PORT=3080
 PROJECT=volleyiq
@@ -38,6 +41,7 @@ DOMAIN="${1:-}"
 [ -n "$DOMAIN" ] || die "usage: sudo bash install.sh [--uninstall] volleyiq.yourdomain.com"
 [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "invalid domain: $DOMAIN"
 [ "$(id -u)" = 0 ] || die "please run with sudo"
+[ "$MODE" = uninstall ] || [ -n "$REPO" ] || die "run this script from a clone of the repository, or set VOLLEYIQ_REPO=<git url>"
 command -v docker >/dev/null || die "docker is not installed"
 docker compose version >/dev/null 2>&1 || die "docker compose plugin missing"
 

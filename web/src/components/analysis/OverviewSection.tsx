@@ -56,7 +56,7 @@ export function OverviewSection({ players, events, matches }: { players: Player[
       <MomentumBlock players={players} rallies={rallies} />
 
       {lengths.length > 1 && (
-        <GroupedColumns title="Points won by rally length" subtitle="By our touches in the rally (1 = it ended on our serve or first pass): do we win the quick points or the long fights?"
+        <GroupedColumns title="Points won by rally length" subtitle="Share of rallies won, by the number of our touches in the rally (1 = it ended on our serve or first pass)"
           categories={lengths.map((b) => b.label)}
           series={[{ name: 'Won', color: SERIES.blue, values: lengths.map((b) => ratio(b.won, b.n)), notes: lengths.map((b) => `${b.won}/${b.n}`) }]}
           yTitle="Rallies won" fmt={pct} yDomain={[0, 1]} />

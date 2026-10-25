@@ -6,8 +6,8 @@
 
 /**
  * Pick the backend from the environment. LiteLLM / OpenAI-compatible wins when set
- * (most universities expose that); otherwise the Anthropic API.
- *  - LITELLM_BASE_URL (+ LITELLM_API_KEY, LITELLM_MODEL)   e.g. https://litellm.uni.ch
+ * (self-hosted or an organisation's gateway); otherwise the Anthropic API.
+ *  - LITELLM_BASE_URL (+ LITELLM_API_KEY, LITELLM_MODEL)   e.g. https://litellm.example.com
  *  - or OPENAI_BASE_URL (+ OPENAI_API_KEY, OPENAI_MODEL)
  *  - or ANTHROPIC_API_KEY (+ VISION_MODEL, default claude-opus-5-5)
  */

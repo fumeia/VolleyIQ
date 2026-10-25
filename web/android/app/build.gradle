@@ -24,7 +24,7 @@ android {
     signingConfigs {
         release {
             // Every build must be signed with the same key, or Android refuses to install updates.
-            // keystore/sideload.jks is committed for personal sideloading only. Before publishing
+            // keystore/sideload.jks is committed for sideloading only. Before publishing
             // anywhere, set ANDROID_KEYSTORE_* (e.g. from GitHub secrets) to use a private key instead.
             def ks = System.getenv("ANDROID_KEYSTORE_FILE")
             storeFile ks ? file(ks) : rootProject.file("keystore/sideload.jks")

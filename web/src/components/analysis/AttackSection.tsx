@@ -131,7 +131,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
       {byRow.get('back')!.n > 0 && (() => {
         const rows = [['front', 'Front row'], ['back', 'Back row']].map(([k, label]) => ({ k, label, t: byRow.get(k as 'front')!, list: attacks.filter((e) => { const o = attackOrigin(e); return o != null && isBackRow(o) === (k === 'back'); }) }));
         return (
-          <StatFigure title={`Front row vs back row${forWho}`} subtitle="Does the back-row attack cost us? Same numbers for both, side by side"
+          <StatFigure title={`Front row vs back row${forWho}`} subtitle="Attacks hit from the front row and from the back row (behind or up to 1 m in front of the 3 m line)"
             rows={rows} rowKey={(r) => r.k}
             first={{ h: '', cell: (r) => r.label }}
             columns={[

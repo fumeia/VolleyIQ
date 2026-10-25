@@ -1,10 +1,10 @@
-// Reads the summary fields off a photo of an official Swiss Volley / FIVB match
+// Reads the summary fields off a photo of an official (FIVB-style) volleyball match
 // sheet with a vision model, so a match can be pre-filled instead of typed.
 // Disabled unless an AI backend is configured (LiteLLM / OpenAI-compatible or
 // Anthropic — see ai.js).
 import { aiComplete, aiConfig, parseJson } from './ai.js';
 
-const SYSTEM = `You read official volleyball match sheets (Swiss Volley / FIVB "Spielberichtsbogen / Feuille de match"), handwritten or printed, and return only the clearly legible summary fields.
+const SYSTEM = `You read official FIVB-style volleyball match sheets (in any language, e.g. "Spielberichtsbogen / Feuille de match / Scoresheet"), handwritten or printed, and return only the clearly legible summary fields.
 
 Layout you will see:
 - Two teams, A (top-left, "A") and B. Their names are written at the top next to "Mannschaften/Equipes/Squadra".
