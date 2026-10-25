@@ -2,6 +2,7 @@ import { ROLES } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
 import { scoreBySet, statLine } from '../lib/stats';
 import { longestRuns, pointSources, setsWon, type MatchReport, type PlayerRow, type TrendPoint } from './analytics';
+import type { RotationRow } from '../lib/analysis';
 import {
   C, Card, clip, CourtSvg, fmtAvg, fmtEff, fmtPct, GradeLegend, H, Heading, HBars, OutcomeLegend, Tile, W, type CourtDot, type Outcome,
 } from './ui';
@@ -438,6 +439,56 @@ export function LeaderboardCard({ title, rows }: { title: string; rows: PlayerRo
           </g>
         );
       })}
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------- rotations */
+
+/** Side-out % (their serve) and break-point % (our serve) per rotation, named by the setter's position. */
+export function RotationCard({ title, rows }: { title: string; rows: RotationRow[] }) {
+  const x0 = 150, x1 = W - 72, y0 = 380, y1 = 1060;
+  const Y = (v: number) => y1 - v * (y1 - y0);
+  const band = (x1 - x0) / 6;
+  const colW = 60;
+  const total = rows.reduce((a, r) => ({ rec: a.rec + r.receiving, so: a.so + r.sideOuts, srv: a.srv + r.serving, br: a.br + r.breaks }), { rec: 0, so: 0, srv: 0, br: 0 });
+  const pctOf = (a: number, b: number) => (b ? a / b : null);
+  return (
+    <Card kind="Rotations" title={title}
+      subtitle={`Side-out ${fmtPct(pctOf(total.so, total.rec))} (${total.so}/${total.rec}) · break ${fmtPct(pctOf(total.br, total.srv))} (${total.br}/${total.srv})`}
+      footer={`${title} · made with VolleyIQ`}>
+      <g transform="translate(72,300)">
+        <rect x={0} y={-22} width={28} height={28} rx={6} fill={C.blue} />
+        <text x={40} y={0} fill={C.ink2} fontSize={26}>Side-out % (their serve)</text>
+        <rect x={420} y={-22} width={28} height={28} rx={6} fill={C.orange} />
+        <text x={460} y={0} fill={C.ink2} fontSize={26}>Break % (our serve)</text>
+      </g>
+      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
+        <g key={v}>
+          <line x1={x0} x2={x1} y1={Y(v)} y2={Y(v)} stroke={v === 0 ? C.axis : C.grid} strokeWidth={2} />
+          <text x={x0 - 16} y={Y(v) + 9} fill={C.muted} fontSize={24} textAnchor="end">{Math.round(v * 100)}%</text>
+        </g>
+      ))}
+      <text transform={`translate(${72},${(y0 + y1) / 2}) rotate(-90)`} fill={C.muted} fontSize={24} textAnchor="middle">Points won</text>
+      {rows.map((r, i) => {
+        const cx = x0 + band * i + band / 2;
+        const so = pctOf(r.sideOuts, r.receiving), br = pctOf(r.breaks, r.serving);
+        const col = (v: number | null, x: number, color: string, n: string) => v == null ? null : (
+          <g>
+            <path d={`M${x},${y1}V${Y(v) + 6}Q${x},${Y(v)} ${x + 6},${Y(v)}H${x + colW - 6}Q${x + colW},${Y(v)} ${x + colW},${Y(v) + 6}V${y1}Z`} fill={color} />
+            <text x={x + colW / 2} y={Y(v) - 12} fill={C.ink} fontSize={22} fontWeight={700} textAnchor="middle">{Math.round(v * 100)}</text>
+            <text x={x + colW / 2} y={y1 + 70} fill={C.muted} fontSize={18} textAnchor="middle">{n}</text>
+          </g>
+        );
+        return (
+          <g key={r.rotation}>
+            {col(so, cx - colW - 3, C.blue, `${r.sideOuts}/${r.receiving}`)}
+            {col(br, cx + 3, C.orange, `${r.breaks}/${r.serving}`)}
+            <text x={cx} y={y1 + 40} fill={C.ink} fontSize={28} fontWeight={800} textAnchor="middle">S{r.rotation}</text>
+          </g>
+        );
+      })}
+      <text x={x0} y={y1 + 120} fill={C.muted} fontSize={22}>Rotation = setter's court position · numbers under the columns: points won / rallies</text>
     </Card>
   );
 }
