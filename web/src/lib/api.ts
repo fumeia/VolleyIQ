@@ -23,6 +23,17 @@ export interface VEvent {
 }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
+/** Summary fields read off a photo of an official match sheet (best-effort). */
+export interface SheetPlayer { number: number | null; name: string; role?: string | null; captain: boolean; libero: boolean }
+export interface MatchSheet {
+  teams: { A: string | null; B: string | null };
+  date: string | null; time?: string | null; venue?: string | null; league: string | null; matchNo: string | null;
+  winner: 'A' | 'B' | null; setsWon: { A: number; B: number } | null;
+  sets: { a: number; b: number }[];
+  rosters: { A: SheetPlayer[]; B: SheetPlayer[] };
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -117,6 +128,9 @@ export const api = {
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),
   deleteEvent: (id: number) => req('DELETE', `/api/events/${id}`),
   addWork: (matchId: number, sec: number) => req<{ work_sec: number }>('POST', `/api/matches/${matchId}/work`, { sec }),
+  matchsheetEnabled: () => req<{ enabled: boolean }>('GET', '/api/matchsheet/enabled'),
+  scanMatchsheet: (images: { media_type: string; data: string }[]) =>
+    req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
 };

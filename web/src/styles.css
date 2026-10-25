@@ -587,3 +587,11 @@ button.court-zone:active { background: #2a2f3a; }
   .print-root { position: static; overflow: visible; padding: 0; background: #fff; }
   .print-page { box-shadow: none; padding: 0; width: auto; }
 }
+
+/* ---------- match sheet scan ---------- */
+.sheet-scan { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
+.sheet-result { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.set-chip { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.sheet-team { border-top: 1px solid var(--line); padding-top: 8px; }
+.sheet-roster { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 13px; }
+.sheet-roster .num { display: inline-block; min-width: 20px; color: var(--muted); font-variant-numeric: tabular-nums; }

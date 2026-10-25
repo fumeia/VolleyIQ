@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
+import { cleanImages } from './vision.js';
 
 function bad(reply, msg, code = 400) {
   return reply.code(code).send({ error: msg });
@@ -59,7 +60,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db }) {
+export function registerRoutes(app, { db, vision }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -351,6 +352,22 @@ export function registerRoutes(app, { db }) {
     });
     run();
     return { ok: true };
+  });
+
+  // ---------- match sheet scan (optional, needs ANTHROPIC_API_KEY) ----------
+  app.get('/api/matchsheet/enabled', coach, async () => ({ enabled: !!vision?.enabled }));
+
+  app.post('/api/matchsheet/scan', coach, async (req, reply) => {
+    if (!vision?.enabled) return bad(reply, 'Match-sheet scanning is not set up on this server (needs ANTHROPIC_API_KEY).', 503);
+    const [images, err] = cleanImages(req.body);
+    if (err) return bad(reply, err);
+    try {
+      const data = await vision.scan(images);
+      return { data };
+    } catch (e) {
+      req.log?.error({ err: e }, 'match sheet scan failed');
+      return bad(reply, 'Could not read the match sheet. Try a sharper, straight-on photo.', 502);
+    }
   });
 
   // ---------- auto-detection results from the phone app ----------

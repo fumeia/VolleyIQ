@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { parseYouTubeId } from '../components/VideoPlayer';
 import { api, isApp, type Team } from '../lib/api';
 import { describeLink } from '../lib/native';
+import { MatchSheetScan } from '../components/MatchSheetScan';
 
 export function NewMatch() {
   const [params] = useSearchParams();
@@ -52,6 +53,14 @@ export function NewMatch() {
         <button className={mode === 'video' ? 'on' : ''} onClick={() => setMode('video')}>🎬 From video</button>
         <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>⏱ Live</button>
       </div>
+      <MatchSheetScan
+        onPick={({ opponent: op, date: d, label: lb }) => {
+          setOpponent(op);
+          if (d) setDate(d);
+          if (lb) setLabel(lb);
+        }}
+        onTeamCreated={(id) => { api.teams().then(setTeams); setTeamId((cur) => (cur === '' ? id : cur)); }}
+      />
       <form className="form" onSubmit={create}>
         <label className="field-label">Team</label>
         <select className="input" value={teamId} onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : '')}>

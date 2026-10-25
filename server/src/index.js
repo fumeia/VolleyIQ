@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { registerAuth, registerCors } from './auth.js';
 import { registerRoutes } from './routes.js';
+import { makeVisionScanner } from './vision.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +32,7 @@ export async function buildApp(env = process.env) {
   const hasWeb = fs.existsSync(path.join(webDist, 'index.html'));
   if (hasWeb) await app.register(fastifyStatic, { root: webDist, wildcard: false });
 
-  registerRoutes(app, { db });
+  registerRoutes(app, { db, vision: makeVisionScanner(env) });
 
   app.get('/api/health', async () => ({ ok: true }));
 
