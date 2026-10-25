@@ -100,13 +100,19 @@ export function makeVisionScanner(env = {}, scan = null) {
         ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
         { type: 'text', text: 'Read this match sheet and return the summary fields. If several photos are given, they are pages of the same match.' },
       ];
-      const resp = await client.messages.create({
-        model,
-        max_tokens: 4000,
-        system: SYSTEM,
-        messages: [{ role: 'user', content }],
-        output_config: { format: { type: 'json_schema', schema: SCHEMA } },
-      });
+      const base = { model, max_tokens: 4000, system: SYSTEM, messages: [{ role: 'user', content }] };
+      let resp;
+      try {
+        // Preferred: structured output guarantees the response matches the schema.
+        resp = await client.messages.create({ ...base, output_config: { format: { type: 'json_schema', schema: SCHEMA } } });
+      } catch (e) {
+        // Older API versions may not accept output_config: fall back to a JSON-only instruction.
+        if (e?.status !== 400) throw e;
+        resp = await client.messages.create({
+          ...base,
+          messages: [{ role: 'user', content: [...content, { type: 'text', text: 'Respond with ONLY the JSON object, no prose and no markdown fences.' }] }],
+        });
+      }
       const text = resp.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
       return parseJson(text);
     },
