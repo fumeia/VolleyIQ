@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, LineChart, RAMP, Scatter, SERIES, StackedBars } from '../charts/Charts';
 import type { Match, Player, VEvent } from '../lib/api';
-import { breakPct, rotationStats, serveRows, sideOutPct } from '../lib/analysis';
+import { breakPct, keyFindings, rotationStats, serveRows, sideOutPct } from '../lib/analysis';
 import { playerStats, statLine } from '../lib/stats';
 import { attackZones, pointSources, receivers, scoreFlow } from '../report/analytics';
 
@@ -46,6 +46,22 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
         <option value="">Whole team</option>
         {people.map((p) => <option key={p.id} value={p.id}>{who(p)} {p.role ? `(${p.role})` : ''}</option>)}
       </select>
+      {focus == null && (() => {
+        const team = statLine(all.filter((e) => e.player_id != null));
+        const findings = keyFindings(
+          team,
+          attackers.map((r) => ({ name: who(r.player), kills: r.stats.kills, attempts: r.stats.attempts, eff: r.stats.attackEff })),
+          recv.map((r) => ({ name: who(r.player), avg: r.avg, n: r.grades.reduce((a, b) => a + b, 0) })),
+          rotations, sources.lost,
+        );
+        return findings.length ? (
+          <section className="findings">
+            <b>Key findings</b>
+            <ul>{findings.map((f, i) => <li key={i}>{f.text}</li>)}</ul>
+          </section>
+        ) : null;
+      })()}
+
       {flow.map(({ set, points }) => {
         const last = points[points.length - 1];
         return (

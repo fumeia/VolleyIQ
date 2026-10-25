@@ -55,3 +55,42 @@ export function serveRows(players: Player[], events: VEvent[]): ServeRow[] {
 /** Rotation totals: share of points won when receiving / serving. */
 export const sideOutPct = (r: Pick<RotationRow, 'receiving' | 'sideOuts'>) => (r.receiving ? r.sideOuts / r.receiving : null);
 export const breakPct = (r: Pick<RotationRow, 'serving' | 'breaks'>) => (r.serving ? r.breaks / r.serving : null);
+
+export interface Finding { text: string }
+
+/**
+ * A few plain-language takeaways from the saved touches (only where there is enough
+ * data to say something): rotations, attack, reception, serve, where points went.
+ */
+export function keyFindings(
+  team: { attackEff: number | null; attempts: number; recAvg: number | null; receptions: number; aces: number; serveErrors: number; serves: number },
+  attackers: { name: string; kills: number; attempts: number; eff: number | null }[],
+  receivers: { name: string; avg: number | null; n: number }[],
+  rotations: RotationRow[],
+  lost: { label: string; value: number }[],
+): Finding[] {
+  const out: Finding[] = [];
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const eff = (v: number) => v.toFixed(3).replace(/^(-?)0\./, '$1.');
+  const rec = rotations.reduce((a, r) => a + r.receiving, 0);
+  if (rec >= 10) {
+    const so = rotations.reduce((a, r) => a + r.sideOuts, 0) / rec;
+    const ranked = rotations.filter((r) => r.receiving >= 4).map((r) => ({ r, v: r.sideOuts / r.receiving })).sort((a, b) => a.v - b.v);
+    let t = `Side-out ${pct(so)} over ${rec} rallies on their serve`;
+    if (ranked.length >= 2) t += `; best in S${ranked[ranked.length - 1].r.rotation} (${pct(ranked[ranked.length - 1].v)}), worst in S${ranked[0].r.rotation} (${pct(ranked[0].v)})`;
+    out.push({ text: `${t}.` });
+  }
+  if (team.attempts >= 10) {
+    const top = [...attackers].filter((a) => a.attempts >= 5).sort((a, b) => b.kills - a.kills)[0];
+    out.push({ text: `Attack efficiency ${eff(team.attackEff ?? 0)} on ${team.attempts} attempts${top ? `; ${top.name} led with ${top.kills} kills (${eff(top.eff ?? 0)})` : ''}.` });
+  }
+  if (team.receptions >= 10 && team.recAvg != null) {
+    const weak = receivers.filter((r) => r.n >= 5 && r.avg != null).sort((a, b) => a.avg! - b.avg!)[0];
+    out.push({ text: `Pass average ${team.recAvg.toFixed(2)} on ${team.receptions} receptions${weak && weak.avg! < team.recAvg ? `; lowest: ${weak.name} (${weak.avg!.toFixed(2)} on ${weak.n})` : ''}.` });
+  }
+  if (team.serves >= 10) out.push({ text: `Serve: ${team.aces} aces and ${team.serveErrors} errors in ${team.serves} serves.` });
+  const leak = [...lost].sort((a, b) => b.value - a.value)[0];
+  const lostTotal = lost.reduce((a, b) => a + b.value, 0);
+  if (leak && lostTotal >= 10) out.push({ text: `Most points given away: ${leak.label.toLowerCase()} (${leak.value} of ${lostTotal}).` });
+  return out;
+}

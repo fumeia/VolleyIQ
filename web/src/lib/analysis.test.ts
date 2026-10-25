@@ -18,3 +18,18 @@ describe('rotation analysis', () => {
     expect(breakPct(rows[5])).toBe(0.5);
   });
 });
+
+describe('key findings', () => {
+  it('says something only with enough data', async () => {
+    const { keyFindings } = await import('./analysis');
+    const none = keyFindings({ attackEff: 0.2, attempts: 3, recAvg: 2, receptions: 2, aces: 0, serveErrors: 0, serves: 2 }, [], [], [], []);
+    expect(none).toEqual([]);
+    const some = keyFindings({ attackEff: 0.25, attempts: 40, recAvg: 1.9, receptions: 30, aces: 4, serveErrors: 6, serves: 50 },
+      [{ name: '#7 Bea', kills: 12, attempts: 20, eff: 0.4 }], [{ name: '#3 Anna', avg: 1.5, n: 10 }],
+      [{ rotation: 1, receiving: 10, sideOuts: 7, serving: 5, breaks: 2 }, { rotation: 2, receiving: 8, sideOuts: 2, serving: 6, breaks: 3 }],
+      [{ label: 'Attack errors', value: 9 }, { label: 'Serve errors', value: 6 }]);
+    expect(some.map((f) => f.text).join(' ')).toContain('worst in S2');
+    expect(some.map((f) => f.text).join(' ')).toContain('#7 Bea led with 12 kills');
+    expect(some.map((f) => f.text).join(' ')).toContain('lowest: #3 Anna');
+  });
+});

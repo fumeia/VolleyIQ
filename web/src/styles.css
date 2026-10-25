@@ -512,3 +512,5 @@ button.court-zone:active { background: #2a2f3a; }
   border: 1px solid var(--accent); background: rgba(249,115,22,.1); font-weight: 700; }
 .help-box { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
 .help-box p { margin: 8px 0; }
+.findings { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 14px; }
+.findings ul { margin: 6px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
