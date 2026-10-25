@@ -58,4 +58,23 @@ class GapFillTest {
         val ev = Rallies.toEvents(listOf(r), null)
         assertEquals(listOf(null, "gap", "gap", null, null), ev.map { it["hint"] })
     }
+
+    @Test
+    fun labelsPossessionsByCourtSide() {
+        // Serve from behind our baseline, they pass and attack in two touches (no set),
+        // we dig and set, then an overpass by them goes straight back.
+        val r = rally(0.0, 1.2, 2.0, 3.0, 3.8, 4.9)
+        val ys = listOf(-1.0, 14.0, 12.5, 4.0, 6.5, 13.0)
+        r.touches.forEachIndexed { i, t -> t.pos = P(4.0, ys[i]) }
+        Rallies.label(r)
+        assertEquals(listOf("serve", "receive", "set", "dig", "set", "dig"), r.touches.map { it.action })
+        assertEquals(listOf(0, 1, 1, 2, 2, 3), r.touches.map { it.possession })
+    }
+
+    @Test
+    fun countsTouchesWithoutPositions() {
+        val r = rally(0.0, 1.0, 2.0, 3.0, 4.0)
+        Rallies.label(r)
+        assertEquals(listOf("serve", "receive", "set", "attack", "dig"), r.touches.map { it.action })
+    }
 }

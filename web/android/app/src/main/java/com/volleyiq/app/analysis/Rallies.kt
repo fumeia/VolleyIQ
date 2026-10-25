@@ -128,8 +128,45 @@ object Rallies {
         return rallies.filter { it.touches.size >= MIN_CONTACTS }
     }
 
+    /**
+     * Labels the touches of a rally. With court positions for most touches, a touch on
+     * the other side of the net starts a new possession (handles overpasses, free balls
+     * and two-touch possessions); otherwise touches are counted: serve, then up to three
+     * per side.
+     */
     fun label(rally: Rally) {
-        val touches = rally.touches
+        val ts = rally.touches
+        // -1 = near half, 1 = far half, 0 = unknown or right at the net.
+        val sides = ts.map { t -> t.pos?.let { if (it.y < 8.0) -1 else if (it.y > 10.0) 1 else 0 } ?: 0 }
+        if (sides.count { it != 0 } >= max(3.0, ts.size * 0.6)) labelBySide(ts, sides) else labelByCount(ts)
+    }
+
+    private fun name(k: Int, possession: Int) = when (k) {
+        0 -> if (possession == 1) "receive" else "dig"
+        1 -> "set"
+        else -> "attack"
+    }
+
+    private fun labelBySide(ts: List<Touch>, sides: List<Int>) {
+        ts[0].action = "serve"
+        ts[0].possession = 0
+        var side = sides[0]
+        var possession = 0
+        var k = 3 // the serve ends its possession
+        for (i in 1 until ts.size) {
+            val s = sides[i]
+            if ((s != 0 && s != side) || k == 3) {
+                possession++
+                k = 0
+                side = if (s != 0) s else -side
+            }
+            ts[i].action = name(k, possession)
+            ts[i].possession = possession
+            k++
+        }
+    }
+
+    private fun labelByCount(touches: List<Touch>) {
         touches[0].action = "serve"
         touches[0].possession = 0
         var possession = 1
@@ -139,11 +176,7 @@ object Rallies {
                 possession++
                 k = 0
             }
-            touch.action = when (k) {
-                0 -> if (possession == 1) "receive" else "dig"
-                1 -> "set"
-                else -> "attack"
-            }
+            touch.action = name(k, possession)
             touch.possession = possession
             k++
         }
