@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, GROUPS, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { CourtFull } from './CourtFull';
@@ -31,6 +31,24 @@ interface Props {
   /** The previous tag of this rally: the likely next actions come first. */
   lastAction?: ActionCode | null;
 }
+
+/** The action pad, one row per skill: you know the skill first, then the outcome. */
+const SKILLS: { label: string; codes: ActionCode[] }[] = [
+  { label: 'Serve', codes: ['serve', 'ace', 'serve_error'] },
+  { label: 'Pass', codes: ['receive'] },
+  { label: 'Set', codes: ['set', 'assist', 'set_error', 'assist_error'] },
+  { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
+  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
+  { label: 'Defence', codes: ['dig', 'freeball', 'dig_error'] },
+];
+/** Labels inside a skill row (the row already names the skill). */
+const SHORT: Partial<Record<ActionCode, string>> = {
+  serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
+  set: 'Set', assist: 'Assist', set_error: 'Error', assist_error: 'Assist err',
+  attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
+  block_touch: 'Touch', block_point: 'Point', block_error: 'Error',
+  dig: 'Dig', freeball: 'Free ball', dig_error: 'Error',
+};
 
 /** What usually follows a touch of ours, for the "likely" row. */
 const NEXT: Partial<Record<ActionCode | 'start', ActionCode[]>> = {
@@ -198,31 +216,23 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
             ))}
           </div>
         )}
-        <div className="pad-receive">
-          <span className="pad-group-label g-receive">Receive</span>
-          {settings.receiveMode === 'court' ? (
-            <button className="act act-receive wide" onClick={() => chooseAction(ACTION_BY_CODE.receive)}>Receive → tap on court</button>
-          ) : (
-            <div className="pad-grid pad-grid-4">
-              {[0, 1, 2, 3].map((v) => (
-                <button key={v} className={`act act-receive r${v}`} onClick={() => chooseAction(ACTION_BY_CODE.receive, v)}>
-                  {v}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {GROUPS.map((g) => (
-          <div key={g.id} className="pad-group">
-            <span className={`pad-group-label g-${g.id}`}>{g.label}</span>
-            <div className="pad-grid">
-              {ACTIONS.filter((a) => a.group === g.id).map((a) => (
-                <button key={a.code} className={`act act-${g.id}`} onClick={() => chooseAction(a)}>
-                  {a.label}
-                  {a.key && <kbd>{a.key.toUpperCase()}</kbd>}
-                </button>
-              ))}
-            </div>
+        {SKILLS.map((row) => (
+          <div key={row.label} className="skill-row">
+            <span className="skill-label">{row.label}</span>
+            {row.label === 'Pass' && settings.receiveMode !== 'court'
+              ? [0, 1, 2, 3].map((v) => (
+                <button key={v} className={`act act-receive r${v}`} onClick={() => chooseAction(ACTION_BY_CODE.receive, v)}>{v}</button>
+              ))
+              : row.codes.map((code) => {
+                const a = ACTION_BY_CODE[code];
+                const tone = a.score === 'us' ? 'points' : a.score === 'them' ? 'errors' : code === 'receive' ? 'receive' : 'actions';
+                return (
+                  <button key={code} className={`act act-${tone}`} onClick={() => chooseAction(a)}>
+                    {SHORT[code] ?? a.short}
+                    {a.key && <kbd>{a.key.toUpperCase()}</kbd>}
+                  </button>
+                );
+              })}
           </div>
         ))}
       </div>

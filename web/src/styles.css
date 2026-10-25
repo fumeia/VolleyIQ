@@ -489,3 +489,8 @@ button.court-zone:active { background: #2a2f3a; }
 .outcome-bar .btn small { font-size: 11px; font-weight: 500; opacity: .85; }
 .ev-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .small-select { width: auto; padding: 6px 8px; font-size: 13px; }
+.skill-row { display: grid; grid-template-columns: 58px repeat(4, 1fr); gap: 5px; align-items: stretch; }
+.skill-label { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); align-self: center; }
+.skill-row .act { min-height: 44px; font-size: 13px; padding: 0 3px; line-height: 1.1; text-align: center; }
+.skill-row .act-receive { grid-column: span 4; font-size: 15px; }
+.skill-row .act-receive.r0, .skill-row .act-receive.r1, .skill-row .act-receive.r2, .skill-row .act-receive.r3 { grid-column: auto; }
