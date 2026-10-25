@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EventEditor } from '../components/EventEditor';
-import { EventList } from '../components/EventList';
+import { EventList, playerLabel } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { RallyReview } from '../components/RallyReview';
 import { LineupSheet } from '../components/LineupSheet';
@@ -58,6 +58,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [statsView, setStatsView] = useState<'stats' | 'images'>('stats');
+  // Clip reel: the filtered events, each from 3 s before to 2 s after.
+  const [reel, setReel] = useState<{ list: VEvent[]; i: number } | null>(null);
+  useEffect(() => {
+    if (!reel) return;
+    const e = reel.list[reel.i];
+    if (!e || e.t == null) { setReel(null); return; }
+    player.current?.seek(Math.max(0, e.t - 3));
+    player.current?.play();
+    const timer = window.setTimeout(() => setReel((r) => (r && r.i + 1 < r.list.length ? { ...r, i: r.i + 1 } : null)), (5 / rate) * 1000);
+    return () => clearTimeout(timer);
+  }, [reel?.i, reel?.list]);
   const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
   useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
@@ -311,8 +322,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 <EventList events={confirmed} players={players} limit={5} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
               </>
             )}
+            {reel && (
+              <div className="reel-bar">
+                <span>▶ Clip {reel.i + 1}/{reel.list.length} · {playerLabel(players, reel.list[reel.i])} {actionLabel(reel.list[reel.i])}</span>
+                <button className="btn-ghost small" disabled={reel.i === 0} onClick={() => setReel({ ...reel, i: reel.i - 1 })}>◀</button>
+                <button className="btn-ghost small" disabled={reel.i + 1 >= reel.list.length} onClick={() => setReel({ ...reel, i: reel.i + 1 })}>▶</button>
+                <button className="btn-ghost small" onClick={() => { setReel(null); player.current?.pause(); }}>Stop</button>
+              </div>
+            )}
             {tab === 'events' && (
-              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} filterable />
+              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} filterable
+                onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
             )}
             {tab === 'review' && (
               suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (

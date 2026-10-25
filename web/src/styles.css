@@ -518,3 +518,6 @@ button.court-zone:active { background: #2a2f3a; }
 .auto-step.done { border-color: #1d4d2c; }
 .auto-step summary { cursor: pointer; }
 .auto-panel .job { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; }
+.reel-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--accent); font-size: 13px; }
+.reel-bar > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

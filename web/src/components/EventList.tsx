@@ -14,6 +14,8 @@ interface Props {
   onDeleteMany?: (list: VEvent[]) => Promise<void>;
   /** Show filters (set, player, kind of touch) above the list. */
   filterable?: boolean;
+  /** Play the listed (filtered) events one after another as short clips. */
+  onPlayAll?: (list: VEvent[]) => void;
 }
 
 const KINDS: { label: string; codes: string[] }[] = [
@@ -35,7 +37,7 @@ export function playerLabel(players: Player[], e: VEvent) {
   return ACTION_BY_CODE[e.action]?.needsPlayer === false ? 'Team' : '—';
 }
 
-export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, filterable }: Props) {
+export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, filterable, onPlayAll }: Props) {
   const [fSet, setFSet] = useState<number | null>(null);
   const [fPlayer, setFPlayer] = useState<number | null>(null);
   const [fKind, setFKind] = useState<string | null>(null);
@@ -61,6 +63,9 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
         {KINDS.map((k) => <button key={k.label} className={`chip ${fKind === k.label ? 'on' : ''}`} onClick={() => setFKind(fKind === k.label ? null : k.label)}>{k.label}</button>)}
       </div>
       {(fSet != null || fPlayer != null || fKind) && <span className="small muted">{filtered.length} of {events.length}</span>}
+      {onPlayAll && filtered.some((e) => e.t != null) && (
+        <button className="btn small" onClick={() => onPlayAll(filtered.filter((e) => e.t != null))}>▶ Play these ({filtered.filter((e) => e.t != null).length})</button>
+      )}
     </div>
   );
   // null = normal list; a set = selecting (tap toggles).
