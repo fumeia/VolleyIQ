@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ROLES, type ActionCode } from '../lib/actions';
-import type { Player, VEvent } from '../lib/api';
+import type { Match, Player, VEvent } from '../lib/api';
+import { AnalysisCharts } from './AnalysisCharts';
 import { dec, pct, playerStats, roleStats, statLine, zoneCounts, type StatLine } from '../lib/stats';
 import type { PlotPoint } from './CourtHalf';
 import { CourtFull, type PlotPath } from './CourtFull';
@@ -79,8 +80,10 @@ const playerName = (players: Player[], id: number | null) => {
 
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
-export function StatsView({ players, events }: { players: Player[]; events: VEvent[] }) {
+export function StatsView({ players, events, matches }: { players: Player[]; events: VEvent[]; matches?: Match[] }) {
   const confirmed = useMemo(() => events.filter((e) => e.status === 'confirmed'), [events]);
+  const [section, setSection] = useState<'charts' | 'tables' | 'court'>(() => (localStorage.getItem('viq:statsSection') as 'charts') ?? 'charts');
+  const pickSection = (s: 'charts' | 'tables' | 'court') => { setSection(s); try { localStorage.setItem('viq:statsSection', s); } catch { /* private mode */ } };
   const [tab, setTab] = useState<Tab>('overview');
   const [heat, setHeat] = useState(HEAT_MODES[0].id);
   const [heatPlayer, setHeatPlayer] = useState<number | 'all'>('all');
@@ -120,6 +123,15 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
         <Kpi label="Errors" value={String(team.errors)} />
       </div>
 
+      <div className="segmented">
+        <button className={section === 'charts' ? 'on' : ''} onClick={() => pickSection('charts')}>Charts</button>
+        <button className={section === 'tables' ? 'on' : ''} onClick={() => pickSection('tables')}>Player tables</button>
+        <button className={section === 'court' ? 'on' : ''} onClick={() => pickSection('court')}>Court maps</button>
+      </div>
+
+      {section === 'charts' && <AnalysisCharts players={players} events={events} matches={matches} />}
+
+      {section === 'tables' && <>
       <div className="tabs">
         {(['overview', 'attack', 'serve', 'pass', 'block', 'roles'] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>
@@ -154,6 +166,9 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
         </table>
       </div>
 
+      </>}
+
+      {section === 'court' && <>
       <h3 className="section-title">By zone</h3>
       <div className="chips">
         {HEAT_MODES.map((m) => (
@@ -190,6 +205,7 @@ export function StatsView({ players, events }: { players: Player[]; events: VEve
         {plotView !== 'path' && density && <span>Darker = more touches in that 1.5 m square</span>}
         <span className="muted">{plotView === 'path' ? plotPaths.length : plotPoints.length} with {plotView === 'path' ? 'both spots' : 'this spot'}{heatPlayer === 'all' ? '' : ' (filtered)'}</span>
       </div>
+      </>}
     </div>
   );
 }

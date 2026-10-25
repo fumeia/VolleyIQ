@@ -462,3 +462,21 @@ button.court-zone:active { background: #2a2f3a; }
 .rally-review .rally-actions .btn { min-height: 48px; font-size: 14px; padding: 4px; }
 .rally-review .rally-actions .btn small { font-size: 10.5px; }
 .rr-tools .icon-btn { height: 32px; min-width: 36px; }
+
+/* ---------- analysis charts ---------- */
+.charts { display: flex; flex-direction: column; gap: 14px; }
+.chart { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px; }
+.chart figcaption { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.chart-title { display: flex; align-items: baseline; gap: 8px; }
+.chart-title b { flex: 1; font-size: 15px; }
+.chart-sub { font-size: 12px; color: var(--muted); }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.chart-toggle { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; font-size: 11px; padding: 2px 8px; }
+.chart-plot { position: relative; width: 100%; overflow: hidden; }
+.chart-plot svg { display: block; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.chart-tip { position: absolute; pointer-events: none; background: #0b0d11; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px;
+  color: var(--text); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.4); z-index: 3; }
+.chart-tip div:first-child { font-weight: 700; }
+.tnum { font-variant-numeric: tabular-nums; }
+.chart-note { padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }

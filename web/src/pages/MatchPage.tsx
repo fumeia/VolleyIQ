@@ -318,7 +318,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             {tab === 'stats' && (
               <>
-                <StatsView players={players} events={events} />
+                <StatsView players={players} events={events} matches={[match]} />
                 <div className="row wrap">
                   <button className="btn" onClick={() => exportEventsCsv(match, players, events)}>⬇ Events CSV</button>
                   <button className="btn" onClick={() => exportPlayersCsv(match, players, events)}>⬇ Player CSV</button>

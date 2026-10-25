@@ -58,7 +58,7 @@ export function Reports() {
       </div>
       <div className="segmented">
         <button className={view === 'report' ? 'on' : ''} onClick={() => setView('report')}>Report images</button>
-        <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Stats & heatmaps</button>
+        <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Charts & stats</button>
         <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Leaderboard</button>
       </div>
       {!teams.length && <p className="muted">Create a team first.</p>}
@@ -69,7 +69,9 @@ export function Reports() {
         <MatchReportView match={{ ...data.matches.find((m) => m.id === matchId)!, team_name: teams.find((t) => t.id === teamId)?.name }}
           players={data.players} events={events} />
       ))}
-      {data && view === 'stats' && <StatsView players={data.players} events={events} />}
+      {data && view === 'stats' && (
+        <StatsView players={data.players} events={events} matches={matchId === 'all' ? data.matches : data.matches.filter((m) => m.id === matchId)} />
+      )}
       {data && view === 'board' && (
         <div className="boards">
           {BOARDS.map((b) => {

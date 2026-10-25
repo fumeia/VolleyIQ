@@ -26,7 +26,7 @@ export function SharePage() {
       </div>
       <MatchReportView match={m} players={data.players} events={data.events} />
       <h2 className="section-title">Details</h2>
-      <StatsView players={data.players} events={data.events} />
+      <StatsView players={data.players} events={data.events} matches={[data.match]} />
     </div>
   );
 }
@@ -53,7 +53,7 @@ export function TeamSharePage() {
       </div>
       <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={events} />
       <h2 className="section-title">Details</h2>
-      <StatsView players={data.players} events={events} />
+      <StatsView players={data.players} events={events} matches={data.matches} />
     </div>
   );
 }
