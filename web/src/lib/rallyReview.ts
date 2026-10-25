@@ -106,3 +106,14 @@ export function duplicates(events: VEvent[]): number[] {
   }
   return out;
 }
+
+/** Suggestions within [SAME_TOUCH] s of a saved event: that touch is already recorded. */
+export function alreadySaved(events: VEvent[], saved: VEvent[]): number[] {
+  const times = saved.filter((e) => e.t != null).map((e) => e.t!).sort((a, b) => a - b);
+  const near = (t: number) => {
+    let lo = 0, hi = times.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (times[m] < t) lo = m + 1; else hi = m; }
+    return [lo - 1, lo].some((i) => i >= 0 && i < times.length && Math.abs(times[i] - t) < SAME_TOUCH);
+  };
+  return events.filter((e) => e.t != null && near(e.t)).map((e) => e.id);
+}

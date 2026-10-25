@@ -3,7 +3,7 @@ import { ACTION_BY_CODE, wantsSpots, type ActionCode } from '../lib/actions';
 import { ActionPicker } from './ActionPicker';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
-import { duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
+import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
@@ -89,7 +89,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   useEffect(() => {
     if (!r) return;
     setDrafts({});
-    setRemoved(new Set(duplicates(r.events)));
+    setRemoved(new Set([...duplicates(r.events), ...alreadySaved(r.events, confirmed)]));
     setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
     setSel(null);
     playRally();
