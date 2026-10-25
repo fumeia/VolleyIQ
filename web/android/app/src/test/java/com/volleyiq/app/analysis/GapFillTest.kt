@@ -77,4 +77,14 @@ class GapFillTest {
         Rallies.label(r)
         assertEquals(listOf("serve", "receive", "set", "attack", "dig"), r.touches.map { it.action })
     }
+
+    @Test
+    fun aTouchAtTheNetAfterAnAttackIsABlock() {
+        val r = rally(0.0, 1.2, 2.0, 2.8, 3.0, 3.9)
+        val ys = listOf(-1.0, 14.0, 12.5, 11.5, 9.3, 4.0)
+        r.touches.forEachIndexed { i, t -> t.pos = P(4.0, ys[i]) }
+        Rallies.label(r)
+        assertEquals(listOf("serve", "receive", "set", "attack", "block_touch", "dig"), r.touches.map { it.action })
+        assertEquals(listOf(0, 1, 1, 1, 2, 2), r.touches.map { it.possession })
+    }
 }

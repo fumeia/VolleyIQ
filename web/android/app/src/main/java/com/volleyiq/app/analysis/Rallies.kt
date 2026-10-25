@@ -155,6 +155,17 @@ object Rallies {
         var k = 3 // the serve ends its possession
         for (i in 1 until ts.size) {
             val s = sides[i]
+            // Right at the net just after an attack: the other team's block. It starts their
+            // possession but is not one of their three touches.
+            val atNet = ts[i].pos?.let { abs(it.y - 9.0) < 1.0 } == true
+            if (s == 0 && atNet && ts[i - 1].action == "attack") {
+                possession++
+                side = -side
+                ts[i].action = "block_touch"
+                ts[i].possession = possession
+                k = 0
+                continue
+            }
             if ((s != 0 && s != side) || k == 3) {
                 possession++
                 k = 0
