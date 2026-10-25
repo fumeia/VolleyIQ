@@ -175,7 +175,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
             </div>
           )}
           <div className="review-court">
-            <CourtFull showTarget={d.action === 'receive' && !first} from={d.from} to={point} label={first ? def.fromPrompt : def.toPrompt}
+            <CourtFull sideways="auto" showTarget={d.action === 'receive' && !first} from={d.from} to={point} label={first ? def.fromPrompt : def.toPrompt}
               onPick={(p) => (first ? setDraft({ ...d, from: p, stage: 'to' }) : save(courtFields(d.action, d.from, p)))} />
           </div>
           {first && (

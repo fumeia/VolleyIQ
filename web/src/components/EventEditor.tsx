@@ -83,7 +83,7 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
           </div>
         )}
         <div className="editor-court">
-          <CourtFull
+          <CourtFull sideways="auto"
             showTarget={d.action === 'receive'}
             from={from}
             to={point}

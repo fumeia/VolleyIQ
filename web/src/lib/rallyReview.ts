@@ -86,3 +86,23 @@ export function outcome(last: { id: number; action: ActionCode } | null, lastIsO
   if (!e) return { add: 'opp_point' };
   return { change: { id: last.id, action: e, ...(e === 'receive' ? { value: 0 } : {}) } };
 }
+
+/** Seconds: two suggestions closer than this are the same touch heard twice. */
+export const SAME_TOUCH = 0.3;
+
+/**
+ * Ids of suggestions that repeat a touch next to them (a quiet sound right after a
+ * heard one, two sounds of one contact): the guessed or less sure one goes.
+ */
+export function duplicates(events: VEvent[]): number[] {
+  const sorted = events.filter((e) => e.t != null).sort((a, b) => a.t! - b.t!);
+  const out: number[] = [];
+  let keep = sorted[0];
+  for (const e of sorted.slice(1)) {
+    if (e.t! - keep.t! < SAME_TOUCH) {
+      const score = (x: VEvent) => (x.hint ? 0 : 1) + (x.player_id != null || x.jersey != null ? 0.5 : 0) + (x.confidence ?? 0);
+      if (score(e) > score(keep)) { out.push(keep.id); keep = e; } else out.push(e.id);
+    } else keep = e;
+  }
+  return out;
+}

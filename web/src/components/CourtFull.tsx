@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { COURT, FULL_VIEW, PASS_TARGET, type Pt } from '../lib/court';
 import type { PlotPoint } from './CourtHalf';
 
@@ -15,74 +15,104 @@ interface Props {
   heat?: boolean;
   showTarget?: boolean;
   label?: string;
+  /** Drawn on its side (our half left, net upright): half as tall. 'auto' = on phones held upright. */
+  sideways?: boolean | 'auto';
 }
 
 const W = FULL_VIEW.x1 - FULL_VIEW.x0;
 const H = FULL_VIEW.y1 - FULL_VIEW.y0;
 const CELL = 1.5;
-// Court meters -> drawing units: seen from behind our baseline, our half at the bottom.
-const vx = (x: number) => x - FULL_VIEW.x0;
-const vy = (y: number) => FULL_VIEW.y1 - y;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** The whole court with run-off, for tapping spots on either side and for plots. */
-export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label }: Props) {
+export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side }: Props) {
   const svg = useRef<SVGSVGElement>(null);
+  const portrait = usePortraitPhone();
+  const sideways = side === 'auto' ? portrait : !!side;
+  // Court meters -> drawing units. Upright: seen from behind our baseline, our half at the
+  // bottom. Sideways: the same picture turned a quarter clockwise (our half left).
+  const vx = (x: number) => x - FULL_VIEW.x0;
+  const vy = (y: number) => FULL_VIEW.y1 - y;
+  // rect/line in court meters, mapped for either orientation.
+  const P = (x: number, y: number) => (sideways ? { x: y - FULL_VIEW.y0, y: x - FULL_VIEW.x0 } : { x: vx(x), y: vy(y) });
+  const box = (x0: number, y0: number, x1: number, y1: number) => {
+    const a = P(x0, y0), b = P(x1, y1);
+    return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) };
+  };
+  const seg = (x0: number, y0: number, x1: number, y1: number) => {
+    const a = P(x0, y0), b = P(x1, y1);
+    return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  };
+  const VW = sideways ? H : W;
+  const VH = sideways ? W : H;
 
   function pick(e: React.PointerEvent<SVGSVGElement>) {
     if (!onPick || !svg.current) return;
     const ctm = svg.current.getScreenCTM();
     if (!ctm) return;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-    const x = Math.max(0, Math.min(W, p.x)) + FULL_VIEW.x0;
-    const y = FULL_VIEW.y1 - Math.max(0, Math.min(H, p.y));
+    const u = Math.max(0, Math.min(VW, p.x)), v = Math.max(0, Math.min(VH, p.y));
+    const x = (sideways ? v : u) + FULL_VIEW.x0;
+    const y = sideways ? u + FULL_VIEW.y0 : FULL_VIEW.y1 - v;
     onPick({ x: round(x), y: round(y) });
   }
 
   const cells = heat && points ? bins(points) : null;
   const max = cells ? Math.max(1, ...cells.values()) : 1;
 
+  const net = seg(FULL_VIEW.x0 + 0.4, COURT.net, FULL_VIEW.x1 - 0.4, COURT.net);
+  const label_ = (x: number, y: number) => P(x, y);
   return (
-    <svg ref={svg} className={`court-svg court-full ${onPick ? 'is-pickable' : ''}`} viewBox={`0 0 ${W} ${H}`}
+    <svg ref={svg} className={`court-svg court-full ${sideways ? 'sideways' : ''} ${onPick ? 'is-pickable' : ''}`} viewBox={`0 0 ${VW} ${VH}`}
       onPointerUp={pick} role={onPick ? 'button' : 'img'} aria-label={label ?? 'Court'}>
       <defs>
         <marker id="court-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="court-arrowhead" />
         </marker>
       </defs>
-      <rect x={0} y={0} width={W} height={H} className="court-runoff" />
-      <rect x={vx(0)} y={vy(COURT.length)} width={COURT.width} height={COURT.length} className="court-floor" />
-      {[3, 6].map((x) => <line key={x} x1={vx(x)} x2={vx(x)} y1={vy(COURT.length)} y2={vy(0)} className="court-grid" />)}
-      {[6, 12].map((y) => <line key={y} x1={vx(0)} x2={vx(9)} y1={vy(y)} y2={vy(y)} className="court-attack" />)}
-      <rect x={vx(0)} y={vy(COURT.length)} width={COURT.width} height={COURT.length} className="court-lines" />
-      <line x1={0.4} x2={W - 0.4} y1={vy(COURT.net)} y2={vy(COURT.net)} className="court-netline" />
-      <text x={W - 0.3} y={vy(COURT.net) - 0.25} className="court-side end">NET</text>
-      <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">THEM</text>
-      <text x={0.3} y={vy(0) + 1.1} className="court-side">US</text>
-      {showTarget && <circle cx={vx(PASS_TARGET.x)} cy={vy(PASS_TARGET.y)} r={1.5} className="court-target" />}
+      <rect x={0} y={0} width={VW} height={VH} className="court-runoff" />
+      <rect {...box(0, 0, COURT.width, COURT.length)} className="court-floor" />
+      {[3, 6].map((x) => <line key={x} {...seg(x, 0, x, COURT.length)} className="court-grid" />)}
+      {[6, 12].map((y) => <line key={y} {...seg(0, y, COURT.width, y)} className="court-attack" />)}
+      <rect {...box(0, 0, COURT.width, COURT.length)} className="court-lines" />
+      <line {...net} className="court-netline" />
+      {sideways ? (
+        <>
+          <text x={label_(FULL_VIEW.x0, COURT.net).x + 0.2} y={0.6} className="court-side">NET</text>
+          <text x={0.3} y={VH - 0.3} className="court-side">US</text>
+          <text x={VW - 0.3} y={VH - 0.3} className="court-side end">THEM</text>
+        </>
+      ) : (
+        <>
+          <text x={W - 0.3} y={vy(COURT.net) - 0.25} className="court-side end">NET</text>
+          <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">THEM</text>
+          <text x={0.3} y={vy(0) + 1.1} className="court-side">US</text>
+        </>
+      )}
+      {showTarget && <circle cx={P(PASS_TARGET.x, PASS_TARGET.y).x} cy={P(PASS_TARGET.x, PASS_TARGET.y).y} r={1.5} className="court-target" />}
       {cells && [...cells.entries()].map(([k, n]) => {
         const [c, r] = k.split(',').map(Number);
+        const b = box(c * CELL, r * CELL, (c + 1) * CELL, (r + 1) * CELL);
         return (
           <g key={k}>
-            <rect x={vx(c * CELL)} y={vy((r + 1) * CELL)} width={CELL} height={CELL} className="court-heat" style={{ opacity: 0.15 + 0.8 * (n / max) }} />
-            <text x={vx(c * CELL) + CELL / 2} y={vy((r + 1) * CELL) + CELL / 2 + 0.17} className="court-heat-n">{n}</text>
+            <rect {...b} className="court-heat" style={{ opacity: 0.15 + 0.8 * (n / max) }} />
+            <text x={b.x + b.width / 2} y={b.y + b.height / 2 + 0.17} className="court-heat-n">{n}</text>
           </g>
         );
       })}
       {paths?.map((p) => (
-        <line key={p.key} x1={vx(p.from.x)} y1={vy(p.from.y)} x2={vx(p.to.x)} y2={vy(p.to.y)} stroke={p.color}
-          className="court-path" markerEnd="url(#court-arrow)">
+        <line key={p.key} {...seg(p.from.x, p.from.y, p.to.x, p.to.y)} stroke={p.color} className="court-path" markerEnd="url(#court-arrow)">
           {p.title && <title>{p.title}</title>}
         </line>
       ))}
       {!cells && points?.map((p) => (
-        <circle key={p.key} cx={vx(p.x)} cy={vy(p.y)} r={0.28} fill={p.color} className="court-dot">
+        <circle key={p.key} cx={P(p.x, p.y).x} cy={P(p.x, p.y).y} r={0.28} fill={p.color} className="court-dot">
           {p.title && <title>{p.title}</title>}
         </circle>
       ))}
-      {from && to && <line x1={vx(from.x)} y1={vy(from.y)} x2={vx(to.x)} y2={vy(to.y)} className="court-path court-path-edit" markerEnd="url(#court-arrow)" />}
-      {from && <circle cx={vx(from.x)} cy={vy(from.y)} r={0.4} className="court-marker-from" />}
-      {to && <circle cx={vx(to.x)} cy={vy(to.y)} r={0.4} className="court-marker" />}
+      {from && to && <line {...seg(from.x, from.y, to.x, to.y)} className="court-path court-path-edit" markerEnd="url(#court-arrow)" />}
+      {from && <circle cx={P(from.x, from.y).x} cy={P(from.x, from.y).y} r={0.4} className="court-marker-from" />}
+      {to && <circle cx={P(to.x, to.y).x} cy={P(to.x, to.y).y} r={0.4} className="court-marker" />}
     </svg>
   );
 }
@@ -96,4 +126,18 @@ function bins(points: Pt[]) {
     out.set(k, (out.get(k) ?? 0) + 1);
   }
   return out;
+}
+
+/** A phone held upright: a tall court would not fit next to the video. */
+function usePortraitPhone() {
+  const q = '(orientation: portrait) and (max-width: 700px)';
+  const [on, setOn] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(q);
+    if (!m) return;
+    const f = () => setOn(m.matches);
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, []);
+  return on;
 }

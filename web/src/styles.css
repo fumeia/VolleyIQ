@@ -434,3 +434,31 @@ button.court-zone:active { background: #2a2f3a; }
 /* ---------- video clock ---------- */
 .video-clock { position: absolute; top: 6px; left: 6px; z-index: 5; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.65); color: #fff;
   font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* ---------- rally review v2 ---------- */
+.rr-head { display: flex; align-items: center; gap: 6px; }
+.rr-head > span { flex: 1; font-size: 14px; }
+.rr-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.icon-btn { min-width: 40px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 14px; }
+.icon-btn.on { border-color: var(--accent); color: var(--accent); }
+.icon-btn:disabled { opacity: .4; }
+.rr-serve { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin: 0 auto; }
+.rr-serve .chip { padding: 4px 10px; }
+.touch-chip.gone { opacity: .45; border-style: dashed; }
+.touch-chip.gone b { text-decoration: line-through; }
+.touch-chip.add { border-style: dashed; color: var(--accent); min-width: 48px; }
+.crumbs { display: flex; align-items: center; gap: 4px; color: var(--muted); flex-wrap: wrap; }
+.crumbs > button { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); border-radius: 8px; padding: 4px 10px; font-weight: 700; font-size: 14px; }
+.crumbs > button.on { border-color: var(--accent); background: rgba(249,115,22,.18); }
+.crumbs-end { margin-left: auto; display: flex; gap: 2px; }
+.btn-ghost.danger { color: #f87171; }
+.player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; }
+.grid-break { grid-column: 1 / -1; height: 1px; background: var(--line); }
+.rally-actions.ready .btn-won, .rally-actions.ready .btn-lost { box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.review-court .court-full { max-height: 48vh; }
+.court-full.sideways { max-width: none; max-height: none; width: 100%; }
+.review-court .court-full.sideways { max-height: none; }
+.rally-review .rally-actions { grid-template-columns: 1.3fr 1.3fr 1fr .8fr; gap: 5px; }
+.rally-review .rally-actions .btn { min-height: 48px; font-size: 14px; padding: 4px; }
+.rally-review .rally-actions .btn small { font-size: 10.5px; }
+.rr-tools .icon-btn { height: 32px; min-width: 36px; }

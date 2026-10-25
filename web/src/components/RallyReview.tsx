@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, REVIEW_ACTIONS } from '../lib/actions';
+import { ACTION_BY_CODE, REVIEW_ACTIONS, wantsSpots, type ActionCode } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
-import { groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
+import { duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
@@ -15,6 +15,8 @@ interface Props {
   confirmed: VEvent[];
   players: Player[];
   player: React.RefObject<PlayerHandle | null>;
+  /** Court spots as in the tagging settings: off, every action, or only serve / pass / attack. */
+  spots: { location: 'points' | 'zones' | 'off'; scope: 'all' | 'key' };
   update: (e: VEvent, patch: Partial<VEvent>) => Promise<void>;
   add: (e: Partial<VEvent>) => string;
   removeMany: (list: VEvent[]) => Promise<void>;
@@ -25,9 +27,11 @@ interface Props {
   onExit: () => void;
 }
 
+/** One question at a time for the selected touch. */
+type Step = 'player' | 'action' | 'from' | 'to' | 'grade';
+
 // Positions in court order as seen from behind our baseline: front row, then back row.
 const COURT_ORDER = [4, 3, 2, 5, 6, 1];
-
 const SPEEDS = [1, 1.5, 2];
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
@@ -37,11 +41,12 @@ const load = (k: string, d: string) => { try { return localStorage.getItem(k) ??
 const store = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
 /**
- * Review one rally at a time: the rally plays once, its touches show as a strip of
- * chips, and one button settles it ("We won" / "They won" also records how the point
- * ended). Everything fits one screen; the next rally starts by itself.
+ * Review one rally at a time. The rally plays once and its touches show as chips.
+ * Tapping a chip walks through it: player, then action, then the court spots (the
+ * court opens by itself), then on to the next touch. One button settles the rally
+ * ("We won" / "They won" also records how the point ended).
  */
-export function RallyReview({ match, suggested, confirmed, players, player, update, add, removeMany, removeByClient, reload, onTouchView, onLineup, onExit }: Props) {
+export function RallyReview({ match, suggested, confirmed, players, player, spots, update, add, removeMany, removeByClient, reload, onTouchView, onLineup, onExit }: Props) {
   const { rallies, info } = useMemo(() => groupRallies(suggested, match.calibration), [suggested, match.calibration]);
   const [idx, setIdx] = useState(0);
   const r = rallies[Math.min(idx, rallies.length - 1)];
@@ -49,7 +54,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   const [removed, setRemoved] = useState<Set<number>>(new Set());
   const [serving, setServing] = useState<Serving>(null);
   const [sel, setSel] = useState<number | null>(null);
-  const [court, setCourt] = useState<{ stage: 'from' | 'to'; from: Pt | null } | null>(null);
+  const [step, setStep] = useState<Step>('player');
+  const [from, setFrom] = useState<Pt | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const [speed, setSpeed] = useState(() => Number(load('viq:reviewSpeed', '1')) || 1);
   const [stepPause, setStepPause] = useState(() => load('viq:stepPause', '0') === '1');
@@ -60,6 +66,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   const jumpTo = useRef<number | null>(null);
   const selectAt = useRef<number | null>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
+  const editor = useRef<HTMLDivElement>(null);
   const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const lineup = r ? match.lineups?.[String(r.set)] : undefined;
   const rotation = useMemo(
@@ -67,32 +74,36 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     [r?.key, r?.start, lineup, confirmed, players],
   );
 
-  // After an undo, show the restored rally again.
+  // After an undo or a new rally, show that rally.
   useEffect(() => {
     if (jumpTo.current == null) return;
     const i = rallies.findIndex((x) => x.start >= jumpTo.current! - 0.05);
     if (i >= 0) { setIdx(i); jumpTo.current = null; }
   }, [rallies]);
 
-  // New rally: fresh state, play it.
+  // New rally: fresh state (touches heard twice already folded), play it.
   useEffect(() => {
     if (!r) return;
     setDrafts({});
-    setRemoved(new Set());
+    setRemoved(new Set(duplicates(r.events)));
     setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
     setSel(null);
-    setCourt(null);
     playRally();
   }, [r?.key, r?.start]);
 
-  // A touch just added by hand: open it for editing.
+  // A touch just added by hand: open it.
   useEffect(() => {
     if (selectAt.current == null || !r) return;
     const e = r.events.find((x) => x.t != null && Math.abs(x.t - selectAt.current!) < 0.02);
-    if (e) { setSel(e.id); selectAt.current = null; }
+    if (e) { open(e, false); selectAt.current = null; }
   }, [rallies]);
 
-  // Follow the video: highlight the touch being played, stop after the rally, optional pause at each touch.
+  // Keep the open question in view (the video stays pinned above it).
+  useEffect(() => {
+    if (sel != null) editor.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [sel, step]);
+
+  // Follow the video: highlight the touch being played, stop after the clip, optional pause at each touch.
   useEffect(() => {
     const timer = window.setInterval(() => {
       const p = player.current;
@@ -138,12 +149,45 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   }
   const playRally = () => r && playFrom(r.start - PRE_ROLL, r.end + POST_ROLL);
 
+  /**
+   * A touch (or a whole rally) the analysis missed or that was deleted: added at the
+   * current video time as a suggestion, so it is saved with the rest of its rally.
+   */
+  async function addAt(newRally: boolean) {
+    const t = player.current?.time();
+    if (t == null || busy || (!r && !newRally)) return;
+    setBusy(true);
+    try {
+      player.current?.pause();
+      const at = Math.round(t * 100) / 100;
+      const numbered = !r || /^\d+$/.test(r.key);
+      // Kept as ours: possession parity matching who served (0 = the serve).
+      const rally = numbered ? (newRally || !r ? 900000 + Math.round(at * 10) : Number(r.key)) : null;
+      const poss = newRally ? 0 : serving === 'them' ? 1 : 2;
+      await api.addEvent(match.id, {
+        t: at, action: newRally ? 'serve' : 'dig', status: 'suggested', source: 'auto',
+        rally, poss: rally == null ? null : poss, set_no: newRally || !r ? setAt(match.calibration, at) : r.set,
+      });
+      if (newRally) jumpTo.current = at;
+      selectAt.current = at;
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runUndo() {
+    if (!last || busy) return;
+    setBusy(true);
+    try { await last.undo(); setLast(null); } finally { setBusy(false); }
+  }
+
   if (!r) {
     return (
       <div className="pad">
         <p>All rallies reviewed. 🎉</p>
         <button className="btn wide" disabled={busy} onClick={() => addAt(true)}>+ Rally the analysis missed, at the current video time</button>
-        {last && <button className="btn wide" onClick={() => runUndo()}>↶ Undo: {last.text}</button>}
+        {last && <button className="btn wide" onClick={runUndo}>↶ Undo: {last.text}</button>}
         <button className="btn btn-primary wide" onClick={onExit}>Back to tagging</button>
       </div>
     );
@@ -159,7 +203,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     return p ? { player_id: p.id, jersey: p.number } : {};
   };
   const view = (e: VEvent): VEvent => ({ ...e, ...auto(e), ...drafts[e.id] });
-  const ours = (e: VEvent) => isOurs(info.get(e.id), serving) && !removed.has(e.id);
+  const isTheirs = (e: VEvent) => !isOurs(info.get(e.id), serving);
+  const ours = (e: VEvent) => !isTheirs(e) && !removed.has(e.id);
   const kept = r.events.filter(ours);
   const lastTouch = [...r.events].reverse().find((e) => !removed.has(e.id)) ?? null;
   const lastIsOurs = lastTouch ? ours(lastTouch) : true;
@@ -176,6 +221,44 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     return `${num(view(lastTouch!))} ${o.change!.value === 0 ? 'Rec 0' : def.short}`;
   };
   const patch = (e: VEvent, p: Partial<VEvent>) => setDrafts((d) => ({ ...d, [e.id]: { ...d[e.id], ...p } }));
+
+  /** Open a touch at its first question and replay its moment (stopping right after the contact). */
+  function open(e: VEvent, play = true) {
+    setSel(e.id);
+    setStep('player');
+    const v = view(e);
+    setFrom(v.fx != null && v.fy != null ? { x: v.fx, y: v.fy } : null);
+    if (play && e.t != null) playFrom(e.t - 1.5, e.t + 0.3);
+  }
+
+  /** Next of our touches after [e]; none left = the rally is ready to be settled. */
+  function advance(e: VEvent) {
+    const next = r.events.find((x) => (x.t ?? 0) > (e.t ?? 0) && ours(x));
+    if (next) open(next);
+    else setSel(null);
+  }
+
+  function chooseAction(e: VEvent, code: ActionCode) {
+    const v = view(e);
+    patch(e, { action: code, value: code === 'receive' ? v.value : null });
+    if (wantsSpots(code, spots.location, spots.scope)) {
+      setStep(ACTION_BY_CODE[code].court === 'path' ? 'from' : 'to');
+      // The contact frame, to see where it happened.
+      if (e.t != null) { player.current?.pause(); player.current?.seek(e.t); }
+    } else if (code === 'receive') setStep('grade');
+    else advance(e);
+  }
+
+  function pickSpot(e: VEvent, p: Pt) {
+    if (step === 'from') { setFrom(p); setStep('to'); return; }
+    patch(e, courtFields(view(e).action, from, p));
+    advance(e);
+  }
+
+  function removeTouch(e: VEvent) {
+    setRemoved((s) => new Set(s).add(e.id));
+    advance(e);
+  }
 
   async function finish(result: 'won' | 'lost' | null) {
     if (busy) return;
@@ -236,46 +319,19 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
     await reload();
   }
 
-  async function runUndo() {
-    if (!last || busy) return;
-    setBusy(true);
-    try { await last.undo(); setLast(null); } finally { setBusy(false); }
-  }
-
-  /**
-   * A touch (or a whole rally) the analysis missed or that was deleted: added at the
-   * current video time as a suggestion, so it is saved with the rest of its rally.
-   */
-  async function addAt(newRally: boolean) {
-    const t = player.current?.time();
-    if (t == null || busy || (!r && !newRally)) return;
-    setBusy(true);
-    try {
-      player.current?.pause();
-      const at = Math.round(t * 100) / 100;
-      const numbered = !r || /^\d+$/.test(r.key);
-      // Kept as ours: possession parity matching who served (0 = the serve).
-      const rally = numbered ? (newRally || !r ? 900000 + Math.round(at * 10) : Number(r.key)) : null;
-      const poss = newRally ? 0 : serving === 'them' ? 1 : 2;
-      await api.addEvent(match.id, {
-        t: at, action: newRally ? 'serve' : 'dig', status: 'suggested', source: 'auto',
-        rally, poss: rally == null ? null : poss, set_no: newRally || !r ? setAt(match.calibration, at) : r.set,
-      });
-      if (newRally) jumpTo.current = at;
-      selectAt.current = at;
-      await reload();
-    } finally {
-      setBusy(false);
+  function tapChip(e: VEvent) {
+    if (removed.has(e.id)) {
+      // Removed by mistake (or folded as a duplicate): bring it back.
+      setRemoved((s) => { const n = new Set(s); n.delete(e.id); return n; });
+      return open(e);
     }
+    if (isTheirs(e)) return open(e);
+    if (e.id === sel) { setSel(null); return; }
+    open(e);
   }
 
-  function select(e: VEvent) {
-    setSel(e.id === sel ? null : e.id);
-    setCourt(null);
-    if (e.t != null) playFrom(e.t - 1.5, e.t + 1);
-  }
-
-  function setSpeedTo(s: number) {
+  function cycleSpeed() {
+    const s = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     setSpeed(s);
     store('viq:reviewSpeed', String(s));
     player.current?.setRate(s);
@@ -296,122 +352,139 @@ export function RallyReview({ match, suggested, confirmed, players, player, upda
   const def = sv ? ACTION_BY_CODE[sv.action] : null;
   const eligible = rotation && sv ? candidates(rotation, sv.action, players).eligible : null;
   // On-court players first (front row 4-3-2, back row 5-6-1), then the bench.
-  function playerRow(): (Player | 'divider')[] {
-    if (!rotation) return roster;
-    const court = COURT_ORDER.map((pos) => players.find((p) => p.id === rotation.positions[pos - 1])).filter((p): p is Player => !!p);
-    const bench = roster.filter((p) => !court.includes(p));
-    return bench.length ? [...court, 'divider', ...bench] : court;
-  }
+  const court = rotation
+    ? COURT_ORDER.map((pos) => players.find((p) => p.id === rotation.positions[pos - 1])).filter((p): p is Player => !!p)
+    : [];
+  const bench = roster.filter((p) => !court.includes(p));
   const setterPos = rotation ? rotation.positions.findIndex((id) => players.find((p) => p.id === id)?.role === 'S') + 1 : 0;
+  const removedCount = r.events.filter((e) => removed.has(e.id)).length;
+
+  const jersey = (p: Player) => (
+    <button key={p.id} className={`jersey-mini role-${p.role} ${sv?.player_id === p.id ? 'is-selected' : ''} ${eligible && !eligible.has(p.id) ? 'dim' : ''}`}
+      onClick={() => { if (!selected) return; patch(selected, { player_id: p.id, jersey: p.number }); setStep('action'); }}>
+      {p.number ?? '–'}<small>{p.name.split(' ')[0]}</small>
+    </button>
+  );
 
   return (
     <div className="pad rally-review">
-      <div className="pad-head">
-        <span>Rally <b>{Math.min(idx, rallies.length - 1) + 1}</b>/{rallies.length} · Set {r.set} · {fmtTime(r.start)}</span>
-        <span className="row">
-          <button className="btn-ghost small" onClick={onTouchView}>Touch by touch</button>
-          <button className="btn-ghost" onClick={onExit}>Done</button>
-        </span>
+      <div className="rr-head">
+        <span>Rally <b>{Math.min(idx, rallies.length - 1) + 1}</b>/{rallies.length} · {fmtTime(r.start)} · Set {r.set}</span>
+        <button className="btn-ghost small" onClick={onTouchView} title="Review touch by touch">≡</button>
+        <button className="btn-ghost small" onClick={onExit}>Done</button>
       </div>
 
       <div className="rally-card" onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }} onPointerUp={onSwipeEnd}>
         <div className="strip">
           {r.events.map((e) => {
             const v = view(e);
-            const mine = ours(e);
+            const gone = removed.has(e.id);
             return (
               <button key={e.id}
-                className={`touch-chip ${mine ? '' : 'theirs'} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''}`}
-                onClick={() => select(e)}>
+                className={`touch-chip ${isTheirs(e) ? 'theirs' : ''} ${gone ? 'gone' : ''} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''}`}
+                title={gone ? 'Removed: tap to bring it back' : undefined}
+                onClick={() => tapChip(e)}>
                 <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
-                <span>{num(v)}{e.hint ? ' ?' : ''}</span>
+                <span>{gone ? '↺' : `${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}</span>
               </button>
             );
           })}
+          <button className="touch-chip add" disabled={busy || now == null} onClick={() => addAt(false)} title="Add a touch at the current video time">
+            <b>+</b><span>{now != null ? fmtTime(now) : ''}</span>
+          </button>
         </div>
-        <div className="rally-tools">
-          <button className="btn-ghost small" onClick={playRally}>↻ Replay</button>
-          <span className="speed">
-            {SPEEDS.map((s) => <button key={s} className={`chip ${speed === s ? 'on' : ''}`} onClick={() => setSpeedTo(s)}>{s}×</button>)}
+        {!selected && <div className="rr-tools">
+          <button className="icon-btn" onClick={playRally} title="Replay the rally">↻</button>
+          <button className="icon-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
+          <button className={`icon-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch"
+            onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>⏸·</button>
+          <span className="rr-serve">
+            Served:
+            <button className={`chip ${serving === 'us' ? 'on' : ''}`} onClick={() => setServing('us')}>Us</button>
+            <button className={`chip ${serving === 'them' ? 'on' : ''}`} onClick={() => setServing('them')}>Them</button>
           </span>
-          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(false)}>+ Touch{now != null ? ` at ${fmtTime(now)}` : ''}</button>
-          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(true)}>+ New rally here</button>
-          <label className="toggle small"><input type="checkbox" checked={stepPause}
-            onChange={(e) => { setStepPause(e.target.checked); store('viq:stepPause', e.target.checked ? '1' : '0'); }} /> pause at touches</label>
-        </div>
-        <div className="rotation-info">
+          <button className="icon-btn" disabled={busy || now == null} onClick={() => addAt(true)} title="Start a new rally at the current video time">+ Rally</button>
+          <button className="icon-btn" title="Remove all touches of this rally, then add them with +"
+            onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }}>Empty</button>
+        </div>}
+        {!selected && <div className="rotation-info">
           {rotation
-            ? <>Rotation: setter in position {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
-            : <>No line-up for set {r.set}: <button className="link" onClick={() => onLineup(r.set)}>enter the starting six</button> to fill in servers and setters</>}
-        </div>
-        <div className="serving">
-          <span className="small muted">Who served?</span>
-          <button className={`chip ${serving === 'us' ? 'on' : ''}`} onClick={() => setServing('us')}>We did</button>
-          <button className={`chip ${serving === 'them' ? 'on' : ''}`} onClick={() => setServing('them')}>They did</button>
-          {serving == null && <span className="small muted">(greyed = their touch, not saved)</span>}
-        </div>
+            ? <>Setter in {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
+            : <><button className="link" onClick={() => onLineup(r.set)}>Enter the line-up</button> to fill in servers and setters</>}
+          {removedCount > 0 && <> · {removedCount} removed (tap ↺ to restore)</>}
+          {serving == null && <> · greyed = their touch</>}
+        </div>}
       </div>
 
-      {selected && sv && def && (ours(selected) ? (
-        <div className="touch-editor">
-          <div className="scroll-row">
-            {playerRow().map((p, i) => p === 'divider' ? <span key={`d${i}`} className="court-divider" /> : (
-              <button key={p.id} className={`jersey-mini role-${p.role} ${sv.player_id === p.id ? 'is-selected' : ''} ${eligible && !eligible.has(p.id) ? 'dim' : ''}`}
-                onClick={() => patch(selected, { player_id: p.id, jersey: p.number })}>
-                {p.number ?? '–'}<small>{p.name.split(' ')[0]}</small>
-              </button>
-            ))}
-          </div>
-          <div className="chips tight">
-            {REVIEW_ACTIONS.map((c) => (
-              <button key={c} className={`chip ${sv.action === c ? 'on' : ''}`}
-                onClick={() => patch(selected, { action: c, value: c === 'receive' ? sv.value : null })}>{ACTION_BY_CODE[c].short}</button>
-            ))}
-          </div>
-          {sv.action === 'receive' && (
-            <div className="chips tight">
-              {[0, 1, 2, 3].map((v) => <button key={v} className={`chip ${sv.value === v ? 'on' : ''}`} onClick={() => patch(selected, { value: v })}>Pass {v}</button>)}
-            </div>
-          )}
-          <div className="row wrap">
-            {def.court && (
-              <button className="btn small" onClick={() => setCourt(court ? null : { stage: def.court === 'path' ? 'from' : 'to', from: sv.fx != null && sv.fy != null ? { x: sv.fx, y: sv.fy } : null })}>
-                📍 {court ? 'Close court' : sv.x != null || sv.fx != null ? 'Edit spots' : 'Add spots'}
-              </button>
-            )}
-            <button className="btn small btn-danger" onClick={() => { setRemoved((s) => new Set(s).add(selected.id)); setSel(null); }}>✕ Not a touch</button>
-          </div>
-          {court && (
-            <div className="review-court">
-              <span className="small muted">{court.stage === 'from' ? def.fromPrompt : def.toPrompt}</span>
-              <CourtFull from={court.from} to={sv.x != null && sv.y != null ? { x: sv.x, y: sv.y } : null} showTarget={sv.action === 'receive'}
-                onPick={(p) => {
-                  if (court.stage === 'from') setCourt({ stage: 'to', from: p });
-                  else { patch(selected, courtFields(sv.action, court.from, p)); setCourt(null); }
-                }} />
-              {court.stage === 'from' && <button className="btn-ghost small" onClick={() => setCourt({ ...court, stage: 'to' })}>Skip: not sure where from</button>}
-            </div>
-          )}
-        </div>
-      ) : (
+      {selected && sv && def && (isTheirs(selected) ? (
         <div className="touch-editor">
           <span className="small">This touch is counted as theirs.</span>
           <button className="btn small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>No, it's ours (swap sides)</button>
         </div>
+      ) : (
+        <div className="touch-editor" ref={editor}>
+          <div className="crumbs">
+            <button className={step === 'player' ? 'on' : ''} onClick={() => setStep('player')}>{num(sv) || 'Who?'}</button>›
+            <button className={step === 'action' ? 'on' : ''} onClick={() => setStep('action')}>{def.short}</button>
+            {wantsSpots(sv.action, spots.location, spots.scope) && <>›<button className={step === 'from' || step === 'to' ? 'on' : ''}
+              onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>📍{sv.x != null ? ' ✓' : ''}</button></>}
+            <span className="crumbs-end">
+              <button className="btn-ghost small danger" onClick={() => removeTouch(selected)}>✕ Not a touch</button>
+              <button className="btn-ghost small" onClick={() => advance(selected)}>Next ▸</button>
+            </span>
+          </div>
+
+          {step === 'player' && (
+            <div className="player-grid">
+              {court.map(jersey)}
+              {court.length > 0 && bench.length > 0 && <span className="grid-break" />}
+              {(court.length ? bench : roster).map(jersey)}
+            </div>
+          )}
+
+          {step === 'action' && (
+            <div className="chips tight">
+              {REVIEW_ACTIONS.map((c) => (
+                <button key={c} className={`chip chip-${ACTION_BY_CODE[c].group} ${sv.action === c ? 'on' : ''}`}
+                  onClick={() => chooseAction(selected, c)}>{ACTION_BY_CODE[c].short}</button>
+              ))}
+            </div>
+          )}
+
+          {(step === 'from' || step === 'to') && (
+            <div className="review-court">
+              <div className="row between">
+                <span className="small"><b>{step === 'from' ? def.fromPrompt : def.toPrompt}</b>{def.court === 'path' ? ` (${step === 'from' ? 1 : 2}/2)` : ''}</span>
+                <button className="btn-ghost small" onClick={() => (step === 'from' ? setStep('to') : advance(selected))}>
+                  {step === 'from' ? (from ? 'Keep ⚪' : 'Skip') : sv.x != null ? 'Keep 🟠' : 'Skip'}
+                </button>
+              </div>
+              <CourtFull sideways="auto" from={from} to={sv.x != null && sv.y != null ? { x: sv.x, y: sv.y } : null}
+                showTarget={sv.action === 'receive' && step === 'to'} onPick={(p) => pickSpot(selected, p)} />
+            </div>
+          )}
+
+          {step === 'grade' && (
+            <div className="pad-grid pad-grid-4 receive-quick">
+              {[0, 1, 2, 3].map((g) => (
+                <button key={g} className={`act act-receive r${g}`} onClick={() => { patch(selected, { value: g }); advance(selected); }}>{g}</button>
+              ))}
+            </div>
+          )}
+        </div>
       ))}
 
-      <div className="rally-actions">
+      <div className={`rally-actions ${!selected ? 'ready' : ''}`}>
         <button className="btn btn-won" disabled={busy} onClick={() => finish('won')}>We won <small>{outcomeText(true)}</small></button>
         <button className="btn btn-lost" disabled={busy} onClick={() => finish('lost')}>They won <small>{outcomeText(false)}</small></button>
-        <button className="btn btn-danger" disabled={busy} onClick={notARally}>✕ Not a rally</button>
-        <button className="btn" disabled={busy} onClick={() => finish(null)}>✓ Save, no point</button>
+        <button className="btn" disabled={busy} onClick={() => finish(null)}>✓ Save <small>no point</small></button>
+        <button className="btn btn-danger" disabled={busy} onClick={notARally}>✕ <small>not a rally</small></button>
       </div>
       <div className="row between">
-        <button className="btn-ghost small" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Previous</button>
+        <button className="btn-ghost small" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Prev</button>
         {last && <button className="btn-ghost small" disabled={busy} onClick={runUndo}>↶ Undo {last.text}</button>}
         <button className="btn-ghost small" disabled={idx >= rallies.length - 1} onClick={() => setIdx((i) => i + 1)}>Skip ▶</button>
       </div>
-      <span className="small muted">Tip: tap a touch to fix it. Swipe the rally left = not a rally, right = save. Keys: W / L / N / Enter.</span>
     </div>
   );
 }

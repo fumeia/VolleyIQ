@@ -224,7 +224,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                       flash(calibFrom == null ? 'Court calibrated' : `Court re-marked from ${fmtTime(calibFrom)}`);
                     }}
                   />
-                ) : (
+                ) : tab === 'review' && reviewMode === 'rally' && suggested.length > 0 ? null : (
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -287,6 +287,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   suggested={suggested}
                   confirmed={confirmed}
                   players={players}
+                  spots={{ location: settings.location, scope: settings.spotScope }}
                   player={player}
                   update={update}
                   add={(e) => add(e)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, GROUPS, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, GROUPS, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { CourtFull } from './CourtFull';
@@ -83,7 +83,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     const next: Draft = { ...d, action, value, stage: askFrom ? 'from' : 'to', from: null };
     const wantsLocation = action.code === 'receive'
       ? settings.receiveMode === 'court' && value == null
-      : !!action.court && settings.location !== 'off' && (settings.spotScope !== 'key' || KEY_SPOTS.includes(action.code));
+      : wantsSpots(action.code, settings.location, settings.spotScope);
     if (wantsLocation) setDraft(next);
     else finish(next);
   }
@@ -150,7 +150,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
             ))}
           </div>
         )}
-        <CourtFull label={prompt} from={draft.from} showTarget={a.code === 'receive' && !first}
+        <CourtFull sideways="auto" label={prompt} from={draft.from} showTarget={a.code === 'receive' && !first}
           onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))} />
         <button className="btn wide" onClick={() => (first ? setDraft({ ...draft, stage: 'to' }) : finish(draft))}>
           {first ? 'Skip: not sure where from' : 'Skip: no landing spot'}
@@ -221,9 +221,6 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     </div>
   );
 }
-
-/** "Key actions only": the court spots that matter most for the stats. */
-const KEY_SPOTS: ActionCode[] = ['serve', 'ace', 'serve_error', 'receive', 'attack', 'kill', 'attack_error', 'attack_blocked'];
 
 const who = (p: Player | null) => (p ? `#${p.number ?? '?'} ${p.name}` : 'Unknown player');
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VEvent } from './api';
-import { groupRallies, guessServing, isOurs, outcome, setAt } from './rallyReview';
+import { duplicates, groupRallies, guessServing, isOurs, outcome, setAt } from './rallyReview';
 
 let id = 0;
 const ev = (t: number, extra: Partial<VEvent> = {}) =>
@@ -32,5 +32,10 @@ describe('rally review', () => {
     expect(outcome({ id: 4, action: 'dig' }, true, true)).toEqual({ add: 'opp_error' });
     expect(outcome({ id: 5, action: 'attack' }, false, false)).toEqual({ add: 'opp_point' });
     expect(outcome(null, true, true)).toEqual({ add: 'opp_error' });
+  });
+
+  it('folds a touch heard twice into one', () => {
+    const a = ev(10, { confidence: 0.6 }), b = ev(10.2, { confidence: 0.4, hint: 'quiet' }), c = ev(11, {}), d = ev(11.1, { jersey: 7 });
+    expect(duplicates([a, b, c, d]).sort()).toEqual([b.id, c.id].sort());
   });
 });

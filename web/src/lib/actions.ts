@@ -58,6 +58,14 @@ export const REVIEW_ACTIONS: ActionCode[] = [
   'block_touch', 'block_point', 'block_error',
 ];
 
+/** "Fast" court mode: the court spots that matter most for the stats. */
+export const KEY_SPOTS: ActionCode[] = ['serve', 'ace', 'serve_error', 'receive', 'attack', 'kill', 'attack_error', 'attack_blocked'];
+
+/** Whether to ask for court spots for [code] under the tagging settings. */
+export function wantsSpots(code: ActionCode, location: 'points' | 'zones' | 'off', scope: 'all' | 'key'): boolean {
+  return !!ACTIONS.find((a) => a.code === code)?.court && location !== 'off' && (scope !== 'key' || KEY_SPOTS.includes(code));
+}
+
 export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])) as Record<ActionCode, ActionDef>;
 
 export const GROUPS: { id: Group; label: string }[] = [
