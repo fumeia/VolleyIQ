@@ -79,7 +79,7 @@ export function Reports() {
         const one = matchId === 'all' ? null : data.matches.find((m) => m.id === matchId);
         return (
           <PrintReport title={one ? `${team} – ${one.opponent ?? one.label}` : `${team} · season report`}
-            subtitle={one ? `${one.label}${one.played_on ? ` · ${one.played_on}` : ''}` : `${data.matches.length} matches`}
+            subtitle={one ? `${one.label}${one.played_on ? ` · ${one.played_on}` : ''}` : `${data.matches.length} match${data.matches.length === 1 ? "" : "es"}`}
             players={data.players} events={events} matches={one ? [one] : data.matches} onClose={() => setPrinting(false)} />
         );
       })()}
