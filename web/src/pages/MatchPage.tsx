@@ -323,6 +323,14 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
                   <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
                 </div>
+                {confirmed.length > 0 && (() => {
+                  const last = confirmed[confirmed.length - 1];
+                  return (
+                    <button className="btn-ghost small" onClick={() => { remove(last); flash(`Removed ${actionLabel(last)}`); }}>
+                      ↶ Undo last tag ({playerLabel(players, last)} {actionLabel(last)})
+                    </button>
+                  );
+                })()}
                 <h3 className="section-title">Last tags</h3>
                 <EventList events={confirmed} players={players} limit={5} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
               </>
