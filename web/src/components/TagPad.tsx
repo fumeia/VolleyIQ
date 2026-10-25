@@ -66,11 +66,17 @@ interface Draft {
 export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
-  // Each step (action, court spots) starts at the top of the panel, so nothing is scrolled away.
+  // The video is sticky at the top; keep it in view. When a player is picked we
+  // scroll the page to the very top (video fully visible, actions below it)
+  // instead of scrolling the panel up over the video.
   const padRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (draft) padRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, [!!draft, draft?.action?.code, draft?.stage]);
+    if (draft) {
+      const sc = padRef.current?.closest('.ws-panel') as HTMLElement | null;
+      if (sc && sc.scrollHeight > sc.clientHeight) sc.scrollTo({ top: 0, behavior: 'smooth' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [!!draft]);
   draftRef.current = draft;
   const rank = (id: number) => { const i = onCourt?.indexOf(id) ?? -1; return i < 0 ? 99 : i; };
   const roster = players.filter((p) => p.active).sort((a, b) => rank(a.id) - rank(b.id) || (a.number ?? 999) - (b.number ?? 999));
