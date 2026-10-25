@@ -63,7 +63,7 @@ export function MomentumBlock({ players, rallies }: { players: Player[]; rallies
         <figure className="chart">
           <figcaption>
             <div className="chart-title"><b>Runs against us</b></div>
-            <span className="chart-sub">4+ opponent points in a row and how each point was lost — the moments to stop with a timeout or a sub</span>
+            <span className="chart-sub">4+ opponent points in a row and how each point was lost: the moments for a timeout or a sub</span>
           </figcaption>
           <ul className="runs">
             {against.sort((a, b) => b.length - a.length).slice(0, 8).map((r, i) => {

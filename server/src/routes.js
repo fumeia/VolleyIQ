@@ -120,8 +120,9 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.patch('/api/teams/:id', coach, async (req, reply) => {
     const team = q.team.get(req.params.id);
     if (!team) return bad(reply, 'Not found', 404);
-    db.prepare('UPDATE teams SET name = ?, coach = ? WHERE id = ?')
-      .run(req.body.name ?? team.name, req.body.coach ?? team.coach, team.id);
+    const b = req.body ?? {};
+    db.prepare('UPDATE teams SET name = ?, coach = ?, show_tips = ? WHERE id = ?')
+      .run(b.name ?? team.name, b.coach ?? team.coach, 'show_tips' in b ? (b.show_tips ? 1 : 0) : team.show_tips, team.id);
     return q.team.get(team.id);
   });
 
@@ -265,7 +266,7 @@ export function registerRoutes(app, { db, vision, insights }) {
 
   // Public season report: confirmed tags only; no tokens or calibration data leak out.
   app.get('/api/share/team/:token', async (req, reply) => {
-    const team = db.prepare('SELECT id, name FROM teams WHERE share_token = ?').get(req.params.token);
+    const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     const matches = db.prepare('SELECT id, label, opponent, played_on FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
@@ -358,7 +359,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.get('/api/matchsheet/enabled', coach, async () => ({ enabled: !!vision?.enabled }));
 
   app.post('/api/matchsheet/scan', coach, async (req, reply) => {
-    if (!vision?.enabled) return bad(reply, 'Match-sheet scanning is not set up on this server (needs an AI backend — LiteLLM or Anthropic).', 503);
+    if (!vision?.enabled) return bad(reply, 'Match-sheet scanning is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
     const [images, err] = cleanImages(req.body);
     if (err) return bad(reply, err);
     try {
@@ -373,7 +374,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.get('/api/insights/enabled', coach, async () => ({ enabled: !!insights?.enabled }));
 
   app.post('/api/insights/summary', coach, async (req, reply) => {
-    if (!insights?.enabled) return bad(reply, 'AI insights are not set up on this server (needs an AI backend — LiteLLM or Anthropic).', 503);
+    if (!insights?.enabled) return bad(reply, 'AI insights are not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
     const stats = req.body?.stats;
     const lang = req.body?.lang === 'de' ? 'de' : 'en';
     if (!stats || typeof stats !== 'object') return bad(reply, 'stats object required');

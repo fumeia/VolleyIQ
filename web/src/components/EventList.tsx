@@ -37,7 +37,7 @@ export function playerLabel(players: Player[], e: VEvent) {
   const p = e.player_id != null ? players.find((x) => x.id === e.player_id) : null;
   if (p) return `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
   if (e.jersey != null) return `#${e.jersey} ?`;
-  return ACTION_BY_CODE[e.action]?.needsPlayer === false ? 'Team' : '—';
+  return ACTION_BY_CODE[e.action]?.needsPlayer === false ? 'Team' : '–';
 }
 
 type Sort = 'added-desc' | 'added-asc' | 'time-asc' | 'time-desc';

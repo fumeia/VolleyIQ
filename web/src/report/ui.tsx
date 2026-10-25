@@ -184,6 +184,6 @@ export function GradeLegend({ x, y }: { x: number; y: number }) {
   );
 }
 
-export const fmtEff = (v: number | null) => (v == null ? '–' : (v < 0 ? '-' : '') + Math.abs(v).toFixed(3).replace(/^0/, ''));
+export const fmtEff = (v: number | null) => (v == null ? '–' : (v > 0.0005 ? '+' : v < -0.0005 ? '-' : '') + Math.abs(v).toFixed(3).replace(/^0/, ''));
 export const fmtPct = (v: number | null) => (v == null ? '–' : `${Math.round(v * 100)}%`);
 export const fmtAvg = (v: number | null) => (v == null ? '–' : v.toFixed(2));

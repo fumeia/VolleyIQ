@@ -4,7 +4,7 @@ import type { Player, VEvent } from '../../lib/api';
 import { attackContexts, buildRallies, realAssists, SETS, type AttackContext } from '../../lib/sequence';
 import { eff, errorPct, FRONT_ROW_FROM, pointPct, tally } from '../../lib/trajectory';
 import { signColor, who } from './AttackSection';
-import { eff3, enough, judge, pct, ratio, StatFigure } from './ui';
+import { eff3, judge, pct, ratio, StatFigure, sample } from './ui';
 
 /** Where a set went along the net: to the left (zone 4), middle, right (zone 2), or the back row (as for attacks). */
 export function setLane(e: Pick<VEvent, 'x' | 'y'>): 'left' | 'middle' | 'right' | 'back' | null {
@@ -48,7 +48,7 @@ export function SettingSection({ players, events }: { players: Player[]; events:
           { h: 'Ast%', title: 'Assists per set that led to an attack', cell: (r) => {
             const n = setAttacks.filter((c) => c.set!.player_id === r.p.id).length;
             const v = ratio(assists.get(r.p.id) ?? 0, n);
-            return { text: pct(v), tone: enough(n) ? judge.killPct(v) : null, title: `${n} sets led to an attack` };
+            return { text: pct(v), tone: sample(judge.killPct(v), n), title: `${n} sets led to an attack` };
           } },
           { h: 'Bump', cell: (r) => r.list.filter((e) => e.action === 'assist').length },
           { h: 'Errors', cell: (r) => { const n = r.list.filter((e) => e.action === 'set_error' || e.action === 'assist_error').length; return { text: n, tone: judge.errors(n, r.list.length) }; } },
@@ -62,12 +62,12 @@ export function SettingSection({ players, events }: { players: Player[]; events:
           { h: 'Share', cell: (r) => share(r.list.length, setAttacks.length) },
           { h: 'In sys.', title: 'Share of in-system sets', cell: (r) => share(r.list.filter(inSystem).length, inSys.length) },
           { h: 'Out sys.', title: 'Share of out-of-system sets', cell: (r) => share(r.list.filter((c) => !inSystem(c)).length, outSys.length) },
-          { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: enough(t.n, 3) ? judge.eff(eff(t)) : null }; } },
-          { h: 'K%', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: pct(pointPct(t)), tone: enough(t.n) ? judge.killPct(pointPct(t)) : null }; } },
+          { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 3) }; } },
+          { h: 'K%', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: pct(pointPct(t)), tone: sample(judge.killPct(pointPct(t)), t.n) }; } },
         ]}
         play={(r) => r.list.flatMap((c) => [c.set!, c.attack])} />
 
-      <GroupedColumns title="In system vs out of system" subtitle="Kill % and error % of the attack after the set — what a poor first contact costs"
+      <GroupedColumns title="In system vs out of system" subtitle="Kill % and error % of the attack after the set, in and out of system"
         categories={['In system', 'Out of system']}
         series={[
           { name: 'Kill %', color: SERIES.aqua, values: [inSys, outSys].map((l) => pointPct(tally(l.map((c) => c.attack)))), notes: [inSys, outSys].map((l) => `${l.length} attacks`) },
@@ -89,8 +89,8 @@ export function SettingSection({ players, events }: { players: Player[]; events:
           columns={[
             { h: 'Sets', cell: (r) => r.list.length },
             { h: 'Share', cell: (r) => share(r.list.length, lanesWithData.reduce((a, l) => a + l.list.length, 0)) },
-            { h: 'K%', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: pct(pointPct(t)), tone: enough(t.n) ? judge.killPct(pointPct(t)) : null }; } },
-            { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: enough(t.n, 3) ? judge.eff(eff(t)) : null }; } },
+            { h: 'K%', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: pct(pointPct(t)), tone: sample(judge.killPct(pointPct(t)), t.n) }; } },
+            { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 3) }; } },
           ]} />
       )}
     </div>

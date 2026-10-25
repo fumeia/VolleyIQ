@@ -10,7 +10,7 @@ Rules:
 - Use ONLY the numbers in the JSON. Never invent players, scores or trends that are not there.
 - Each bullet is one sentence, concrete, and names the player or rotation it is about where relevant.
 - Mix what went well with what to work on. Prefer the biggest swings (efficiency, side-out %, reception, errors).
-- No preamble, no headings — just the bullets.
+- No preamble, no headings, just the bullets.
 - Write in the requested language (en = English, de = German).`;
 
 const SCHEMA = {

@@ -1,7 +1,7 @@
 // Reads the summary fields off a photo of an official (FIVB-style) volleyball match
 // sheet with a vision model, so a match can be pre-filled instead of typed.
 // Disabled unless an AI backend is configured (LiteLLM / OpenAI-compatible or
-// Anthropic — see ai.js).
+// Anthropic, see ai.js).
 import { aiComplete, aiConfig, parseJson } from './ai.js';
 
 const SYSTEM = `You read official FIVB-style volleyball match sheets (in any language, e.g. "Spielberichtsbogen / Feuille de match / Scoresheet"), handwritten or printed, and return only the clearly legible summary fields.
@@ -9,12 +9,12 @@ const SYSTEM = `You read official FIVB-style volleyball match sheets (in any lan
 Layout you will see:
 - Two teams, A (top-left, "A") and B. Their names are written at the top next to "Mannschaften/Equipes/Squadra".
 - Header: league ("Liga/Ligue", e.g. "3.L"), match number ("Spiel Nr / Match No"), venue ("Halle/Salle"), date ("Datum/Date"), start time ("Zeit/Heure").
-- Per-set score grids (the big "SATZ/SET 1..5" blocks) are hard to read point by point — DO NOT try to transcribe them.
+- Per-set score grids (the big "SATZ/SET 1..5" blocks) are hard to read point by point. DO NOT try to transcribe them.
 - Final result ("Endresultat / Résultat final / Risultato finale", bottom-right): one row per set with each team's final points, and the sets won ("Gewinner/Vainqueur"). Read the per-set final points and the sets won from here.
 - Team rosters (right side, "Mannschaften"): license no, jersey number and surname/first name per player. The captain is marked "C" (or a circled/underlined number), liberos are listed in a separate "LIBERO (L)" box.
 
 Rules:
-- Only report what you can read with confidence. Use null (or omit list items) for anything illegible — never guess a score or a name.
+- Only report what you can read with confidence. Use null (or omit list items) for anything illegible; never guess a score or a name.
 - Jersey numbers are integers. Names: keep what is written (e.g. "R. Maier", "S.Kulterer").
 - sets: one object per set actually played, in order, with each team's final points (e.g. 25 and 22).
 - Set the overall confidence to "low" for messy handwriting you are unsure about.`;

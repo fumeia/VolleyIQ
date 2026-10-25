@@ -4,7 +4,7 @@
 
 # VolleyIQ
 
-**Volleyball match tagging and analysis — tag on the phone, share the stats with a link.**
+**Volleyball match tagging and analysis: tag on the phone, share the stats with a link.**
 
 Android app · self-hosted website · Node + SQLite · on-device auto-detection
 
@@ -16,9 +16,9 @@ Android app · self-hosted website · Node + SQLite · on-device auto-detection
 
 VolleyIQ turns a match video into a coach's analysis. You tag every touch on
 the phone (player, action, and two taps on the court: where the ball was
-played from and where it went). The website then shows what those tags mean —
+played from and where it went). The website then shows what those tags mean:
 side-out and break-point %, rotations, shot charts, passing by zone, errors,
-and a learning page for every player — and shares it all through one public link.
+and a learning page for every player, all shared through one public link.
 
 <table>
   <tr>
@@ -44,19 +44,19 @@ and a learning page for every player — and shares it all through one public li
 
 ### Tagging (Android app)
 
-- **Tag pad** — tap the jersey, then the action, then where the ball was played from and where it went. The likely next action comes first (pass → set → attack, dig → set → attack), the setter is picked for sets, and only attackers are offered for attacks.
-- **Rally flow** — a **Serve · #7** button for the player in position 1, and **We won / They won** to close a rally (it turns the last touch into the kill, ace or error).
-- **Line-up and rotation** — starting six, libero and substitutions; players on court are listed first.
-- **Video** — any file on the phone or an imported link (WeTransfer, Google Drive, Dropbox, YouTube, Vimeo, …); seek buttons, 0.5–2× speed, portrait or landscape.
-- **Offline** — tags are queued without a connection and synced later.
-- **Match sheet scan** (optional) — photograph the official score sheet to pre-fill the teams, rosters and set scores.
+- **Tag pad**: tap the jersey, then the action, then where the ball was played from and where it went. The likely next action comes first (pass → set → attack, dig → set → attack), the setter is picked for sets, and only attackers are offered for attacks.
+- **Rally flow**: a **Serve · #7** button for the player in position 1, and **We won / They won** to close a rally (it turns the last touch into the kill, ace or error).
+- **Line-up and rotation**: starting six, libero and substitutions; players on court are listed first.
+- **Video**: any file on the phone or an imported link (WeTransfer, Google Drive, Dropbox, YouTube, Vimeo, …); seek buttons, 0.5–2× speed, portrait or landscape.
+- **Offline**: tags are queued without a connection and synced later.
+- **Match sheet scan** (optional): photograph the official score sheet to pre-fill the teams, rosters and set scores.
 
 ### Analysis (website)
 
 | Section | What it shows |
 | --- | --- |
 | Overview | Side-out %, break-point %, attack and serve efficiency, pass average, transition; what went well and what to work on; set-by-set scores, scoring runs, points by rally length. |
-| Rotations | Side-out, pass, first-ball attack, break point and main hitter per rotation — worked out from the serve order, no line-up needed. |
+| Rotations | Side-out, pass, first-ball attack, break point and main hitter per rotation, worked out from the serve order, no line-up needed. |
 | Attack | Efficiency by phase and pass quality, shot direction (line / cross / sharp cut) and depth, where attacks were hit from (front row vs back row), kill % by target zone, shot chart. |
 | Serve & pass | Servers and error types, where serves land, receivers, pass quality by zone, side-out % by pass grade. |
 | Setting · Defence · Errors | Set distribution in and out of system, real assists, dig and block numbers, who gives points away and how. |
@@ -151,7 +151,7 @@ backs up the Caddyfile and the database, and only touches `/opt/volleyiq`, its
 own Docker project and a marked block in the Caddyfile.
 </details>
 
-**Back up** `data/volleyiq.db` — it is the only state.
+**Back up** `data/volleyiq.db`: it is the only state.
 
 ## Optional AI features
 
@@ -169,10 +169,10 @@ See `.env.example`.
 The app can pre-fill touches from the video in the background; you confirm or
 fix them in Review.
 
-1. **Sound** — ball contacts are short broadband thuds; referee whistles are long tones at 2–4.5 kHz.
-2. **Picture** — edit cuts show up as a jump in frame difference; cuts and whistles bound the rallies.
-3. **Rally model** — serve, then up to three touches per side, alternating sides; holes in a rally's rhythm get a `quiet` or `gap` suggestion.
-4. **Vision** — an on-device detector (MediaPipe EfficientDet-Lite0) finds players and the ball, ML Kit reads the jersey number nearest the ball, and a court calibration tells our touches from theirs.
+1. **Sound**: ball contacts are short broadband thuds; referee whistles are long tones at 2–4.5 kHz.
+2. **Picture**: edit cuts show up as a jump in frame difference; cuts and whistles bound the rallies.
+3. **Rally model**: serve, then up to three touches per side, alternating sides; holes in a rally's rhythm get a `quiet` or `gap` suggestion.
+4. **Vision**: an on-device detector (MediaPipe EfficientDet-Lite0) finds players and the ball, ML Kit reads the jersey number nearest the ball, and a court calibration tells our touches from theirs.
 
 It is a head start, not a referee: it works best on a camera recording with
 gym sound, readable jersey numbers (720p+) and the camera behind a baseline.

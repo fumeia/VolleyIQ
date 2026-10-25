@@ -32,11 +32,11 @@ export function SharePage() {
   );
 }
 
-type TeamShare = { team: Pick<Team, 'id' | 'name'>; players: Player[]; matches: Match[]; events: VEvent[] };
+type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
 
 /**
  * The public team site (no login): season overview, every match, and a learning page
- * per player — all under the one shareable team link.
+ * per player, all under the one shareable team link.
  */
 export function TeamSharePage() {
   const { token, matchId, playerId } = useParams();
@@ -59,7 +59,7 @@ export function TeamSharePage() {
 
   let body: React.ReactNode;
   if (player) {
-    body = <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches}
+    body = <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={!!data.team.show_tips}
       actions={<CopyLink label="🔗 Copy link" />} />;
   } else if (match) {
     const events = data.events.filter((e) => e.match_id === match.id);

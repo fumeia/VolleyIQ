@@ -109,6 +109,10 @@ const MIGRATIONS = [
   ALTER TABLE matches ADD COLUMN removed_count INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE matches ADD COLUMN edited_count INTEGER NOT NULL DEFAULT 0;
   `,
+  // v10: show the pre-written practice tips on the player pages (off until the coach turns them on)
+  `
+  ALTER TABLE teams ADD COLUMN show_tips INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function migrate(db) {

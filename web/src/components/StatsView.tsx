@@ -9,7 +9,7 @@ import { PlayersSection } from './analysis/PlayersSection';
 import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
-import { judge, PlayContext, Val, type Tone } from './analysis/ui';
+import { judge, PlayContext, TONE_NOTE, Val, type Tone } from './analysis/ui';
 import { dec, pct, playerStats, roleStats, zoneCounts, type StatLine } from '../lib/stats';
 import type { PlotPoint } from './CourtHalf';
 import { CourtFull, type PlotPath } from './CourtFull';
@@ -142,6 +142,10 @@ export function StatsView({ players, events, matches, onPlay }: {
       <div className="tabs stats-tabs">
         {SECTIONS.map(([k, label]) => <button key={k} className={`tab ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)}>{label}</button>)}
       </div>
+      <details className="tone-note muted small">
+        <summary>How green ▲ / red ▼ are decided</summary>
+        <p>{TONE_NOTE}</p>
+      </details>
 
       {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
       {section === 'rotations' && <RotationsSection players={players} events={confirmed} />}
@@ -218,12 +222,13 @@ export function StatsView({ players, events, matches, onPlay }: {
       )}
       <div className="plot-wrap paper">
         {plotView === 'path'
-          ? <CourtFull paths={plotPaths} showTarget={plotMode.id === 'receives'} />
+          ? <CourtFull paths={plotPaths} zoneCounts showTarget={plotMode.id === 'receives'} />
           : <CourtFull points={plotPoints} heat={density} showTarget={plotMode.id === 'receives'} />}
       </div>
       <div className="legend">
         {(plotView === 'path' || !density) && LEGEND[plot].map(([c, l]) => <span key={l}><i style={{ background: c }} />{l}</span>)}
         {plotView !== 'path' && density && <span>Darker = more touches in that 1.5 m square</span>}
+        {plotView === 'path' && <span>Numbers: paths ending in each zone</span>}
         <span className="muted">{plotView === 'path' ? plotPaths.length : plotPoints.length} with {plotView === 'path' ? 'both spots' : 'this spot'}{heatPlayer === 'all' ? '' : ' (filtered)'}</span>
       </div>
       </>}

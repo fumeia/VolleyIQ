@@ -151,7 +151,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
             val file = File(applicationContext.filesDir, "suggestions-$matchId.json")
             file.writeText(JSONArray(events.map { JSONObject(it.filterValues { v -> v != null }) }).toString())
-            Notifications.done(applicationContext, notificationId, "Analysis finished", "${events.size} touches suggested — open VolleyIQ to review")
+            Notifications.done(applicationContext, notificationId, "Analysis finished", "${events.size} touches suggested. Open VolleyIQ to review")
             Result.success(workDataOf(KEY_FILE to file.absolutePath, KEY_COUNT to events.size, KEY_RALLIES to rallies.size))
         } catch (e: java.util.concurrent.CancellationException) {
             Result.failure(workDataOf(KEY_ERROR to "Cancelled"))

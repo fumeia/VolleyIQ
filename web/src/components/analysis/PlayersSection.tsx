@@ -5,7 +5,7 @@ import { playerStats, type StatLine } from '../../lib/stats';
 import { who } from './AttackSection';
 import { ERROR_TYPES } from './ErrorsSection';
 import { insightsFor } from './insights';
-import { avg2, eff3, enough, judge, pct, PlayBtn, plural, Val, type Tone } from './ui';
+import { avg2, eff3, judge, pct, PlayBtn, plural, Val, type Tone, sample } from './ui';
 
 export const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
@@ -24,9 +24,9 @@ export function PlayerTiles({ player: p, s }: { player: Player; s: StatLine }) {
   return (
     <div className="pc-tiles">
       <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} won · ${s.errors} lost`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />
-      {s.attempts > 0 && <Tile label="Attack eff" value={eff3(s.attackEff)} sub={`${s.kills}-${s.attackErrors}/${s.attempts}`} tone={enough(s.attempts, 3) ? judge.eff(s.attackEff) : null} />}
-      {s.receptions > 0 && <Tile label="Pass avg" value={avg2(s.recAvg)} sub={`${s.receptions} passes`} tone={enough(s.receptions) ? judge.passAvg(s.recAvg) : null} />}
-      {s.serves > 0 && <Tile label="Serve err" value={pct(s.serves ? s.serveErrors / s.serves : null)} sub={s.aces ? `${s.serves} · ${plural(s.aces, 'ace')}` : plural(s.serves, 'serve')} tone={enough(s.serves) ? judge.serveErrPct(s.serves ? s.serveErrors / s.serves : null) : null} />}
+      {s.attempts > 0 && <Tile label="Attack eff" value={eff3(s.attackEff)} sub={`${s.kills}-${s.attackErrors}/${s.attempts}`} tone={sample(judge.eff(s.attackEff), s.attempts, 3)} />}
+      {s.receptions > 0 && <Tile label="Pass avg" value={avg2(s.recAvg)} sub={`${s.receptions} passes`} tone={sample(judge.passAvg(s.recAvg), s.receptions)} />}
+      {s.serves > 0 && <Tile label="Serve err" value={pct(s.serveErrors / s.serves)} sub={`${s.serveErrors} of ${s.serves}${s.aces ? ` · ${plural(s.aces, 'ace')}` : ''}`} tone={sample(judge.serveErrPct(s.serveErrors / s.serves), s.serves)} />}
       {s.digs + s.digErrors > 0 && <Tile label="Digs" value={String(s.digs)} sub={plural(s.digErrors, 'error')} />}
       {s.sets > 0 && <Tile label="Sets" value={String(s.sets)} sub={s.bumpSets ? `${s.bumpSets} bump sets` : plural(s.assists, 'assist')} />}
       {s.blockPoints + s.blockTouches > 0 && <Tile label="Block pts" value={String(s.blockPoints)} sub={plural(s.blockTouches, 'touch', 'touches')} />}
@@ -40,7 +40,7 @@ export function PlayersSection({ players, events }: { players: Player[]; events:
   if (!rows.length) return <p className="muted small">Not enough tags per player yet.</p>;
   return (
     <div className="charts">
-      <p className="muted small">Green ▲ = good, red ▼ = to work on (judged only with enough attempts). Sorted by points won.</p>
+      <p className="muted small">Sorted by points won.</p>
       <div className="pc-grid">
         {rows.map(({ player: p, stats: s }) => {
           const mine = events.filter((e) => e.player_id === p.id);

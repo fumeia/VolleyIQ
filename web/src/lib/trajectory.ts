@@ -72,7 +72,7 @@ export const isBackRow = (o: Origin | null) => o != null && o.startsWith('b');
 
 /**
  * Where on our side an attack was hit from: front-row zone 4/3/2, or a back-row
- * attack from 5 / 6 (pipe) / 1 — the zone behind it — when hit at most
+ * attack from 5 / 6 (pipe) / 1 (the zone behind it) when hit at most
  * [BACKROW_REACH] in front of the 3 m line.
  */
 export function attackOrigin(e: Pick<VEvent, 'fx' | 'fy'>): Origin | null {

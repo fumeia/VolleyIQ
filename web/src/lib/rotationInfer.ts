@@ -9,7 +9,8 @@ import { SERVES, type Rally } from './sequence';
  * a set belong to the rotation before it, known once all six have served.
  *
  * Rotations are named by the setter's position (S1..S6, the usual 5-1 naming) when
- * the setter is in the serve order, otherwise by the server ("#5 serving").
+ * the setter is in the serve order, otherwise by the server ("#5 serving"). A
+ * substitute who serves takes the rotation of the player they replaced.
  */
 
 export interface RotationRally { rally: Rally; server: number | null; label: string | null }
@@ -38,25 +39,25 @@ export function inferRotations(rallies: Rally[], players: Player[]): RotationRal
   for (const list of bySet.values()) {
     const order = serveOrder(list);
     const setterIdx = order.findIndex((id) => roleOf.get(id) === 'S');
-    const label = (server: number) => {
-      const j = order.indexOf(server);
-      if (setterIdx >= 0 && order.length === 6 && j >= 0) {
-        // While order[j] serves from position 1, order[j+k] stands in position k+1 (players
-        // rotate 2 -> 1 on each side-out, so the next server is the one in position 2).
-        const k = (setterIdx - j + 6) % 6;
-        return `S${k + 1}`;
-      }
-      const p = players.find((x) => x.id === server);
-      return `#${p?.number ?? '?'} serving`;
-    };
+    const named = setterIdx >= 0 && order.length === 6;
+    // Slot j: order[j] serves from position 1, so order[j+k] stands in position k+1 (players
+    // rotate 2 -> 1 on each side-out, so the next server is the one in position 2).
+    const slotLabel = (j: number) => `S${((setterIdx - j + 6) % 6) + 1}`;
+    const serverLabel = (server: number) => `#${players.find((x) => x.id === server)?.number ?? '?'} serving`;
     // Before our first serve: the rotation of the player before the first server in the order.
-    const firstServer = order[0];
-    const before = order.length === 6 && firstServer != null ? order[5] : null;
-    let current: number | null = before;
+    let slot: number | null = order.length === 6 ? 5 : null;
+    let current: number | null = slot == null ? null : order[slot];
     for (const r of list) {
       const s = serverOf(r);
-      if (s != null) current = s;
-      out.push({ rally: r, server: current, label: current == null ? null : label(current) });
+      if (s != null && s !== current) {
+        // A new serve turn. A substitute serving (not in the order) stands in the slot after
+        // the previous turn, so the rotation stays the team's, not the player's.
+        const j = order.indexOf(s);
+        slot = j >= 0 ? j : slot == null ? null : (slot + 1) % 6;
+        current = s;
+      }
+      const label = current == null ? null : named && slot != null ? slotLabel(slot) : serverLabel(current);
+      out.push({ rally: r, server: current, label });
     }
   }
   return out;
