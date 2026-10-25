@@ -94,53 +94,58 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
   const a = status?.analysis;
   const u = status?.upload;
   return (
-    <div className="pad">
-      <p>
-        <b>Auto-detection</b> runs on this phone and keeps going in the background. It listens for ball contacts,
-        spots edit cuts and rallies, guesses each touch (serve, receive, set, attack, dig) and can read jersey numbers.
-        Everything lands in <b>Review</b>, where one tap confirms or fixes it.
-      </p>
-      {!video && <div className="card notice">Load the match video on this phone first (pick a file or import a link).</div>}
-
-      <label className="toggle">
-        <input type="checkbox" checked={readJerseys} onChange={(e) => setReadJerseys(e.target.checked)} />
-        Read jersey numbers {roster.length === 0 && <small className="muted">(add numbers to the roster first)</small>}
-      </label>
-      <label className="toggle">
-        <input type="checkbox" checked={detectCuts} onChange={(e) => setDetectCuts(e.target.checked)} />
-        Video is edited (rallies cut together)
-      </label>
-      <label className="field-label">
-        Touch sensitivity: {sensitivity.toFixed(1)}× {sensitivity > 1.2 ? '(finds more, also more false ones)' : sensitivity < 0.9 ? '(fewer false touches, may miss quiet ones)' : ''}
-      </label>
-      <input type="range" min={0.6} max={1.8} step={0.1} value={sensitivity} onChange={(e) => setSensitivity(Number(e.target.value))} />
-
-      <div className="row wrap calib-status">
-        {match.calibration ? (
-          <SidesPanel calibration={match.calibration} getTime={getTime} onChange={onCalibration} onMark={onCalibrate} />
-        ) : (
-          <>
-            <span className="small muted">Optional: calibrate the court so the phone can tell our touches from theirs.</span>
-            <button className="btn-ghost small" onClick={() => onCalibrate(null)}>Calibrate court</button>
-          </>
-        )}
-      </div>
-
-      <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>
-        {running ? 'Analysing…' : '✨ Run auto-detection'}
-      </button>
-      {running && <button className="btn-ghost small" onClick={() => Native.cancelAnalysis({ matchId: match.id })}>Cancel</button>}
-
+    <div className="pad auto-panel">
       {a && (
         <div className="job">
           <div className="progress"><div style={{ width: `${Math.round(Math.max(0.02, a.progress) * 100)}%` }} /></div>
           <span className="small">{label(a, u)}</span>
+          {running && <button className="btn-ghost small" onClick={() => Native.cancelAnalysis({ matchId: match.id })}>Cancel</button>}
         </div>
       )}
+
+      <p className="small muted">
+        The phone finds the touches in the video (sound, picture, jersey numbers) in the background. The suggestions land
+        in <b>Review</b>.
+      </p>
+
+      <div className={`auto-step ${video ? 'done' : ''}`}>
+        <b>1 · Video</b>
+        <span className="small">{video ? '✓ Loaded on this phone' : 'Load the match video on this phone first (pick a file or import a link).'}</span>
+      </div>
+
+      <div className={`auto-step ${match.calibration ? 'done' : ''}`}>
+        <b>2 · Court &amp; sides <small className="muted">(recommended)</small></b>
+        <span className="small muted">Tells our touches from theirs, places players on the court and numbers the sets.</span>
+        <div className="row wrap calib-status">
+          {match.calibration
+            ? <SidesPanel calibration={match.calibration} getTime={getTime} onChange={onCalibration} onMark={onCalibrate} />
+            : <button className="btn small" onClick={() => onCalibrate(null)}>Mark the court (4+ points)</button>}
+        </div>
+      </div>
+
+      <details className="auto-step">
+        <summary><b>3 · Options</b> <small className="muted">jerseys {readJerseys ? 'on' : 'off'} · {detectCuts ? 'edited video' : 'uncut'} · sensitivity {sensitivity.toFixed(1)}×</small></summary>
+        <label className="toggle">
+          <input type="checkbox" checked={readJerseys} onChange={(e) => setReadJerseys(e.target.checked)} />
+          Read jersey numbers {roster.length === 0 && <small className="muted">(add numbers to the roster first)</small>}
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={detectCuts} onChange={(e) => setDetectCuts(e.target.checked)} />
+          Video is edited (rallies cut together)
+        </label>
+        <label className="field-label">
+          Touch sensitivity: {sensitivity.toFixed(1)}× {sensitivity > 1.2 ? '(finds more, also more false ones)' : sensitivity < 0.9 ? '(fewer false touches, may miss quiet ones)' : ''}
+        </label>
+        <input type="range" min={0.6} max={1.8} step={0.1} value={sensitivity} onChange={(e) => setSensitivity(Number(e.target.value))} />
+      </details>
+
+      <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>
+        {running ? 'Analysing…' : '✨ Run auto-detection'}
+      </button>
       {err && <p className="error small">{err}</p>}
       <p className="muted small">
-        Re-running replaces suggestions you have not confirmed yet; confirmed tags are never touched. If the phone is
-        offline, the results upload automatically once it is back online.
+        A new run replaces the suggestions you have not saved yet; saved touches are kept and not suggested again.
+        Progress is saved, so an app update or a reboot does not start it over. Offline results upload once you are back online.
       </p>
     </div>
   );

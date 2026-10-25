@@ -514,3 +514,7 @@ button.court-zone:active { background: #2a2f3a; }
 .help-box p { margin: 8px 0; }
 .findings { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 14px; }
 .findings ul { margin: 6px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.auto-step { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.auto-step.done { border-color: #1d4d2c; }
+.auto-step summary { cursor: pointer; }
+.auto-panel .job { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; }
