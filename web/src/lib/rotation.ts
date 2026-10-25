@@ -1,5 +1,8 @@
-import { ACTION_BY_CODE, type ActionCode } from './actions';
+import { ACTION_BY_CODE, type ActionCode, type RoleCode } from './actions';
 import type { Player, VEvent } from './api';
+
+/** Roles that attack (not the setter, libero or defensive specialist). */
+export const ATTACKER_ROLES: RoleCode[] = ['OH', 'OPP', 'MB'];
 
 /**
  * Starting line-up of one set: order[0] is in position 1 (the server's spot), then
@@ -91,9 +94,42 @@ export function candidates(state: RotationState, action: ActionCode, players: Pl
       return { likely: setter, eligible: new Set(onCourt) };
     case 'block_touch': case 'block_point': case 'block_error':
       return { likely: null, eligible: new Set(at(FRONT)) };
-    case 'attack': case 'kill': case 'attack_error': case 'attack_blocked':
-      return { likely: null, eligible: new Set(onCourt.filter((id) => id !== libero)) };
+    case 'attack': case 'kill': case 'attack_error': case 'attack_blocked': {
+      // Only attackers (not the setter or libero); a libero in trouble plays a free ball instead.
+      const attackers = onCourt.filter((id) => ATTACKER_ROLES.includes(role(id) as RoleCode));
+      return { likely: null, eligible: new Set(attackers.length ? attackers : onCourt.filter((id) => id !== libero)) };
+    }
     default:
       return { likely: null, eligible: new Set(onCourt) };
   }
+}
+
+/**
+ * Suggestion by player role when there is no line-up for the set (so the rotation
+ * is unknown): the setter sets, only attackers attack/block. Works from roles alone.
+ */
+export function roleCandidates(action: ActionCode, players: Player[]): { likely: number | null; eligible: Set<number> } {
+  const active = players.filter((p) => p.active);
+  const all = new Set(active.map((p) => p.id));
+  const byRole = (roles: RoleCode[]) => active.filter((p) => roles.includes(p.role)).map((p) => p.id);
+  const setter = active.find((p) => p.role === 'S')?.id ?? null;
+  switch (action) {
+    case 'set': case 'assist': case 'assist_error': case 'set_error':
+      return { likely: setter, eligible: all };
+    case 'attack': case 'kill': case 'attack_error': case 'attack_blocked': {
+      const att = byRole(ATTACKER_ROLES);
+      return { likely: null, eligible: att.length ? new Set(att) : all };
+    }
+    case 'block_touch': case 'block_point': case 'block_error': {
+      const bl = byRole(ATTACKER_ROLES);
+      return { likely: null, eligible: bl.length ? new Set(bl) : all };
+    }
+    default:
+      return { likely: null, eligible: all };
+  }
+}
+
+/** Rotation-based suggestion when a line-up exists, else role-based. */
+export function suggest(action: ActionCode, players: Player[], rotation: RotationState | null): { likely: number | null; eligible: Set<number> } {
+  return rotation ? candidates(rotation, action, players) : roleCandidates(action, players);
 }

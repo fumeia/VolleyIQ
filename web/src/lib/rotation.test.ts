@@ -47,3 +47,22 @@ describe('rotation', () => {
     expect(rotationAfter(subbed, [], [...players, P(8, 'OPP')], 400).positions[3]).toBe(8);
   });
 });
+
+describe('roleCandidates (no line-up): role-based suggestions', () => {
+  it('auto-picks the setter for a set, attackers only for an attack', async () => {
+    const { roleCandidates, suggest } = await import('./rotation');
+    expect(roleCandidates('set', players).likely).toBe(1); // the S
+    const att = [...roleCandidates('attack', players).eligible].sort((a, b) => a - b);
+    expect(att).toEqual([2, 3, 4, 5, 6]); // OH/OPP/MB, not the setter (1) or libero (7)
+    expect(roleCandidates('dig', players).eligible.has(7)).toBe(true); // libero can dig
+    // suggest() uses roles when there is no rotation
+    expect(suggest('set', players, null).likely).toBe(1);
+    expect(suggest('attack', players, null).eligible.has(7)).toBe(false);
+  });
+
+  it('rotation attack eligibility excludes the setter and libero', () => {
+    const s = rotationAfter(lineup, [], players); // positions [1,2,3,4,5,7]
+    const att = [...candidates(s, 'attack', players).eligible].sort((a, b) => a - b);
+    expect(att).toEqual([2, 3, 4, 5]); // on court, attackers only (not S=1, not L=7)
+  });
+});

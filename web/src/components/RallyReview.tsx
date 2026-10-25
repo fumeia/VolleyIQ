@@ -4,7 +4,7 @@ import { ActionPicker } from './ActionPicker';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
-import { candidates, pointsOfSet, rotationAfter } from '../lib/rotation';
+import { pointsOfSet, rotationAfter, suggest } from '../lib/rotation';
 import { SpotSheet } from './SpotSheet';
 import { ourHalfAt } from '../lib/calibration';
 import { fmtTime } from './TagPad';
@@ -216,12 +216,13 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     );
   }
 
-  // With a line-up, the server and the setter are filled in when the app could not read the number.
+  // The server and the setter are filled in when the app could not read the number:
+  // the server needs the line-up, but the setter is known from the roles alone.
   const auto = (e: VEvent): Partial<VEvent> => {
-    if (!rotation || e.player_id != null || !isOurs(info.get(e.id), serving)) return {};
+    if (e.player_id != null || !isOurs(info.get(e.id), serving)) return {};
     const action = drafts[e.id]?.action ?? e.action;
     if (!['serve', 'ace', 'serve_error', 'set', 'assist'].includes(action)) return {};
-    const id = candidates(rotation, action, players).likely;
+    const id = suggest(action, players, rotation).likely;
     const p = players.find((x) => x.id === id);
     return p ? { player_id: p.id, jersey: p.number } : {};
   };
@@ -443,7 +444,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 
   const sv = selected ? view(selected) : null;
   const def = sv ? ACTION_BY_CODE[sv.action] : null;
-  const eligible = rotation && sv ? candidates(rotation, sv.action, players).eligible : null;
+  const eligible = sv ? suggest(sv.action, players, rotation).eligible : null;
   // On-court players first (front row 4-3-2, back row 5-6-1), then the bench.
   const court = rotation
     ? COURT_ORDER.map((pos) => players.find((p) => p.id === rotation.positions[pos - 1])).filter((p): p is Player => !!p)

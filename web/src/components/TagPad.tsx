@@ -36,7 +36,7 @@ interface Props {
 
 /** What usually follows a touch of ours, for the "likely" row. */
 const NEXT: Partial<Record<ActionCode | 'start', ActionCode[]>> = {
-  start: ['serve', 'receive', 'dig'],
+  start: ['serve', 'receive', 'freeball'],
   serve: ['dig', 'block_touch', 'freeball'],
   receive: ['set', 'attack', 'freeball'],
   dig: ['set', 'attack', 'freeball'],
