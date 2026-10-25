@@ -61,6 +61,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const [now, setNow] = useState<number | null>(null);
   const [speed, setSpeed] = useState(() => Number(load('viq:reviewSpeed', '1')) || 1);
   const [stepPause, setStepPause] = useState(() => load('viq:stepPause', '0') === '1');
+  // Off by default: opening a touch jumps to its frame (paused) instead of replaying a
+  // short clip, so the video does not keep pausing itself as you step through touches.
+  const [replay, setReplay] = useState(() => load('viq:replayTouch', '0') === '1');
+  const [vidPlaying, setVidPlaying] = useState(false);
+  // Per-touch override of the ours/theirs guess (tap a chip's toggle). Resets per rally.
+  const [owner, setOwner] = useState<Map<number, 'us' | 'them'>>(new Map());
   const [busy, setBusy] = useState(false);
   const [help, setHelp] = useState(false);
   const [last, setLast] = useState<{ text: string; undo: () => Promise<void> } | null>(null);
@@ -93,6 +99,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     setDrafts({});
     setRemoved(new Set([...duplicates(r.events), ...alreadySaved(r.events, confirmed)]));
     setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
+    setOwner(new Map());
     setSel(null);
     playRally();
   }, [r?.key, r?.start]);
@@ -116,6 +123,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       const t = p?.time();
       if (!p || t == null) return;
       setNow(t);
+      setVidPlaying(p.isPlaying());
       if (!p.isPlaying()) return;
       if (stopAt.current != null && t >= stopAt.current) {
         p.pause();
@@ -218,7 +226,17 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     return p ? { player_id: p.id, jersey: p.number } : {};
   };
   const view = (e: VEvent): VEvent => ({ ...e, ...auto(e), ...drafts[e.id] });
-  const isTheirs = (e: VEvent) => !isOurs(info.get(e.id), serving);
+  const isTheirs = (e: VEvent) => {
+    const o = owner.get(e.id);
+    if (o) return o === 'them';
+    return !isOurs(info.get(e.id), serving);
+  };
+  /** Mark a single touch as ours / theirs, overriding the parity guess. */
+  function setTouchOwner(e: VEvent, side: 'us' | 'them') {
+    setOwner((m) => new Map(m).set(e.id, side));
+    if (side === 'them') setSel(null);
+    else open(e, false);
+  }
   const ours = (e: VEvent) => !isTheirs(e) && !removed.has(e.id);
   const kept = r.events.filter(ours);
   const lastTouch = [...r.events].reverse().find((e) => !removed.has(e.id)) ?? null;
@@ -244,7 +262,11 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     setStep('player');
     const v = view(e);
     setFrom(v.fx != null && v.fy != null ? { x: v.fx, y: v.fy } : null);
-    if (play && e.t != null) playFrom(e.t - 1.5, e.t + 0.3);
+    if (e.t != null) {
+      if (play && replay) playFrom(e.t - 1.5, e.t + 0.3);
+      // Default: just show the touch's frame, paused, without replaying a clip.
+      else { stopAt.current = null; player.current?.pause(); player.current?.seek(e.t); }
+    }
   }
 
   openFirst.current = () => {
@@ -394,6 +416,13 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     open(e);
   }
 
+  function togglePlay() {
+    const p = player.current;
+    if (!p) return;
+    if (p.isPlaying()) { stopAt.current = null; p.pause(); }
+    else { p.setRate(speed); p.play(); }
+  }
+
   function cycleSpeed() {
     const s = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     setSpeed(s);
@@ -433,6 +462,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   return (
     <div className="pad rally-review">
       <div className="rr-head">
+        <button className="rr-play" onClick={togglePlay} title={vidPlaying ? 'Pause' : 'Play'}>{vidPlaying ? '⏸' : '▶'}</button>
         <span>Rally <b>{Math.min(idx, rallies.length - 1) + 1}</b>/{rallies.length} · {fmtTime(r.start)} · Set {r.set}</span>
         <button className="btn-ghost small" onClick={() => setHelp(!help)} title="How this works">?</button>
         <button className="btn-ghost small" onClick={onTouchView} title="Review touch by touch">≡</button>
@@ -443,7 +473,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         <div className="help-box small" onClick={() => setHelp(false)}>
           <p><b>One rally at a time.</b> It plays once; then the first touch without a player opens.</p>
           <p><b>Tap a touch</b>: player → action → court spots (where it was played from, where it went) → the next touch opens by itself. <b>Next ▸</b> keeps a touch as it is.</p>
-          <p><b>Chips</b>: faded = unsure or removed (tap ↺ to bring back), greyed = the other team's touch, <b>+</b> adds a touch at the video time, <b>Empty</b> clears the rally, <b>⇥ Join next</b> / <b>✂ Split</b> fix rally boundaries.</p>
+          <p><b>Chips</b>: faded = unsure or removed (tap ↺ to bring back), greyed = the other team's touch. Open a greyed one and tap <b>✓ It's our touch</b> (or <b>Theirs</b> on one of ours) to fix a single chip. <b>+</b> adds a touch at the video time, <b>Empty</b> clears the rally, <b>⇥ Join next</b> / <b>✂ Split</b> fix rally boundaries.</p>
+          <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>↻touch</b> to replay a short clip instead.</p>
           <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the chips left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
         </div>
@@ -471,8 +502,10 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         {!selected && <div className="rr-tools">
           <button className="icon-btn" onClick={playRally} title="Replay the rally">↻</button>
           <button className="icon-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
-          <button className={`icon-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch"
+          <button className={`icon-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
             onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>⏸·</button>
+          <button className={`icon-btn ${replay ? 'on' : ''}`} title="Replay a short clip when you open a touch (off = just show its frame)"
+            onClick={() => { setReplay(!replay); store('viq:replayTouch', replay ? '0' : '1'); }}>↻touch</button>
           <span className="rr-serve">
             Served:
             <button className={`chip ${serving === 'us' ? 'on' : ''}`} onClick={() => setServing('us')}>Us</button>
@@ -495,11 +528,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 
       {selected && sv && def && (isTheirs(selected) ? (
         <div className="touch-editor">
-          <span className="small">This touch is counted as theirs.</span>
+          <span className="small">This touch is counted as the other team's.</span>
           <div className="row wrap">
-            <button className="btn small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>No, it's ours (swap sides)</button>
+            <button className="btn small btn-primary" onClick={() => setTouchOwner(selected, 'us')}>✓ It's our touch</button>
+            <button className="btn-ghost small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>Swap the whole rally's sides</button>
             {r.events[0]?.id !== selected.id && (
-              <button className="btn small" disabled={busy} onClick={() => splitAt(selected)}>✂ New rally starts here</button>
+              <button className="btn-ghost small" disabled={busy} onClick={() => splitAt(selected)}>✂ New rally starts here</button>
             )}
           </div>
         </div>
@@ -514,6 +548,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
               {r.events[0]?.id !== selected.id && (
                 <button className="btn-ghost small" disabled={busy} title="A new rally starts with this touch" onClick={() => splitAt(selected)}>✂ Split</button>
               )}
+              <button className="btn-ghost small" title="Count this as the other team's touch" onClick={() => setTouchOwner(selected, 'them')}>Theirs</button>
               <button className="btn-ghost small danger" onClick={() => removeTouch(selected)}>✕ Not a touch</button>
               <button className="btn-ghost small" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)}>◂</button>
               <button className="btn-ghost small" onClick={() => advance(selected)}>Next ▸</button>
