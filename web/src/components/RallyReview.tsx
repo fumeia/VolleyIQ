@@ -439,7 +439,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             const gone = removed.has(e.id);
             return (
               <button key={e.id}
-                className={`touch-chip ${isTheirs(e) ? 'theirs' : ''} ${gone ? 'gone' : ''} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''}`}
+                className={`touch-chip ${isTheirs(e) ? 'theirs' : ''} ${gone ? 'gone' : ''} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''} ${!e.hint && (e.confidence ?? 1) < 0.4 ? 'weak' : ''}`}
                 title={gone ? 'Removed: tap to bring it back' : undefined}
                 onClick={() => tapChip(e)}>
                 <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>

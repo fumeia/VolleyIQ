@@ -497,3 +497,8 @@ button.court-zone:active { background: #2a2f3a; }
 .action-picker { display: flex; flex-direction: column; gap: 5px; }
 .act.is-on { outline: 2px solid var(--accent); outline-offset: -2px; }
 .action-picker .act-receive { grid-column: auto; font-size: 13px; }
+.touch-chip.weak:not(.sel) { opacity: .6; border-style: dotted; }
+.continue-card { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; border: 1px solid var(--accent);
+  background: rgba(249,115,22,.08); color: var(--text); text-decoration: none; margin-bottom: 12px; }
+.continue-card b { display: block; }
+.continue-card .go { margin-left: auto; font-size: 22px; color: var(--accent); }

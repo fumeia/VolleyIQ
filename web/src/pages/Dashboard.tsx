@@ -18,6 +18,18 @@ export function Dashboard() {
         <button className="btn-ghost small" onClick={() => api.logout().then(() => location.reload())}>Log out</button>
       </header>
 
+      {(() => {
+        // Most recent match with suggestions waiting: one tap back into the review.
+        const open = matches?.find((m) => (m.suggested_count ?? 0) > 0);
+        return open ? (
+          <Link to={`/m/${open.id}`} className="continue-card">
+            <span className="quick-icon">▶</span>
+            <span><b>Continue reviewing: {open.label}</b><small className="muted">{open.suggested_count} suggestions waiting</small></span>
+            <span className="go">›</span>
+          </Link>
+        ) : null;
+      })()}
+
       <div className="quick">
         <Link to="/new?mode=video" className="quick-card">
           <span className="quick-icon">🎬</span><b>Tag from video</b><small>YouTube, phone video or upload</small>
