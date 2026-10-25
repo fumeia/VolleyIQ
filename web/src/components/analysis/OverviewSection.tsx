@@ -6,6 +6,7 @@ import { teamLine } from '../../lib/stats';
 import { eff, tally } from '../../lib/trajectory';
 import { AnalysisCharts } from '../AnalysisCharts';
 import { insightsFor } from './insights';
+import { MomentumBlock, SetsTable } from './Momentum';
 import { avg2, eff3, judge, pct, plural, ratio, Val, type Tone } from './ui';
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
@@ -50,6 +51,9 @@ export function OverviewSection({ players, events, matches }: { players: Player[
           </div>
         </section>
       )}
+
+      <SetsTable events={events} />
+      <MomentumBlock players={players} rallies={rallies} />
 
       {lengths.length > 1 && (
         <GroupedColumns title="Points won by rally length" subtitle="By our touches in the rally (1 = it ended on our serve or first pass): do we win the quick points or the long fights?"

@@ -34,7 +34,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
 
   const phaseOf = (list: VEvent[], ph: 'sideout' | 'transition') => tally(list.filter((e) => ctxById.get(e.id)?.phase === ph));
   const byPhase = splitBy(attacks, (e) => phaseKey(ctxById.get(e.id)), ['p3', 'p2', 'p1', 'trans']);
-  const PHASES: [string, string][] = [['p3', 'Perfect pass (3)'], ['p2', 'Good pass (2)'], ['p1', 'Poor pass (0–1)'], ['trans', 'Transition (dig / free ball)']];
+  const PHASES: [string, string][] = [['p3', 'Pass 3'], ['p2', 'Pass 2'], ['p1', 'Pass 0–1'], ['trans', 'Transition']];
   const dirs = splitBy(attacks, direction, DIRECTIONS.map((d) => d.key));
   const depths = splitBy(attacks, depth, DEPTHS.map((d) => d.key));
   const origins = splitBy(attacks, attackOrigin, ['4', '3', '2', 'back']);
@@ -83,7 +83,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
         ]} />
 
       <GroupedColumns title={`Attack after the first contact${forWho}`}
-        subtitle="Kill % and error % by how good the pass was before the attack — shows how much the attack depends on the pass"
+        subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball) — how much the attack depends on the pass"
         categories={PHASES.map(([, l]) => l)}
         series={[
           { name: 'Kill %', color: SERIES.aqua, values: PHASES.map(([k]) => pointPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.points}/${byPhase.get(k as 'p3')!.n}`) },

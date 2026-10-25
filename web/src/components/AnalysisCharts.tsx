@@ -3,7 +3,7 @@ import { BarChart, GroupedColumns, LineChart, Scatter, SERIES } from '../charts/
 import type { Match, Player, VEvent } from '../lib/api';
 import { breakPct, coachPayload, keyFindings, rotationStats, sideOutPct } from '../lib/analysis';
 import { playerStats, statLine } from '../lib/stats';
-import { pointSources, receivers, scoreFlow } from '../report/analytics';
+import { pointSources, scoreFlow } from '../report/analytics';
 import { CoachSummary } from './CoachSummary';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -28,7 +28,6 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
   const rotations = useMemo(() => rotationStats(all, lineups, players), [all, lineups, players]);
   const hasRotations = rotations.some((r) => r.receiving + r.serving > 0);
   const sources = useMemo(() => pointSources(confirmed), [confirmed]);
-  const recv = useMemo(() => receivers(players, confirmed), [players, confirmed]);
 
   if (!all.length) return <p className="muted small">No saved touches yet. Tag or review the match to see charts.</p>;
   const forWho = focusName ? ` · ${focusName}` : '';
@@ -46,17 +45,13 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
         {people.map((p) => <option key={p.id} value={p.id}>{who(p)} {p.role ? `(${p.role})` : ''}</option>)}
       </select>
       {focus == null && (() => {
+        // The team's strengths and weaknesses are in the Overview box; this adds the rotations (needs line-ups).
         const team = statLine(all.filter((e) => e.player_id != null));
-        const findings = keyFindings(
-          team,
-          attackers.map((r) => ({ name: who(r.player), kills: r.stats.kills, attempts: r.stats.attempts, eff: r.stats.attackEff })),
-          recv.map((r) => ({ name: who(r.player), avg: r.avg, n: r.grades.reduce((a, b) => a + b, 0) })),
-          rotations, sources.lost,
-        );
-        return findings.length ? (
+        const rot = keyFindings(team, [], [], rotations, []).filter((f) => f.text.startsWith('Side-out'));
+        return rot.length ? (
           <section className="findings">
-            <b>Key findings</b>
-            <ul>{findings.map((f, i) => <li key={i}>{f.text}</li>)}</ul>
+            <b>Rotations</b>
+            <ul>{rot.map((f, i) => <li key={i}>{f.text}</li>)}</ul>
           </section>
         ) : null;
       })()}

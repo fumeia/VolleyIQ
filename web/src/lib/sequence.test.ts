@@ -78,3 +78,16 @@ describe('transition possessions', () => {
     expect(transitionConversion(rs)).toMatchObject({ n: 1, kills: 1 });
   });
 });
+
+describe('momentum', () => {
+  it('finds scoring runs and the score before each rally', async () => {
+    const { scoringRuns, withScore } = await import('./sequence');
+    // won, lost x4, won
+    const rs = buildRallies([ev('ace'), ev('serve_error'), ev('receive', { value: 0 }), ev('receive', { value: 0 }), ev('opp_point', { player_id: null }), ev('kill')]);
+    const ws = withScore(rs);
+    expect(ws.map((x) => `${x.before.us}-${x.before.them}`)).toEqual(['0-0', '1-0', '1-1', '1-2', '1-3', '1-4']);
+    const runs = scoringRuns(rs, 4);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ side: 'them', length: 4, from: { us: 1, them: 0 }, to: { us: 1, them: 4 } });
+  });
+});

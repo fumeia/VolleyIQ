@@ -17,6 +17,7 @@ export const SERVES: ActionCode[] = ['serve', 'ace', 'serve_error'];
 export const FIRST_CONTACTS: ActionCode[] = ['receive', 'dig', 'dig_error', 'freeball', 'block_touch'];
 
 export interface Rally {
+  match: number;
   set: number;
   /** Our touches (team-level events like an opponent error are left out). */
   touches: VEvent[];
@@ -49,6 +50,7 @@ export function buildRallies(events: VEvent[]): Rally[] {
       const first = touches[0]?.action;
       const score = end ? scoreOf(end) : undefined;
       out.push({
+        match: list[0].match_id,
         set: list[0].set_no ?? 1,
         touches,
         end,
@@ -215,3 +217,49 @@ export function transitionConversion(rallies: Rally[]) {
   const errors = ps.filter((p) => p.result === 'error').length;
   return { n: ps.length, kills, errors, killPct: ps.length ? kills / ps.length : null };
 }
+
+export interface Score { us: number; them: number }
+
+/** Each finished rally with the score before it (per match and set). */
+export function withScore(rallies: Rally[]): { rally: Rally; before: Score }[] {
+  const out: { rally: Rally; before: Score }[] = [];
+  const cur = new Map<string, Score>();
+  for (const r of rallies) {
+    const key = `${r.match}:${r.set}`;
+    const s = cur.get(key) ?? { us: 0, them: 0 };
+    out.push({ rally: r, before: { ...s } });
+    if (r.won === true) s.us++;
+    else if (r.won === false) s.them++;
+    cur.set(key, s);
+  }
+  return out;
+}
+
+export interface Run { match: number; set: number; side: 'us' | 'them'; length: number; from: Score; to: Score; rallies: Rally[] }
+
+/** Scoring runs of [min]+ points in a row for one side, with the rallies in them. */
+export function scoringRuns(rallies: Rally[], min = 4): Run[] {
+  const out: Run[] = [];
+  let run: Run | null = null;
+  let key = '';
+  const close = () => { if (run && run.length >= min) out.push(run); run = null; };
+  for (const { rally, before } of withScore(rallies)) {
+    if (rally.won == null) continue;
+    const k = `${rally.match}:${rally.set}`;
+    if (k !== key) { close(); key = k; }
+    const side = rally.won ? 'us' : 'them';
+    if (run && run.side === side) {
+      run.length++;
+      run.to = { us: before.us + (rally.won ? 1 : 0), them: before.them + (rally.won ? 0 : 1) };
+      run.rallies.push(rally);
+    } else {
+      close();
+      run = { match: rally.match, set: rally.set, side, length: 1, from: before, to: { us: before.us + (rally.won ? 1 : 0), them: before.them + (rally.won ? 0 : 1) }, rallies: [rally] };
+    }
+  }
+  close();
+  return out;
+}
+
+/** Rallies played at the end of a set (either side on 20+), the "clutch" points. */
+export const isClutch = (before: Score, set: number) => Math.max(before.us, before.them) >= (set >= 5 ? 10 : 20);

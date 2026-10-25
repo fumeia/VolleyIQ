@@ -121,7 +121,7 @@ export function keyFindings(
     const weak = receivers.filter((r) => r.n >= 5 && r.avg != null).sort((a, b) => a.avg! - b.avg!)[0];
     out.push({ text: `Pass average ${team.recAvg.toFixed(2)} on ${team.receptions} receptions${weak && weak.avg! < team.recAvg ? `; lowest: ${weak.name} (${weak.avg!.toFixed(2)} on ${weak.n})` : ''}.` });
   }
-  if (team.serves >= 10) out.push({ text: `Serve: ${team.aces} aces and ${team.serveErrors} errors in ${team.serves} serves.` });
+  if (team.serves >= 10) out.push({ text: `Serve: ${team.aces} ace${team.aces === 1 ? '' : 's'} and ${team.serveErrors} error${team.serveErrors === 1 ? '' : 's'} in ${team.serves} serves.` });
   const leak = [...lost].sort((a, b) => b.value - a.value)[0];
   const lostTotal = lost.reduce((a, b) => a + b.value, 0);
   if (leak && lostTotal >= 10) out.push({ text: `Most points given away: ${leak.label.toLowerCase()} (${leak.value} of ${lostTotal}).` });
