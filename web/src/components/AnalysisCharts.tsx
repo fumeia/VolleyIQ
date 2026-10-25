@@ -4,6 +4,7 @@ import type { Match, Player, VEvent } from '../lib/api';
 import { attackOrigins, breakPct, keyFindings, receptionZones, rotationStats, serveRows, sideOutPct } from '../lib/analysis';
 import { playerStats, statLine } from '../lib/stats';
 import { attackZones, pointSources, receivers, scoreFlow } from '../report/analytics';
+import { CoachSummary } from './CoachSummary';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const eff = (v: number) => v.toFixed(2).replace(/^(-?)0\./, '$1.');
@@ -60,6 +61,25 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
             <ul>{findings.map((f, i) => <li key={i}>{f.text}</li>)}</ul>
           </section>
         ) : null;
+      })()}
+
+      {focus == null && (() => {
+        const team = statLine(all.filter((e) => e.player_id != null));
+        const payload = {
+          scope: season ? 'season' : 'match',
+          team: {
+            attackEff: team.attackEff, killPct: team.killPct, kills: team.kills, attackErrors: team.attackErrors, attempts: team.attempts,
+            aces: team.aces, serveErrors: team.serveErrors, serves: team.serves, serveInPct: team.serveInPct,
+            recAvg: team.recAvg, receptions: team.receptions, recPerfectPct: team.recPerfectPct, recErrors: team.recErrors,
+            blockPoints: team.blockPoints, digs: team.digs, errors: team.errors, points: team.points,
+          },
+          players: attackers.slice(0, 8).map((r) => ({ name: who(r.player), role: r.player.role, kills: r.stats.kills, attackErrors: r.stats.attackErrors, attempts: r.stats.attempts, attackEff: r.stats.attackEff })),
+          reception: recv.map((r) => ({ name: who(r.player), avg: r.avg, passes: r.grades.reduce((a, b) => a + b, 0) })),
+          serving: serves.map((r) => ({ name: who(r.player), aces: r.aces, inPlay: r.inPlay, errors: r.errors })),
+          rotations: hasRotations ? rotations.map((r) => ({ setterPos: r.rotation, sideOutPct: sideOutPct(r), breakPct: breakPct(r), receiving: r.receiving, serving: r.serving })) : [],
+          pointsWon: sources.won, pointsLost: sources.lost,
+        };
+        return <CoachSummary stats={payload} />;
       })()}
 
       {flow.map(({ set, points }) => {

@@ -131,6 +131,9 @@ export const api = {
   matchsheetEnabled: () => req<{ enabled: boolean }>('GET', '/api/matchsheet/enabled'),
   scanMatchsheet: (images: { media_type: string; data: string }[]) =>
     req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
+  insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
+  insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
+    req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>
     req('POST', `/api/matches/${matchId}/events/bulk`, { op, ids }),
 };

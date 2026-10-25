@@ -142,3 +142,40 @@ test('analyst effort: active time, corrected and removed auto suggestions', asyn
   assert.deepEqual([m.work_sec, m.edited_count, m.removed_count, m.confirmed_count, m.auto_confirmed_count], [30, 1, 2, 2, 2]);
   await app.close();
 });
+
+test('AI insights: disabled by default, works with an injected generator', async () => {
+  const off = await setup();
+  assert.equal((await off.inject({ url: '/api/insights/enabled' })).json().enabled, false);
+  assert.equal((await off.inject({ method: 'POST', url: '/api/insights/summary', payload: { stats: {} } })).statusCode, 503);
+  await off.close();
+
+  const gen = { enabled: true, model: 't', generate: async (stats, lang) => [`${lang}: eff ${stats.attackEff}`, 'work on reception'] };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-')), WEB_DIST: '/none' }, { insights: gen });
+  assert.equal((await app.inject({ url: '/api/insights/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/insights/summary', payload: {} })).statusCode, 400);
+  const res = (await app.inject({ method: 'POST', url: '/api/insights/summary', payload: { stats: { attackEff: 0.12 }, lang: 'de' } })).json();
+  assert.equal(res.bullets[0], 'de: eff 0.12');
+  assert.equal(res.bullets.length, 2);
+  await app.close();
+});
+
+test('match sheet scan: disabled by default, works with a scanner, validates input', async () => {
+  const off = await setup();
+  assert.equal((await off.inject({ url: '/api/matchsheet/enabled' })).json().enabled, false);
+  assert.equal((await off.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'image/png', data: 'x' }] } })).statusCode, 503);
+  await off.close();
+
+  const fake = { enabled: true, model: 'test', scan: async (images) => ({
+    teams: { A: 'Home VC', B: 'Away VC' }, date: '2026-01-10', league: '3.L', matchNo: '100001',
+    winner: 'B', setsWon: { A: 1, B: 3 }, sets: [{ a: 22, b: 25 }],
+    rosters: { A: [{ number: 5, name: 'A.Player', captain: true, libero: false }], B: [] }, confidence: 'medium', _n: images.length }) };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-')), WEB_DIST: '/none' }, { vision: fake });
+  assert.equal((await app.inject({ url: '/api/matchsheet/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [] } })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'application/pdf', data: 'x' }] } })).statusCode, 400);
+  const res = (await app.inject({ method: 'POST', url: '/api/matchsheet/scan', payload: { images: [{ media_type: 'image/jpeg', data: 'abc' }] } })).json();
+  assert.equal(res.data.teams.B, 'Away VC');
+  assert.equal(res.data.setsWon.B, 3);
+  assert.equal(res.data.rosters.A[0].captain, true);
+  await app.close();
+});

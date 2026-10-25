@@ -60,7 +60,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision }) {
+export function registerRoutes(app, { db, vision, insights }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -367,6 +367,23 @@ export function registerRoutes(app, { db, vision }) {
     } catch (e) {
       req.log?.error({ err: e }, 'match sheet scan failed');
       return bad(reply, 'Could not read the match sheet. Try a sharper, straight-on photo.', 502);
+    }
+  });
+
+  app.get('/api/insights/enabled', coach, async () => ({ enabled: !!insights?.enabled }));
+
+  app.post('/api/insights/summary', coach, async (req, reply) => {
+    if (!insights?.enabled) return bad(reply, 'AI insights are not set up on this server (needs ANTHROPIC_API_KEY).', 503);
+    const stats = req.body?.stats;
+    const lang = req.body?.lang === 'de' ? 'de' : 'en';
+    if (!stats || typeof stats !== 'object') return bad(reply, 'stats object required');
+    if (JSON.stringify(stats).length > 60000) return bad(reply, 'stats too large');
+    try {
+      const bullets = await insights.generate(stats, lang);
+      return { bullets };
+    } catch (e) {
+      req.log?.error({ err: e }, 'insights failed');
+      return bad(reply, 'Could not generate the summary. Try again.', 502);
     }
   });
 

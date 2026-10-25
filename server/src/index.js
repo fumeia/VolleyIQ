@@ -9,12 +9,13 @@ import { openDb } from './db.js';
 import { registerAuth, registerCors } from './auth.js';
 import { registerRoutes } from './routes.js';
 import { makeVisionScanner } from './vision.js';
+import { makeInsighter } from './insights.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // The server only stores tags and serves the web app. Videos stay on the phone
 // (or on YouTube) and analysis runs in the Android app, so this stays tiny.
-export async function buildApp(env = process.env) {
+export async function buildApp(env = process.env, opts = {}) {
   const dataDir = path.resolve(env.DATA_DIR ?? path.join(here, '../../data'));
   const webDist = path.resolve(env.WEB_DIST ?? path.join(here, '../../web/dist'));
 
@@ -32,7 +33,11 @@ export async function buildApp(env = process.env) {
   const hasWeb = fs.existsSync(path.join(webDist, 'index.html'));
   if (hasWeb) await app.register(fastifyStatic, { root: webDist, wildcard: false });
 
-  registerRoutes(app, { db, vision: makeVisionScanner(env) });
+  registerRoutes(app, {
+    db,
+    vision: opts.vision ?? makeVisionScanner(env),
+    insights: opts.insights ?? makeInsighter(env),
+  });
 
   app.get('/api/health', async () => ({ ok: true }));
 
