@@ -61,6 +61,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const [speed, setSpeed] = useState(() => Number(load('viq:reviewSpeed', '1')) || 1);
   const [stepPause, setStepPause] = useState(() => load('viq:stepPause', '0') === '1');
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(false);
   const [last, setLast] = useState<{ text: string; undo: () => Promise<void> } | null>(null);
   const stopAt = useRef<number | null>(null);
   const passed = useRef<Set<number>>(new Set());
@@ -299,6 +300,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       })));
       const clientId = o.add ? add({ action: o.add, t: rally.end + 0.5, set_no: rally.set }) : null;
       if (drop.length) await removeMany(drop);
+      navigator.vibrate?.(result ? [20, 40, 20] : 15);
       const text = `rally at ${fmtTime(rally.start)}${result ? (result === 'won' ? ' (won)' : ' (lost)') : ''}`;
       setLast({
         text,
@@ -428,9 +430,20 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     <div className="pad rally-review">
       <div className="rr-head">
         <span>Rally <b>{Math.min(idx, rallies.length - 1) + 1}</b>/{rallies.length} · {fmtTime(r.start)} · Set {r.set}</span>
+        <button className="btn-ghost small" onClick={() => setHelp(!help)} title="How this works">?</button>
         <button className="btn-ghost small" onClick={onTouchView} title="Review touch by touch">≡</button>
         <button className="btn-ghost small" onClick={onExit}>Done</button>
       </div>
+
+      {help && (
+        <div className="help-box small" onClick={() => setHelp(false)}>
+          <p><b>One rally at a time.</b> It plays once; then the first touch without a player opens.</p>
+          <p><b>Tap a touch</b>: player → action → court spots (where it was played from, where it went) → the next touch opens by itself. <b>Next ▸</b> keeps a touch as it is.</p>
+          <p><b>Chips</b>: faded = unsure or removed (tap ↺ to bring back), greyed = the other team's touch, <b>+</b> adds a touch at the video time, <b>Empty</b> clears the rally, <b>⇥ Join next</b> / <b>✂ Split</b> fix rally boundaries.</p>
+          <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the chips left = not a rally, right = save. Keys: W, L, N, Enter.</p>
+          <p className="muted">Tap to close.</p>
+        </div>
+      )}
 
       <div className="rally-card" onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }} onPointerUp={onSwipeEnd}>
         <div className="strip">
