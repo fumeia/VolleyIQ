@@ -98,6 +98,34 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
       const top = ERROR_TYPES.map((t) => ({ t, n: errs.filter(t.test).length })).sort((a, b) => b.n - a.n)[0];
       if (top.n / errs.length >= 0.3) push(out, 'bad', `Most points given away: ${top.t.label.toLowerCase()} (${top.n} of ${errs.length} errors)`, 3);
     }
+    // Setting: does the best hitter get the ball when the pass is good?
+    const inSys = attackContexts(rallies).filter((c) => c.set && c.phase === 'sideout' && (c.quality ?? 0) >= 2 && c.attack.player_id != null);
+    if (inSys.length >= 15) {
+      const byHitter = new Map<number, VEvent[]>();
+      for (const c of inSys) byHitter.set(c.attack.player_id!, [...(byHitter.get(c.attack.player_id!) ?? []), c.attack]);
+      const hs = [...byHitter.entries()].filter(([, l]) => l.length >= 5).map(([id, l]) => ({ id, n: l.length, e: eff(tally(l)) ?? 0 }));
+      if (hs.length >= 2) {
+        const best = [...hs].sort((a, b) => b.e - a.e)[0];
+        const most = [...hs].sort((a, b) => b.n - a.n)[0];
+        const name = (id: number) => { const p = players.find((x) => x.id === id); return p ? `#${p.number ?? '–'} ${p.name.split(' ')[0]}` : '?'; };
+        if (best.id !== most.id && best.e - most.e >= 0.2) {
+          push(out, 'bad', `On good passes ${name(most.id)} gets the most sets (${pct(most.n / inSys.length)}, ${eff3(most.e)}) but ${name(best.id)} converts better (${eff3(best.e)}, ${pct(best.n / inSys.length)} of sets)`, 3);
+        }
+      }
+    }
+    // Serve receive: whom the opponent serves at.
+    const recv = rallyEvents.filter((e) => e.action === 'receive' && e.value != null && e.player_id != null);
+    if (recv.length >= 20) {
+      const byR = new Map<number, number[]>();
+      for (const e of recv) byR.set(e.player_id!, [...(byR.get(e.player_id!) ?? []), e.value!]);
+      const rs = [...byR.entries()].filter(([, v]) => v.length >= 5).map(([id, v]) => ({ id, n: v.length, a: mean(v)! }));
+      const weakest = [...rs].sort((a, b) => a.a - b.a)[0];
+      const teamAvg = mean(recv.map((e) => e.value!))!;
+      if (weakest && weakest.a < teamAvg - 0.25 && weakest.n / recv.length >= 0.15) {
+        const p = players.find((x) => x.id === weakest.id);
+        push(out, 'bad', `They serve at #${p?.number ?? '?'} ${p?.name.split(' ')[0] ?? ''}: ${pct(weakest.n / recv.length)} of serves, pass average ${weakest.a.toFixed(2)} (team ${teamAvg.toFixed(2)})`, 3);
+      }
+    }
     // Rotations (from the serve order): the weakest and strongest for side-out.
     const rot = rotationTable(inferRotations(rallies, players)).filter((r) => r.received >= 5);
     if (rot.length >= 3) {
