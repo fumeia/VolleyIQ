@@ -552,3 +552,38 @@ button.court-zone:active { background: #2a2f3a; }
 .court.paper { background: #ffffff; border-color: #c3c2b7; }
 .court.paper .court-row + .court-row, .court.paper .court-zone { border-color: #e1e0d9; }
 .court.paper .court-zone[style] .court-zone-label, .court.paper .court-zone-value small { color: inherit; opacity: .8; }
+
+/* ---------- print / PDF report ---------- */
+.print-root { position: fixed; inset: 0; z-index: 100; overflow: auto; background: #e9e8e4; padding: 12px 0 40px; }
+.print-bar { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; justify-content: center; padding-bottom: 12px; }
+.print-page {
+  --surface: #ffffff; --surface-2: #f4f3ef; --line: #e1e0d9; --text: #0b0b0b; --muted: #5f5e5a;
+  color-scheme: light; color: var(--text); background: #fff; width: 700px; max-width: 100%; margin: 0 auto; padding: 28px 24px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.12);
+}
+.print-page .chart, .print-page .findings { border-color: var(--line); break-inside: avoid; }
+.print-page select, .print-page .chart-toggle { display: none; }
+.print-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 2px solid #0b0b0b; padding-bottom: 10px; margin-bottom: 14px; }
+.print-head h1 { margin: 0; font-size: 24px; }
+.print-head p { margin: 2px 0 0; color: var(--muted); }
+.print-head small { color: var(--muted); white-space: nowrap; }
+.print-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.print-kpis div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+.print-kpis span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.print-kpis b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.print-kpis small { font-size: 11px; color: var(--muted); }
+.print-table { break-inside: avoid; margin-top: 14px; }
+.print-table h2 { font-size: 15px; margin: 0 0 6px; }
+.print-table table { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.print-table th, .print-table td { padding: 4px 3px; text-align: right; border-bottom: 1px solid var(--line); }
+.print-table th:first-child, .print-table td:first-child { text-align: left; }
+.print-table th { color: var(--muted); font-weight: 600; }
+.print-table td small { color: var(--muted); }
+.print-note { font-size: 10.5px; color: var(--muted); margin: 6px 0 0; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  :root, body { background: #fff !important; color-scheme: light !important; }
+  #root, .no-print { display: none !important; }
+  .print-root { position: static; overflow: visible; padding: 0; background: #fff; }
+  .print-page { box-shadow: none; padding: 0; width: auto; }
+}

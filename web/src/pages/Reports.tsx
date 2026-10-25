@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StatsView } from '../components/StatsView';
+import { PrintReport } from '../components/PrintReport';
 import { api, publicBase, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 import { dec, pct, playerStats, type StatLine } from '../lib/stats';
@@ -20,6 +21,7 @@ export function Reports() {
   const [teamId, setTeamId] = useState<number | null>(null);
   const [data, setData] = useState<{ players: Player[]; matches: Match[]; events: VEvent[] } | null>(null);
   const [matchId, setMatchId] = useState<number | 'all'>('all');
+  const [printing, setPrinting] = useState(false);
   const [view, setView] = useState<'report' | 'stats' | 'board'>('report');
 
   useEffect(() => {
@@ -69,6 +71,18 @@ export function Reports() {
         <MatchReportView match={{ ...data.matches.find((m) => m.id === matchId)!, team_name: teams.find((t) => t.id === teamId)?.name }}
           players={data.players} events={events} />
       ))}
+      {data && view === 'stats' && events.some((e) => e.status === 'confirmed') && (
+        <button className="btn small" onClick={() => setPrinting(true)}>📄 PDF report</button>
+      )}
+      {data && printing && (() => {
+        const team = teams.find((t) => t.id === teamId)?.name ?? 'Team';
+        const one = matchId === 'all' ? null : data.matches.find((m) => m.id === matchId);
+        return (
+          <PrintReport title={one ? `${team} – ${one.opponent ?? one.label}` : `${team} · season report`}
+            subtitle={one ? `${one.label}${one.played_on ? ` · ${one.played_on}` : ''}` : `${data.matches.length} matches`}
+            players={data.players} events={events} matches={one ? [one] : data.matches} onClose={() => setPrinting(false)} />
+        );
+      })()}
       {data && view === 'stats' && (
         <StatsView players={data.players} events={events} matches={matchId === 'all' ? data.matches : data.matches.filter((m) => m.id === matchId)} />
       )}
