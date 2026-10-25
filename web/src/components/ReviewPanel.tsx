@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, REVIEW_ACTIONS, actionLabel } from '../lib/actions';
+import { ACTION_BY_CODE, actionLabel } from '../lib/actions';
+import { ActionPicker } from './ActionPicker';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { rallyInfo, sideToDrop } from '../lib/rallies';
@@ -151,16 +152,9 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
       </div>
 
       <span className="pad-group-label">2 · What was it?</span>
-      <div className="chips">
-        {REVIEW_ACTIONS.map((code) => (
-          <button key={code} className={`chip chip-${ACTION_BY_CODE[code].group} ${d.action === code ? 'on' : ''}`}
-            onClick={() => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null,
-              stage: ACTION_BY_CODE[code].court === 'path' && !d.from ? 'from' : 'to' })}>
-            {ACTION_BY_CODE[code].short}
-          </button>
-        ))}
-        <button className="chip" onClick={() => onEdit(ev)}>More…</button>
-      </div>
+      <ActionPicker value={d.action} onPick={(code) => setDraft({ ...d, action: code, value: code === 'receive' ? d.value : null,
+        stage: ACTION_BY_CODE[code].court === 'path' && !d.from ? 'from' : 'to' })} />
+      <button className="btn-ghost small" onClick={() => onEdit(ev)}>More (time, grade, team actions)…</button>
 
       {def?.court ? (
         <>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, REVIEW_ACTIONS, wantsSpots, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, wantsSpots, type ActionCode } from '../lib/actions';
+import { ActionPicker } from './ActionPicker';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { courtFields, type Pt } from '../lib/court';
 import { duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
@@ -510,12 +511,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           )}
 
           {step === 'action' && (
-            <div className="chips tight">
-              {REVIEW_ACTIONS.map((c) => (
-                <button key={c} className={`chip chip-${ACTION_BY_CODE[c].group} ${sv.action === c ? 'on' : ''}`}
-                  onClick={() => chooseAction(selected, c)}>{ACTION_BY_CODE[c].short}</button>
-              ))}
-            </div>
+            <ActionPicker value={sv.action} onPick={(c) => chooseAction(selected, c)} />
           )}
 
           {(step === 'from' || step === 'to') && (

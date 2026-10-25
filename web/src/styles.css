@@ -494,3 +494,6 @@ button.court-zone:active { background: #2a2f3a; }
 .skill-row .act { min-height: 44px; font-size: 13px; padding: 0 3px; line-height: 1.1; text-align: center; }
 .skill-row .act-receive { grid-column: span 4; font-size: 15px; }
 .skill-row .act-receive.r0, .skill-row .act-receive.r1, .skill-row .act-receive.r2, .skill-row .act-receive.r3 { grid-column: auto; }
+.action-picker { display: flex; flex-direction: column; gap: 5px; }
+.act.is-on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.action-picker .act-receive { grid-column: auto; font-size: 13px; }

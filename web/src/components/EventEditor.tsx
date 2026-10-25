@@ -4,6 +4,7 @@ import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
 import { courtFields } from '../lib/court';
 import { CourtFull } from './CourtFull';
+import { ActionPicker } from './ActionPicker';
 import { ZoneCourt } from './ZoneCourt';
 
 interface Props {
@@ -52,12 +53,11 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         </div>
 
         <label className="field-label">Action</label>
-        <div className="chips">
-          {ACTIONS.map((a) => (
-            <button key={a.code} className={`chip chip-${a.group} ${d.action === a.code ? 'on' : ''}`}
-              onClick={() => set({ action: a.code as ActionCode, value: a.code === 'receive' ? d.value ?? 2 : null })}>
-              {a.short}
-            </button>
+        <ActionPicker value={d.action} onPick={(code) => set({ action: code, value: code === 'receive' ? d.value ?? 2 : null })} />
+        <div className="chips tight">
+          {ACTIONS.filter((a) => a.needsPlayer === false).map((a) => (
+            <button key={a.code} className={`chip ${d.action === a.code ? 'on' : ''}`}
+              onClick={() => set({ action: a.code as ActionCode, value: null })}>{a.label}</button>
           ))}
         </div>
 

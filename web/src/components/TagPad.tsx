@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, SHORT, SKILLS, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { CourtFull } from './CourtFull';
@@ -31,24 +31,6 @@ interface Props {
   /** The previous tag of this rally: the likely next actions come first. */
   lastAction?: ActionCode | null;
 }
-
-/** The action pad, one row per skill: you know the skill first, then the outcome. */
-const SKILLS: { label: string; codes: ActionCode[] }[] = [
-  { label: 'Serve', codes: ['serve', 'ace', 'serve_error'] },
-  { label: 'Pass', codes: ['receive'] },
-  { label: 'Set', codes: ['set', 'assist', 'set_error', 'assist_error'] },
-  { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
-  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
-  { label: 'Defence', codes: ['dig', 'freeball', 'dig_error'] },
-];
-/** Labels inside a skill row (the row already names the skill). */
-const SHORT: Partial<Record<ActionCode, string>> = {
-  serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
-  set: 'Set', assist: 'Assist', set_error: 'Error', assist_error: 'Assist err',
-  attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
-  block_touch: 'Touch', block_point: 'Point', block_error: 'Error',
-  dig: 'Dig', freeball: 'Free ball', dig_error: 'Error',
-};
 
 /** What usually follows a touch of ours, for the "likely" row. */
 const NEXT: Partial<Record<ActionCode | 'start', ActionCode[]>> = {
