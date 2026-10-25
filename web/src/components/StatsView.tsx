@@ -36,7 +36,7 @@ const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
 const GOOD = SERIES.aqua, PLAY = SERIES.blue, BAD = SERIES.orange;
 const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
   kill: GOOD, ace: GOOD, attack: PLAY, serve: PLAY, attack_error: BAD, serve_error: BAD,
-  set: PLAY, assist: GOOD, assist_error: BAD, set_error: BAD, freeball: PLAY,
+  set: PLAY, assist: PLAY, assist_error: BAD, set_error: BAD, freeball: PLAY,
   dig: PLAY, dig_error: BAD, block_point: GOOD, block_touch: PLAY, block_error: BAD, attack_blocked: BAD,
 };
 const GRADE_COLOR = RAMP;
@@ -47,7 +47,7 @@ const LEGEND: Record<string, [string, string][]> = {
   digs: [[PLAY, 'Dig'], [BAD, 'Error']],
   blocks: [[GOOD, 'Block point'], [PLAY, 'Touch'], [BAD, 'Error']],
   blocked: [[BAD, 'Blocked']],
-  sets: [[GOOD, 'Assist'], [PLAY, 'Set'], [BAD, 'Error']],
+  sets: [[PLAY, 'Set / bump set'], [BAD, 'Error']],
   freeballs: [[PLAY, 'Free ball']],
 };
 
@@ -72,7 +72,7 @@ const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => st
   ],
   block: [
     { h: 'BS', v: (s) => s.blockPoints }, { h: 'BT', v: (s) => s.blockTouches }, { h: 'BE', v: (s) => s.blockErrors },
-    { h: 'Sets', v: (s) => s.sets }, { h: 'Ast', v: (s) => s.assists }, { h: 'AE', v: (s) => s.assistErrors }, { h: 'SE', v: (s) => s.setErrors },
+    { h: 'Sets', v: (s) => s.sets }, { h: 'Ast', v: (s) => s.assists }, { h: 'Bump', v: (s) => s.bumpSets }, { h: 'SE', v: (s) => s.setErrors + s.assistErrors },
   ],
 };
 

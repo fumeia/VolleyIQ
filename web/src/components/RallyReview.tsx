@@ -221,7 +221,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const auto = (e: VEvent): Partial<VEvent> => {
     if (e.player_id != null || !isOurs(info.get(e.id), serving)) return {};
     const action = drafts[e.id]?.action ?? e.action;
-    if (!['serve', 'ace', 'serve_error', 'set', 'assist'].includes(action)) return {};
+    if (!['serve', 'ace', 'serve_error', 'set'].includes(action)) return {};
     const id = suggest(action, players, rotation).likely;
     const p = players.find((x) => x.id === id);
     return p ? { player_id: p.id, jersey: p.number } : {};

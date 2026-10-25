@@ -309,7 +309,7 @@ export function PlayerCard({ row, events, players, context }: { row: PlayerRow; 
         { label: 'Pass avg', value: fmtAvg(s.recAvg), sub: `${s.receptions} passes` },
         { label: 'Defense', value: String(s.digs), sub: `digs · ${s.digErrors} errors` },
         p.role === 'S'
-          ? { label: 'Setting', value: String(s.assists), sub: `assists · ${s.assistErrors} errors` }
+          ? { label: 'Setting', value: String(s.assists), sub: `assists (set → kill) · ${s.setErrors + s.assistErrors} errors` }
           : { label: 'Block', value: String(s.blockPoints), sub: `points · ${s.blockTouches} touches` },
       ].map((k, i) => <Tile key={k.label} x={72 + (i % 3) * (tileW + 20)} y={280 + Math.floor(i / 3) * 170} w={tileW} {...k} />)}
       {showPass ? (

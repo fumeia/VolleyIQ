@@ -1,6 +1,7 @@
 import { ACTION_BY_CODE, type ActionCode } from './actions';
 import type { Player, VEvent } from './api';
 import { zoneOf } from './court';
+import { buildRallies, realAssists } from './sequence';
 
 export interface StatLine {
   /** attackErrors includes the blocked attacks; blocked is that part on its own. */
@@ -9,7 +10,9 @@ export interface StatLine {
   receptions: number; recAvg: number | null; recPerfectPct: number | null; recErrors: number;
   digs: number; digErrors: number; freeballs: number;
   blockPoints: number; blockTouches: number; blockErrors: number;
-  sets: number; assists: number; assistErrors: number; setErrors: number;
+  /** assists = real assists (a set whose next touch is our kill, from the rallies); bumpSets = sets by a
+   *  non-setter (the 'Bump set' action); assistErrors = bump-set errors. */
+  sets: number; assists: number; bumpSets: number; assistErrors: number; setErrors: number;
   points: number; errors: number; plusMinus: number;
 }
 
@@ -34,7 +37,7 @@ export function statLine(events: Ev[]): StatLine {
   const aces = n('ace'), serveErrors = n('serve_error');
   const serves = aces + serveErrors + n('serve');
   const blockPoints = n('block_point');
-  const assists = n('assist'), assistErrors = n('assist_error'), setErrors = n('set_error');
+  const bumpSets = n('assist'), assistErrors = n('assist_error'), setErrors = n('set_error');
   const points = kills + aces + blockPoints;
   const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + assistErrors + setErrors + recErr;
   return {
@@ -44,7 +47,7 @@ export function statLine(events: Ev[]): StatLine {
     receptions: recN, recAvg: ratio(recSum, recN), recPerfectPct: ratio(recPerfect, recN), recErrors: recErr,
     digs: n('dig'), digErrors: n('dig_error'), freeballs: n('freeball'),
     blockPoints, blockTouches: n('block_touch'), blockErrors: n('block_error'),
-    sets: n('set') + assists + assistErrors + setErrors, assists, assistErrors, setErrors,
+    sets: n('set') + bumpSets + assistErrors + setErrors, assists: 0, bumpSets, assistErrors, setErrors,
     points, errors, plusMinus: points - errors,
   };
 }
@@ -56,22 +59,38 @@ export function playerStats(players: Player[], events: VEvent[]) {
     if (!byPlayer.has(e.player_id)) byPlayer.set(e.player_id, []);
     byPlayer.get(e.player_id)!.push(e);
   }
+  // Assists need the order of the touches (set -> kill), so they come from the whole rally.
+  const assists = realAssists(buildRallies(events));
   return players
     .filter((p) => byPlayer.has(p.id) || p.active)
-    .map((p) => ({ player: p, stats: statLine(byPlayer.get(p.id) ?? []), count: byPlayer.get(p.id)?.length ?? 0 }))
+    .map((p) => ({ player: p, stats: { ...statLine(byPlayer.get(p.id) ?? []), assists: assists.get(p.id) ?? 0 }, count: byPlayer.get(p.id)?.length ?? 0 }))
     .sort((a, b) => b.stats.points - a.stats.points || b.count - a.count);
+}
+
+/** Team totals, with the assists counted from the rallies. */
+export function teamLine(events: VEvent[]): StatLine {
+  const line = statLine(events.filter((e) => e.player_id != null));
+  let assists = 0;
+  for (const n of realAssists(buildRallies(events)).values()) assists += n;
+  return { ...line, assists };
 }
 
 export function roleStats(players: Player[], events: VEvent[]) {
   const roleOf = new Map(players.map((p) => [p.id, p.role]));
+  const assists = realAssists(buildRallies(events));
   const byRole = new Map<string, VEvent[]>();
+  const assistsByRole = new Map<string, number>();
+  for (const [id, n] of assists) {
+    const r = roleOf.get(id);
+    if (r) assistsByRole.set(r, (assistsByRole.get(r) ?? 0) + n);
+  }
   for (const e of events) {
     const role = e.player_id != null ? roleOf.get(e.player_id) : undefined;
     if (!role) continue;
     if (!byRole.has(role)) byRole.set(role, []);
     byRole.get(role)!.push(e);
   }
-  return [...byRole.entries()].map(([role, evs]) => ({ role, stats: statLine(evs), count: evs.length }));
+  return [...byRole.entries()].map(([role, evs]) => ({ role, stats: { ...statLine(evs), assists: assistsByRole.get(role) ?? 0 }, count: evs.length }));
 }
 
 export function zoneCounts(events: VEvent[], actions: ActionCode[]) {

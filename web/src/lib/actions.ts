@@ -43,8 +43,8 @@ export const ACTIONS: ActionDef[] = [
   { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
   { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
-  { code: 'assist', label: 'Assist', short: 'Assist', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
-  { code: 'assist_error', label: 'Assist Error', short: 'Ast Err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
+  { code: 'assist', label: 'Bump set', short: 'Bump set', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
+  { code: 'assist_error', label: 'Bump set error', short: 'Bump err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
   { code: 'set_error', label: 'Set Error', short: 'Set Err', group: 'setting', key: 'u', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
   { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', court: 'path', fromPrompt: 'Where was it received?', toPrompt: 'Where did the pass go?' },
   { code: 'opp_error', label: 'Opponent Error', short: 'Opp Err', group: 'team', needsPlayer: false, score: 'us' },
@@ -78,7 +78,7 @@ export const SKILLS: { label: string; codes: ActionCode[] }[] = [
 /** Labels inside a skill row (the row already names the skill). */
 export const SHORT: Partial<Record<ActionCode, string>> = {
   serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
-  set: 'Set', assist: 'Assist', set_error: 'Error', assist_error: 'Assist err',
+  set: 'Set', assist: 'Bump set', set_error: 'Error', assist_error: 'Bump err',
   attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
   block_touch: 'Touch', block_point: 'Point', block_error: 'Error',
   dig: 'Dig', freeball: 'Free ball', dig_error: 'Error',

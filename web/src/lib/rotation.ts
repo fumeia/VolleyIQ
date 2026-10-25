@@ -90,8 +90,10 @@ export function candidates(state: RotationState, action: ActionCode, players: Pl
       const server = state.positions[0];
       return { likely: server, eligible: new Set(server != null ? [server] : onCourt) };
     }
-    case 'set': case 'assist': case 'assist_error': case 'set_error':
+    case 'set': case 'set_error':
       return { likely: setter, eligible: new Set(onCourt) };
+    case 'assist': case 'assist_error': // bump set: someone other than the setter
+      return { likely: null, eligible: new Set(onCourt.filter((id) => id !== setter)) };
     case 'block_touch': case 'block_point': case 'block_error':
       return { likely: null, eligible: new Set(at(FRONT)) };
     case 'attack': case 'kill': case 'attack_error': case 'attack_blocked': {
@@ -114,8 +116,10 @@ export function roleCandidates(action: ActionCode, players: Player[]): { likely:
   const byRole = (roles: RoleCode[]) => active.filter((p) => roles.includes(p.role)).map((p) => p.id);
   const setter = active.find((p) => p.role === 'S')?.id ?? null;
   switch (action) {
-    case 'set': case 'assist': case 'assist_error': case 'set_error':
+    case 'set': case 'set_error':
       return { likely: setter, eligible: all };
+    case 'assist': case 'assist_error':
+      return { likely: null, eligible: new Set(active.filter((p) => p.id !== setter).map((p) => p.id)) };
     case 'attack': case 'kill': case 'attack_error': case 'attack_blocked': {
       const att = byRole(ATTACKER_ROLES);
       return { likely: null, eligible: att.length ? new Set(att) : all };

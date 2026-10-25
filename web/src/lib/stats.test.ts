@@ -46,3 +46,23 @@ describe('blocks and court spots', () => {
     expect(z[6]).toBe(1);
   });
 });
+
+describe('assists', () => {
+  it('a bump set is a set, not an assist; real assists come from set -> kill', async () => {
+    const { playerStats } = await import('./stats');
+    let i = 0;
+    const E = (action: VEvent['action'], player_id: number, extra: Partial<VEvent> = {}) =>
+      ({ id: ++i, match_id: 1, t: i, action, value: null, set_no: 1, status: 'confirmed', player_id, ...extra }) as VEvent;
+    const players = [{ id: 1, name: 'S', role: 'S', number: 1, active: 1 }, { id: 2, name: 'O', role: 'OH', number: 2, active: 1 }, { id: 3, name: 'L', role: 'L', number: 3, active: 1 }] as never;
+    const evs = [
+      E('receive', 3, { value: 3 }), E('set', 1), E('kill', 2),          // assist for the setter
+      E('receive', 3, { value: 1 }), E('assist', 3), E('attack', 2),     // libero bump set, no kill
+    ];
+    const rows = playerStats(players, evs);
+    const by = (id: number) => rows.find((r) => r.player.id === id)!.stats;
+    expect(by(1).assists).toBe(1);
+    expect(by(3).assists).toBe(0);
+    expect(by(3).bumpSets).toBe(1);
+    expect(by(3).points).toBe(0);
+  });
+});

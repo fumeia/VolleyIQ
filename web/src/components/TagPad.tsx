@@ -42,7 +42,7 @@ const NEXT: Partial<Record<ActionCode | 'start', ActionCode[]>> = {
   dig: ['set', 'attack', 'freeball'],
   freeball: ['set', 'attack'],
   set: ['attack', 'kill', 'attack_error'],
-  assist: ['dig', 'block_touch'],
+  assist: ['attack', 'kill', 'attack_error'],
   attack: ['dig', 'block_touch', 'set'],
   block_touch: ['dig', 'set'],
 };
