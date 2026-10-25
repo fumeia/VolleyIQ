@@ -601,3 +601,8 @@ button.court-zone:active { background: #2a2f3a; }
 .coach-summary .seg-mini button { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; padding: 3px 10px; }
 .coach-summary .seg-mini button.on { background: var(--accent); color: var(--accent-ink); }
 .coach-summary ul { margin: 8px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+
+/* ---------- review quality flags ---------- */
+.chip.chip-warn { border-color: #b45309; color: #fbbf24; }
+.chip.chip-warn.on { background: #b45309; color: #fff; }
+.ev-warn { color: #fbbf24; font-size: 13px; margin-left: 4px; cursor: help; }

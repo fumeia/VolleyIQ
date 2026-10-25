@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { actionLabel, ACTION_BY_CODE } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
+import { findIssues } from '../lib/quality';
 import { fmtTime } from './TagPad';
 
 interface Props {
@@ -41,9 +42,12 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
   const [fSet, setFSet] = useState<number | null>(null);
   const [fPlayer, setFPlayer] = useState<number | null>(null);
   const [fKind, setFKind] = useState<string | null>(null);
+  const [fIssues, setFIssues] = useState(false);
   const kind = KINDS.find((k) => k.label === fKind);
+  const issues = findIssues(events);
   const filtered = events.filter((e) => (fSet == null || (e.set_no ?? 1) === fSet)
-    && (fPlayer == null || e.player_id === fPlayer) && (!kind || kind.codes.includes(e.action)));
+    && (fPlayer == null || e.player_id === fPlayer) && (!kind || kind.codes.includes(e.action))
+    && (!fIssues || issues.size === 0 || issues.has(e.id)));
   const shown = limit ? filtered.slice(-limit).reverse() : filtered;
   const sets = [...new Set(events.map((e) => e.set_no ?? 1))].sort();
   const people = players.filter((p) => events.some((e) => e.player_id === p.id));
@@ -61,6 +65,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
       </select>
       <div className="chips tight">
         {KINDS.map((k) => <button key={k.label} className={`chip ${fKind === k.label ? 'on' : ''}`} onClick={() => setFKind(fKind === k.label ? null : k.label)}>{k.label}</button>)}
+        {issues.size > 0 && <button className={`chip chip-warn ${fIssues ? 'on' : ''}`} onClick={() => setFIssues(!fIssues)}>⚠ Check ({issues.size})</button>}
       </div>
       {(fSet != null || fPlayer != null || fKind) && <span className="small muted">{filtered.length} of {events.length}</span>}
       {onPlayAll && filtered.some((e) => e.t != null) && (
@@ -130,6 +135,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
             <span className={`ev-action g-${group}`}>
               {actionLabel(e)}{e.zone ? ` · Z${e.zone}` : ''}
             </span>
+            {issues.has(e.id) && <span className="ev-warn" title={issues.get(e.id)}>⚠</span>}
             {e.status === 'suggested' && <span className="badge">AI {e.confidence != null ? Math.round(e.confidence * 100) + '%' : ''}</span>}
             {e.id < 0 && <span className="badge badge-pending" title="Waiting for connection">⏳</span>}
             {onEdit && <button className="ev-edit" onClick={() => onEdit(e)} aria-label="Edit">✎</button>}
