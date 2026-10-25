@@ -13,6 +13,8 @@ interface Props {
   limit?: number;
   /** Enables selecting several events (hold one, then tap more) and deleting them at once. */
   onDeleteMany?: (list: VEvent[]) => Promise<void>;
+  /** Move the selected events to another set (keeps everything else intact). */
+  onSetMany?: (list: VEvent[], setNo: number) => Promise<void>;
   /** Show filters (set, player, kind of touch) above the list. */
   filterable?: boolean;
   /** Play the listed (filtered) events one after another as short clips. */
@@ -38,17 +40,37 @@ export function playerLabel(players: Player[], e: VEvent) {
   return ACTION_BY_CODE[e.action]?.needsPlayer === false ? 'Team' : '—';
 }
 
-export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, filterable, onPlayAll }: Props) {
+type Sort = 'added-desc' | 'added-asc' | 'time-asc' | 'time-desc';
+const SORTS: { v: Sort; label: string }[] = [
+  { v: 'added-desc', label: 'Newest added' },
+  { v: 'added-asc', label: 'Oldest added' },
+  { v: 'time-asc', label: 'Video time ↑' },
+  { v: 'time-desc', label: 'Video time ↓' },
+];
+// Pending (not-yet-saved) events have negative ids but are the most recent, so
+// rank them above saved ones when sorting by what was added last.
+const addedKey = (e: VEvent) => (e.id < 0 ? 1e12 - e.id : e.id);
+
+export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, onSetMany, filterable, onPlayAll }: Props) {
   const [fSet, setFSet] = useState<number | null>(null);
   const [fPlayer, setFPlayer] = useState<number | null>(null);
   const [fKind, setFKind] = useState<string | null>(null);
   const [fIssues, setFIssues] = useState(false);
+  const [sort, setSort] = useState<Sort>('added-desc');
   const kind = KINDS.find((k) => k.label === fKind);
   const issues = findIssues(events);
   const filtered = events.filter((e) => (fSet == null || (e.set_no ?? 1) === fSet)
     && (fPlayer == null || e.player_id === fPlayer) && (!kind || kind.codes.includes(e.action))
     && (!fIssues || issues.size === 0 || issues.has(e.id)));
-  const shown = limit ? filtered.slice(-limit).reverse() : filtered;
+  const cmp: Record<Sort, (a: VEvent, b: VEvent) => number> = {
+    'added-desc': (a, b) => addedKey(b) - addedKey(a),
+    'added-asc': (a, b) => addedKey(a) - addedKey(b),
+    'time-asc': (a, b) => (a.t ?? 0) - (b.t ?? 0) || addedKey(a) - addedKey(b),
+    'time-desc': (a, b) => (b.t ?? 0) - (a.t ?? 0) || addedKey(b) - addedKey(a),
+  };
+  // The small recent list (limit, not filterable) keeps its by-time order; the full
+  // Events tab honours the chosen sort.
+  const shown = limit ? [...filtered].sort(cmp['time-asc']).slice(-limit).reverse() : [...filtered].sort(cmp[sort]);
   const sets = [...new Set(events.map((e) => e.set_no ?? 1))].sort();
   const people = players.filter((p) => events.some((e) => e.player_id === p.id));
   const filters = filterable && events.length > 0 && (
@@ -62,6 +84,9 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
       <select className="input small-select" value={fPlayer ?? ''} onChange={(e) => setFPlayer(e.target.value ? Number(e.target.value) : null)}>
         <option value="">All players</option>
         {people.map((p) => <option key={p.id} value={p.id}>#{p.number ?? '–'} {p.name}</option>)}
+      </select>
+      <select className="input small-select" value={sort} onChange={(e) => setSort(e.target.value as Sort)} title="Sort order">
+        {SORTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
       </select>
       <div className="chips tight">
         {KINDS.map((k) => <button key={k.label} className={`chip ${fKind === k.label ? 'on' : ''}`} onClick={() => setFKind(fKind === k.label ? null : k.label)}>{k.label}</button>)}
@@ -102,6 +127,18 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
           <button className="btn-ghost small" onClick={() => setSelected(selected.size === shown.length ? new Set() : new Set(shown.map((e) => e.id)))}>
             {selected.size === shown.length ? 'None' : 'All'}
           </button>
+          {onSetMany && (
+            <select className="input small-select" value="" disabled={!picked.length || busy} title="Move the selected events to another set"
+              onChange={async (e) => {
+                const n = Number(e.target.value);
+                if (!n || !picked.length) return;
+                setBusy(true);
+                try { await onSetMany(picked, n); setSelected(null); } finally { setBusy(false); }
+              }}>
+              <option value="">Move to set…</option>
+              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Set {n}</option>)}
+            </select>
+          )}
           <button className="btn small btn-danger" disabled={!picked.length || busy} onClick={async () => {
             setBusy(true);
             try { await onDeleteMany(picked); setSelected(null); } finally { setBusy(false); }

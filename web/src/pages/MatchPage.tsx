@@ -176,6 +176,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     });
   }
 
+  // Move selected events to another set (e.g. 6 points accidentally tagged in the
+  // wrong set), keeping their timestamps and everything else. Undoable.
+  async function moveEventsToSet(list: VEvent[], setNo: number) {
+    const originals = list.map((e) => ({ e, set: e.set_no }));
+    for (const e of list) await update(e, { set_no: setNo });
+    flash(`Moved ${list.length} event${list.length === 1 ? '' : 's'} to set ${setNo}`, async () => {
+      for (const { e, set } of originals) await update(e, { set_no: set });
+    });
+  }
+
   async function removeSuggestions(list: VEvent[]) {
     // Big clean-ups go to the server in one request; small ones stay optimistic.
     if (list.length > 5 && list.every((e) => e.id > 0)) {
@@ -347,7 +357,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </div>
             )}
             {tab === 'events' && (
-              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} filterable
+              <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} onSetMany={moveEventsToSet} filterable
                 onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
             )}
             {tab === 'review' && (
