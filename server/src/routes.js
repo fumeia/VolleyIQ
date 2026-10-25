@@ -303,7 +303,7 @@ export function registerRoutes(app, { db }) {
     const [ev, err] = cleanEvent(merged);
     if (err) return bad(reply, err);
     db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone, x = @x, y = @y,
-                fx = @fx, fy = @fy, t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
+                fx = @fx, fy = @fy, rally = @rally, poss = @poss, t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
       .run({ ...ev, source: cur.source, id: cur.id });
     return q.event.get(cur.id);
   });

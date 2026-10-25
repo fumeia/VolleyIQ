@@ -319,6 +319,44 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     await reload();
   }
 
+  // Rally boundaries from the analysis can be off: join two rallies, or split one.
+  const rallyNo = (x: { key: string; start: number }) => (/^\d+$/.test(x.key) ? Number(x.key) : 900000 + Math.round(x.start * 10));
+  const possOf = (e: VEvent) => info.get(e.id)?.poss ?? 0;
+
+  async function joinNext() {
+    const next = rallies[idx + 1];
+    if (!next || busy) return;
+    setBusy(true);
+    try {
+      const k = rallyNo(r);
+      const top = Math.max(0, ...r.events.map(possOf));
+      const low = Math.min(...next.events.map(possOf));
+      await Promise.all([
+        ...r.events.map((e) => update(e, { rally: k, poss: possOf(e) })),
+        // Possessions continue after this rally's last one.
+        ...next.events.map((e) => update(e, { rally: k, poss: top + 1 + possOf(e) - low })),
+      ]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function splitAt(e: VEvent) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const at = e.t ?? 0;
+      const k1 = rallyNo(r), k2 = 900000 + Math.round(at * 10);
+      const base = possOf(e);
+      await Promise.all(r.events.map((x) => ((x.t ?? 0) >= at
+        ? update(x, { rally: k2, poss: Math.max(0, possOf(x) - base) }) // the new rally starts with a serve
+        : update(x, { rally: k1, poss: possOf(x) }))));
+      setSel(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function tapChip(e: VEvent) {
     if (removed.has(e.id)) {
       // Removed by mistake (or folded as a duplicate): bring it back.
@@ -404,6 +442,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <button className={`chip ${serving === 'them' ? 'on' : ''}`} onClick={() => setServing('them')}>Them</button>
           </span>
           <button className="icon-btn" disabled={busy || now == null} onClick={() => addAt(true)} title="Start a new rally at the current video time">+ Rally</button>
+          <button className="icon-btn" disabled={busy || idx >= rallies.length - 1} onClick={joinNext}
+            title="The next rally is part of this one (merge them)">⇥ Join next</button>
           <button className="icon-btn" title="Remove all touches of this rally, then add them with +"
             onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }}>Empty</button>
         </div>}
@@ -419,7 +459,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       {selected && sv && def && (isTheirs(selected) ? (
         <div className="touch-editor">
           <span className="small">This touch is counted as theirs.</span>
-          <button className="btn small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>No, it's ours (swap sides)</button>
+          <div className="row wrap">
+            <button className="btn small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>No, it's ours (swap sides)</button>
+            {r.events[0]?.id !== selected.id && (
+              <button className="btn small" disabled={busy} onClick={() => splitAt(selected)}>✂ New rally starts here</button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="touch-editor" ref={editor}>
@@ -429,6 +474,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             {wantsSpots(sv.action, spots.location, spots.scope) && <>›<button className={step === 'from' || step === 'to' ? 'on' : ''}
               onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>📍{sv.x != null ? ' ✓' : ''}</button></>}
             <span className="crumbs-end">
+              {r.events[0]?.id !== selected.id && (
+                <button className="btn-ghost small" disabled={busy} title="A new rally starts with this touch" onClick={() => splitAt(selected)}>✂ Split</button>
+              )}
               <button className="btn-ghost small danger" onClick={() => removeTouch(selected)}>✕ Not a touch</button>
               <button className="btn-ghost small" onClick={() => advance(selected)}>Next ▸</button>
             </span>
