@@ -13,7 +13,8 @@ import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../compone
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
-import { actionLabel } from '../lib/actions';
+import { ACTION_BY_CODE, actionLabel } from '../lib/actions';
+import { outcome } from '../lib/rallyReview';
 import { api, publicBase, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
@@ -169,6 +170,30 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     }
   }
 
+  // Tags since the last point of this set = the rally being tagged.
+  const setTags = confirmed.filter((e) => (e.set_no ?? 1) === setNo);
+  const lastPoint = setTags.map((e) => !!ACTION_BY_CODE[e.action]?.score).lastIndexOf(true);
+  const rallyTags = setTags.slice(lastPoint + 1);
+  const lastTag = rallyTags[rallyTags.length - 1] ?? null;
+  const server = rotationNow?.weServe ? players.find((p) => p.id === rotationNow.positions[0]) ?? null : null;
+
+  /** "We won" / "They won" for the rally just tagged: the last tag becomes the point or the error. */
+  function settle(won: boolean) {
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
+    if (o.change && lastTag) {
+      const before = { action: lastTag.action, value: lastTag.value };
+      update(lastTag, { action: o.change.action, ...(o.change.value !== undefined ? { value: o.change.value } : {}) });
+      flash(`${won ? 'Point' : 'Lost'}: ${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}`, () => update(lastTag, before));
+    } else if (o.add) {
+      const t = getTime();
+      commit({ action: o.add, t: t == null ? null : t });
+    }
+  }
+  const outcomeLabel = (won: boolean) => {
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
+    return o.add ? (o.add === 'opp_error' ? 'their error' : 'their point') : actionLabel({ action: o.change!.action, value: o.change!.value ?? null });
+  };
+
   const pad = (
     <TagPad
       players={players}
@@ -179,6 +204,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       isPlaying={() => !!player.current?.isPlaying()}
       onCommit={commit}
       onCourt={onCourt}
+      server={server}
+      lastAction={lastTag?.action ?? null}
     />
   );
 
@@ -268,6 +295,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             {tab === 'tag' && (
               <>
                 {pad}
+                <div className="outcome-bar">
+                  <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
+                  <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
+                </div>
                 <h3 className="section-title">Last tags</h3>
                 <EventList events={confirmed} players={players} limit={5} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
               </>
