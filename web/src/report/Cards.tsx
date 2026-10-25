@@ -46,10 +46,13 @@ export function SummaryCard({ rep }: { rep: MatchReport }) {
           <text x={W / 2} y={300} fill={C.muted} fontSize={24} fontWeight={700} textAnchor="middle" letterSpacing={2}>SETS (TAGGED POINTS)</text>
           {rep.sets.map((s, i) => {
             const n = rep.sets.length;
-            const x = W / 2 + (i - (n - 1) / 2) * Math.min(220, (W - 160) / n);
+            const step = (W - 160) / n;
+            const x = W / 2 + (i - (n - 1) / 2) * step;
+            // "25:23" is ~2.9 em wide: size each score to its slot so neighbours never touch.
+            const size = Math.min(90, Math.floor((step * 0.85) / 2.9));
             return (
               <g key={s.set}>
-                <text x={x} y={400} fill={C.ink} fontSize={n > 3 ? 72 : 90} fontWeight={800} textAnchor="middle">{`${s.us}:${s.them}`}</text>
+                <text x={x} y={400} fill={C.ink} fontSize={size} fontWeight={800} textAnchor="middle">{`${s.us}:${s.them}`}</text>
                 <text x={x} y={450} fill={C.ink2} fontSize={26} textAnchor="middle">Set {s.set}</text>
               </g>
             );
@@ -113,6 +116,10 @@ export function FlowCard({ rep }: { rep: MatchReport }) {
               </g>
             ))}
             <line x1={x0} x2={x1} y1={py(0)} y2={py(0)} stroke={C.axis} strokeWidth={2} />
+            {Array.from({ length: Math.floor(maxX / 10) + 1 }, (_, j) => j * 10).map((r) => (
+              <text key={r} x={px(r)} y={py(0) + 26} fill={C.muted} fontSize={18} textAnchor="middle">{r}</text>
+            ))}
+            {k === sets.length - 1 && <text x={x1} y={py(0) + 52} fill={C.muted} fontSize={20} textAnchor="end">rally →</text>}
             <path d={line('them')} fill="none" stroke={C.orange} strokeWidth={5} strokeLinejoin="round" />
             <path d={line('us')} fill="none" stroke={C.blue} strokeWidth={5} strokeLinejoin="round" />
             <text x={x1 + 16} y={py(last.us) + (last.us >= last.them ? -4 : 26)} fill={C.ink} fontSize={30} fontWeight={800}>{last.us}</text>
