@@ -37,14 +37,17 @@ export function parseJson(text) {
 /**
  * Run one completion and return the text. [images] are { media_type, data(base64) }.
  * [schema] (Anthropic structured output) and [jsonHint] (a shape reminder for the
- * OpenAI path) are both optional; pass them when you want JSON back.
+ * OpenAI path) are both optional; pass them when you want JSON back. [onUsage] gets
+ * { cost, tokensIn, tokensOut } after the call (cost when the gateway reports it, else null).
  */
-export async function aiComplete(cfg, { system, text, images = [], maxTokens = 2000, schema = null, jsonHint = null }) {
-  if (cfg.kind === 'anthropic') return anthropicComplete(cfg, { system, text, images, maxTokens, schema });
-  return openaiComplete(cfg, { system, text, images, maxTokens, jsonHint });
+export async function aiComplete(cfg, { system, text, images = [], maxTokens = 2000, schema = null, jsonHint = null, onUsage = null }) {
+  if (cfg.kind === 'anthropic') return anthropicComplete(cfg, { system, text, images, maxTokens, schema, onUsage });
+  return openaiComplete(cfg, { system, text, images, maxTokens, jsonHint, onUsage });
 }
 
-async function anthropicComplete(cfg, { system, text, images, maxTokens, schema }) {
+const report = (onUsage, u) => { try { onUsage?.(u); } catch { /* bookkeeping never breaks a call */ } };
+
+async function anthropicComplete(cfg, { system, text, images, maxTokens, schema, onUsage }) {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey: cfg.apiKey });
   const content = [
@@ -64,13 +67,14 @@ async function anthropicComplete(cfg, { system, text, images, maxTokens, schema 
       messages: [{ role: 'user', content: [...content, { type: 'text', text: 'Respond with ONLY the JSON object, no prose and no markdown fences.' }] }],
     });
   }
+  report(onUsage, { cost: null, tokensIn: resp.usage?.input_tokens ?? null, tokensOut: resp.usage?.output_tokens ?? null });
   return resp.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
 }
 
 /** The OpenAI-compatible base without a trailing /v1 or /chat/completions. */
 export const gatewayRoot = (url) => url.replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/v1$/, '');
 
-async function openaiComplete(cfg, { system, text, images, maxTokens, jsonHint }) {
+async function openaiComplete(cfg, { system, text, images, maxTokens, jsonHint, onUsage }) {
   // Accepts the gateway root, .../v1 or the full .../chat/completions URL.
   const url = /\/chat\/completions\/?$/.test(cfg.baseUrl) ? cfg.baseUrl.replace(/\/+$/, '') : `${gatewayRoot(cfg.baseUrl)}/v1/chat/completions`;
   const userContent = images.length
@@ -98,18 +102,39 @@ async function openaiComplete(cfg, { system, text, images, maxTokens, jsonHint }
         headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, response_format: undefined }),
       });
-      if (r2.ok) return pickText(await r2.json());
+      if (r2.ok) return pickText(await r2.json(), r2, onUsage);
     }
     // The gateway's own message (e.g. "invalid model" or "budget exceeded"), never the key.
     const detail = (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300);
     throw new Error(`model gateway ${res.status}${detail ? `: ${detail}` : ''}`);
   }
-  return pickText(await res.json());
+  return pickText(await res.json(), res, onUsage);
 }
 
-function pickText(data) {
+/** The reply text; also reports the cost (LiteLLM's response header, or OpenRouter's usage.cost) and tokens. */
+function pickText(data, res, onUsage) {
+  const num = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+  const cost = num(res?.headers?.get?.('x-litellm-response-cost')) ?? num(data?.usage?.cost);
+  report(onUsage, { cost, tokensIn: data?.usage?.prompt_tokens ?? null, tokensOut: data?.usage?.completion_tokens ?? null });
   const msg = data?.choices?.[0]?.message;
   if (typeof msg?.content === 'string') return msg.content;
   if (Array.isArray(msg?.content)) return msg.content.map((c) => c.text ?? '').join('');
   return '';
+}
+
+/**
+ * Spend and budget of the key, from a LiteLLM gateway (GET /key/info). null when the
+ * gateway does not answer it (another gateway, the Anthropic API, an old LiteLLM).
+ */
+export async function keyInfo(cfg, fetchFn = fetch) {
+  if (cfg?.kind !== 'openai') return null;
+  try {
+    const res = await fetchFn(`${gatewayRoot(cfg.baseUrl)}/key/info`, { headers: { Authorization: `Bearer ${cfg.apiKey}` } });
+    if (!res.ok) return null;
+    const info = (await res.json())?.info ?? {};
+    const num = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+    return { spend: num(info.spend), max: num(info.max_budget), resetAt: typeof info.budget_reset_at === 'string' ? info.budget_reset_at : null };
+  } catch {
+    return null;
+  }
 }

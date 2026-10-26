@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
-import { MAX_TOUCHES } from './touches.js';
+import { MAX_EXAMPLES, MAX_TOUCHES, cleanLabel } from './touches.js';
 import { cleanSheet } from './sheet.js';
 import { cleanImages } from './vision.js';
 
@@ -62,7 +62,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$' }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -91,9 +91,11 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null };
   }
 
+  const withAi = (e) => ({ ...e, ai: e.ai ? JSON.parse(e.ai) : null });
+
   function matchBundle(match) {
     const players = match.team_id ? q.players.all(match.team_id) : [];
-    return { match: withCalibration(match), players, events: q.events.all(match.id) };
+    return { match: withCalibration(match), players, events: q.events.all(match.id).map(withAi) };
   }
 
   // Resolve a jersey number to a roster player of the match's team.
@@ -261,7 +263,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const match = q.matchByToken.get(req.params.token);
     if (!match) return bad(reply, 'Not found', 404);
     const bundle = matchBundle(match);
-    return { ...bundle, events: bundle.events.filter((e) => e.status === 'confirmed') };
+    return { ...bundle, events: bundle.events.filter((e) => e.status === 'confirmed').map(({ ai: _ai, ...e }) => e) };
   });
 
   app.post('/api/teams/:id/share', coach, async (req, reply) => {
@@ -289,7 +291,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (!team) return bad(reply, 'Not found', 404);
     const matches = db.prepare('SELECT * FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
     const events = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id
-                               WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
+                               WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id).map(({ ai: _ai, ...e }) => e);
     return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events };
   });
 
@@ -371,7 +373,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const [images, err] = cleanImages(req.body);
     if (err) return bad(reply, err);
     try {
-      const data = await vision.scan(images);
+      const data = await vision.scan(images, { onUsage: usage('scan', vision.model, images.length) });
       return { data };
     } catch (e) {
       req.log?.error({ err: e }, 'match sheet scan failed');
@@ -388,7 +390,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (!stats || typeof stats !== 'object') return bad(reply, 'stats object required');
     if (JSON.stringify(stats).length > 60000) return bad(reply, 'stats too large');
     try {
-      const bullets = await insights.generate(stats, lang);
+      const bullets = await insights.generate(stats, lang, { onUsage: usage('summary', insights.model, 1) });
       return { bullets };
     } catch (e) {
       req.log?.error({ err: e }, 'insights failed');
@@ -399,11 +401,20 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   // ---------- AI check of detected touches (optional) ----------
   // A cap on AI calls per day, so a bug or a stuck button cannot use up the credits.
   const aiUse = { day: '', n: 0 };
-  const aiAllowed = () => {
-    const day = new Date().toISOString().slice(0, 10);
-    if (aiUse.day !== day) { aiUse.day = day; aiUse.n = 0; }
-    return aiUse.n++ < aiDailyLimit;
+  const today = () => new Date().toISOString().slice(0, 10);
+  const aiLeftToday = () => {
+    if (aiUse.day !== today()) { aiUse.day = today(); aiUse.n = 0; }
+    return Math.max(0, aiDailyLimit - aiUse.n);
   };
+  const aiAllowed = () => {
+    if (aiLeftToday() === 0) return false;
+    aiUse.n++;
+    return true;
+  };
+  const addUsage = db.prepare('INSERT INTO ai_usage (task, model, items, cost, tokens_in, tokens_out) VALUES (?, ?, ?, ?, ?, ?)');
+  /** Records what one AI call cost (as reported by the gateway). */
+  const usage = (task, model, items) => (u) => addUsage.run(task, model ?? null, items, u.cost ?? null, u.tokensIn ?? null, u.tokensOut ?? null);
+
   app.get('/api/ai/touches/enabled', coach, async () => ({ enabled: !!touches?.enabled, model: touches?.model ?? null }));
 
   app.post('/api/ai/touches', coach, async (req, reply) => {
@@ -422,12 +433,118 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const roster = (Array.isArray(req.body?.roster) ? req.body.roster : []).slice(0, 30)
       .filter((p) => Number.isInteger(p?.number)).map((p) => ({ number: p.number, role: typeof p.role === 'string' ? p.role.slice(0, 4) : null }));
     if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
+    const examples = req.body?.examples ? pickExamples() : [];
     try {
-      return { touches: await touches.check(images, { ourSide, roster }) };
+      return { touches: await touches.check(images, { ourSide, roster }, { examples, onUsage: usage('touches', touches.model, images.length) }), examples: examples.length };
     } catch (e) {
       req.log?.error({ err: e }, 'touch check failed');
       return bad(reply, `AI check failed: ${String(e?.message ?? e).slice(0, 200)}`, 502);
     }
+  });
+
+  // The AI's answers per touch, kept with the suggestion until the rally is reviewed.
+  app.post('/api/matches/:id/ai', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const list = Array.isArray(req.body?.results) ? req.body.results.slice(0, 2000) : null;
+    if (!list) return bad(reply, 'results required');
+    const set = db.prepare('UPDATE events SET ai = ? WHERE id = ? AND match_id = ?');
+    let n = 0;
+    db.transaction(() => {
+      for (const r of list) {
+        if (!Number.isInteger(r?.id)) continue;
+        const ai = r.ai && typeof r.ai === 'object' ? JSON.stringify(r.ai).slice(0, 2000) : null;
+        n += set.run(ai, r.id, match.id).changes;
+      }
+    })();
+    return { updated: n };
+  });
+
+  // ---------- how well the AI does, and examples to learn from ----------
+  const AI_FIELDS = ['contact', 'team', 'action', 'jersey', 'position'];
+  app.post('/api/ai/feedback', coach, async (req, reply) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : null;
+    if (!items) return bad(reply, 'items required');
+    const ins = db.prepare('INSERT INTO ai_feedback (field, confidence, correct) VALUES (?, ?, ?)');
+    let n = 0;
+    db.transaction(() => {
+      for (const it of items) {
+        if (!AI_FIELDS.includes(it?.field) || typeof it.correct !== 'boolean') continue;
+        const c = Number(it.confidence);
+        ins.run(it.field, Number.isFinite(c) ? Math.max(0, Math.min(1, c)) : null, it.correct ? 1 : 0);
+        n++;
+      }
+      // The recent past is what counts (models and cameras change); keep it small.
+      db.prepare('DELETE FROM ai_feedback WHERE id <= (SELECT MAX(id) FROM ai_feedback) - 5000').run();
+    })();
+    return { saved: n };
+  });
+
+  /** Per field, over its last 300 answers: how many were right, overall and when the AI was sure. */
+  function aiStats() {
+    const fields = {};
+    for (const f of AI_FIELDS) {
+      const rows = db.prepare('SELECT confidence, correct FROM ai_feedback WHERE field = ? ORDER BY id DESC LIMIT 300').all(f);
+      const sure = rows.filter((r) => (r.confidence ?? 0) >= 0.6);
+      fields[f] = { n: rows.length, correct: rows.filter((r) => r.correct).length, sureN: sure.length, sureCorrect: sure.filter((r) => r.correct).length };
+    }
+    return fields;
+  }
+  app.get('/api/ai/stats', coach, async () => ({
+    fields: aiStats(),
+    examples: db.prepare('SELECT COUNT(*) AS n FROM ai_examples').get().n,
+  }));
+
+  const MAX_STORED_EXAMPLES = 12;
+  app.post('/api/ai/examples', coach, async (req, reply) => {
+    const image = req.body?.image;
+    const label = cleanLabel(req.body?.label);
+    if (typeof image !== 'string' || image.length > 700_000 || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 200))) return bad(reply, 'image: base64 JPEG under ~500 KB');
+    if (!label) return bad(reply, 'label required');
+    db.prepare('INSERT INTO ai_examples (image, label) VALUES (?, ?)').run(image, JSON.stringify(label));
+    db.prepare('DELETE FROM ai_examples WHERE id NOT IN (SELECT id FROM ai_examples ORDER BY id DESC LIMIT ?)').run(MAX_STORED_EXAMPLES);
+    return { ok: true };
+  });
+  app.delete('/api/ai/examples', coach, async () => ({ deleted: db.prepare('DELETE FROM ai_examples').run().changes }));
+
+  /** Up to MAX_EXAMPLES recent examples, of different actions where possible. */
+  function pickExamples() {
+    const rows = db.prepare('SELECT image, label FROM ai_examples ORDER BY id DESC').all().map((r) => ({ image: r.image, label: JSON.parse(r.label) }));
+    const out = [], seen = new Set();
+    for (const r of rows) {
+      const k = r.label.contact === 'no' ? 'none' : r.label.action;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(r);
+      if (out.length >= MAX_EXAMPLES) return out;
+    }
+    for (const r of rows) { if (out.length >= MAX_EXAMPLES) break; if (!out.includes(r)) out.push(r); }
+    return out;
+  }
+
+  // ---------- AI credit: what is left, and what a check costs ----------
+  let keyCache = { at: 0, info: null };
+  app.get('/api/ai/budget', coach, async () => {
+    if (budget && Date.now() - keyCache.at > 60_000) keyCache = { at: Date.now(), info: await budget().catch(() => null) };
+    const key = keyCache.info;
+    const month = db.prepare("SELECT COALESCE(SUM(cost), 0) AS cost, COUNT(cost) AS priced, COUNT(*) AS calls FROM ai_usage WHERE created_at >= datetime('now', 'start of month')").get();
+    const per = db.prepare("SELECT SUM(cost) AS cost, SUM(items) AS items FROM (SELECT cost, items FROM ai_usage WHERE task = 'touches' AND cost IS NOT NULL ORDER BY id DESC LIMIT 50)").get();
+    const spend = key?.spend ?? (month.priced ? month.cost : null);
+    const max = key?.max ?? aiMonthlyBudget;
+    return {
+      currency: aiCurrency,
+      source: key?.spend != null ? 'gateway' : month.priced ? 'server' : null,
+      spend,
+      max,
+      remaining: spend != null && max != null ? Math.max(0, max - spend) : null,
+      resetAt: key?.resetAt ?? null,
+      monthCalls: month.calls,
+      /** Average cost of checking one touch, from the last checks that reported a cost. */
+      perTouch: per.items ? per.cost / per.items : null,
+      today: { used: aiDailyLimit - aiLeftToday(), limit: aiDailyLimit },
+      maxTouches: MAX_TOUCHES,
+      maxExamples: MAX_EXAMPLES,
+    };
   });
 
   // Delete every unreviewed auto suggestion of a match (saved/confirmed touches are kept),

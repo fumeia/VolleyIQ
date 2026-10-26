@@ -12,6 +12,7 @@ import { makeVisionScanner } from './vision.js';
 import { makeInsighter } from './insights.js';
 import { makeTouchChecker } from './touches.js';
 import { makeUpdates } from './updates.js';
+import { aiConfig, keyInfo } from './ai.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,6 +45,9 @@ export async function buildApp(env = process.env, opts = {}) {
     touches: opts.touches ?? makeTouchChecker(env),
     aiDailyLimit: Number(env.AI_DAILY_LIMIT) || 400,
     updates: opts.updates ?? makeUpdates(env),
+    budget: opts.budget ?? (() => keyInfo(aiConfig(env, 'touches'))),
+    aiMonthlyBudget: Number(env.AI_MONTHLY_BUDGET) || null,
+    aiCurrency: env.AI_CURRENCY || '$',
   });
 
   app.get('/api/health', async () => ({ ok: true, version: VERSION }));

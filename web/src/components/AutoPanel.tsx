@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, serverBase, type Match, type Player } from '../lib/api';
+import { api, serverBase, type Match, type Player, type VEvent } from '../lib/api';
+import { aiPrefs } from '../lib/aiCheck';
+import { AiCard } from './AiCard';
 import { flatPoints, segments, type Calibration } from '../lib/calibration';
 import { SidesPanel } from './Calibration';
 import { isApp, Native, type LocalVideo, type WorkState } from '../lib/native';
@@ -16,6 +18,10 @@ interface Props {
   /** How many unreviewed auto suggestions exist, and a way to delete them all. */
   pending?: number;
   onClearSuggestions?: () => void;
+  /** For the AI check: the suggestions, the video file in the player, and a reload. */
+  suggested: VEvent[];
+  fileUrl: () => string | null;
+  reload: () => Promise<unknown>;
 }
 
 /**
@@ -23,7 +29,7 @@ interface Props {
  * (picture), rallies, and optionally jersey numbers and court sides. Results
  * land in Review. Runs as a background job with a notification.
  */
-export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone, pending = 0, onClearSuggestions }: Props) {
+export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone, pending = 0, onClearSuggestions, suggested, fileUrl, reload }: Props) {
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
@@ -36,6 +42,9 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
   const handled = useRef<string | null>(null);
   const done = useRef(onDone);
   done.current = onDone;
+  // Set when the detection finished and every rally should get the AI check first.
+  const [aiRun, setAiRun] = useState<{ done: () => void } | null>(null);
+  const aiCard = <AiCard match={match} players={players} suggested={suggested} fileUrl={fileUrl} reload={reload} autoRun={aiRun} />;
 
   const running = !!status && (isActive(status.analysis) || isActive(status.upload));
 
@@ -50,7 +59,9 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       if (s.upload?.state === 'succeeded' && handled.current !== s.upload.id) {
         const first = handled.current === null;
         handled.current = s.upload.id;
-        if (!first) done.current();
+        if (first) return;
+        if (aiPrefs.afterDetect() && fileUrl()) reload().then(() => setAiRun({ done: () => { setAiRun(null); done.current(); } }));
+        else done.current();
       }
     };
     tick();
@@ -64,6 +75,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         <p><b>Auto-detection runs in the VolleyIQ Android app</b>, on the phone where the video is. It finds rallies and ball
           touches, guesses the action, and reads jersey numbers. The suggestions then show up here in <b>Review</b>.</p>
         <p className="muted small">Install it from the project's GitHub Releases page ("VolleyIQ Android (latest build)").</p>
+        {aiCard}
         {pending > 0 && onClearSuggestions && (
           <button className="btn-ghost small danger wide" onClick={() => {
             if (confirm(`Delete all ${pending} unreviewed auto suggestion${pending === 1 ? '' : 's'}? Saved touches are kept.`)) onClearSuggestions();
@@ -146,6 +158,8 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         </label>
         <input type="range" min={0.6} max={1.8} step={0.1} value={sensitivity} onChange={(e) => setSensitivity(Number(e.target.value))} />
       </details>
+
+      {aiCard}
 
       <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>
         {running ? 'Analysing…' : '✨ Run auto-detection'}

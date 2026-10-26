@@ -446,8 +446,37 @@ button.court-zone:active { background: #2a2f3a; }
 .icon-btn:disabled { opacity: .4; }
 .rr-serve { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin: 0 auto; }
 .rr-serve .chip { padding: 4px 10px; }
-.touch-chip.gone { opacity: .45; border-style: dashed; }
-.touch-chip.gone b { text-decoration: line-through; }
+.touch-chip.gone { opacity: .55; border-style: dashed; min-width: 0; padding: 6px 8px; justify-content: center; }
+.touch-chip.gone span { font-size: 11px; }
+/* Chips: horizontal pans scroll the strip, vertical swipes are ours (swipe up = remove). */
+.touch-chip { touch-action: pan-x; transition: transform .18s ease, opacity .18s ease; user-select: none; -webkit-user-select: none; }
+.touch-chip.dragging { transition: none; }
+.swipe-hint { margin: 0; font-size: 11px; color: var(--muted); text-align: center; }
+.tool-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tool-row.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tool-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 4px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; }
+.tool-btn .tool-ico { font-size: 19px; line-height: 1; color: var(--accent); }
+.tool-btn small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.tool-btn:active:not(:disabled) { transform: scale(.97); }
+.tool-btn:disabled { opacity: .4; }
+.tool-btn.split { border-color: rgba(96,165,250,.55); }
+.tool-btn.split .tool-ico { color: #60a5fa; }
+.tool-btn.danger { border-color: rgba(239,107,107,.5); }
+.tool-btn.danger .tool-ico { color: var(--bad-ink); }
+.tool-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tool-btn.primary .tool-ico, .tool-btn.primary small { color: #fff; }
+.rr-play-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-btn { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.seg-btn.on { border-color: var(--accent); color: var(--accent); background: rgba(249,115,22,.12); }
+.rr-serve-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.rr-serve-row .segmented { flex: 1; max-width: 220px; padding: 2px; }
+.rr-serve-row .segmented button { min-height: 30px; }
+.ai-run { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(168,85,247,.55); background: rgba(168,85,247,.12); color: var(--text); font-weight: 600; text-align: left; }
+.ai-run small { color: var(--muted); font-weight: 500; }
+.ai-run:disabled { opacity: .6; }
+.ai-note { color: var(--muted); margin-left: auto; }
 .touch-chip.add { border-style: dashed; color: var(--accent); min-width: 48px; }
 .crumbs { display: flex; align-items: center; gap: 4px; color: var(--muted); flex-wrap: wrap; }
 .crumbs > button { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); border-radius: 8px; padding: 4px 10px; font-weight: 700; font-size: 14px; }
@@ -725,3 +754,14 @@ button.court-zone:active { background: #2a2f3a; }
 .more-list button + button { border-top: 1px solid var(--line); }
 .shell-more { position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 8px; z-index: 40; }
 .main .page-head { padding-right: 44px; }
+
+/* AI check card on the auto-detection screen */
+.ai-card { border-color: rgba(168,85,247,.45); }
+.ai-credit { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.ai-credit b { font-size: 18px; }
+.ai-credit .ai-today { margin-left: auto; }
+.ai-fields table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.ai-fields td { padding: 4px 4px; border-top: 1px solid var(--line); }
+.ai-estimate { padding: 6px 8px; border-radius: 8px; background: var(--surface-2); }
+.ai-estimate.warn { border: 1px solid rgba(239,107,107,.6); }
+.ai-run-all { border-color: rgba(168,85,247,.6); }

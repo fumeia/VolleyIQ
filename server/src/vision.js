@@ -128,7 +128,7 @@ export function makeVisionScanner(env = {}, scan = null) {
   return {
     enabled: true,
     model,
-    async scan(images) {
+    async scan(images, { onUsage = null } = {}) {
       const text = await aiComplete(cfg, {
         system: SYSTEM,
         text: 'Read this match sheet and return the summary fields. If several photos are given, they are pages of the same match.',
@@ -136,6 +136,7 @@ export function makeVisionScanner(env = {}, scan = null) {
         maxTokens: 8000,
         schema: SCHEMA,
         jsonHint: JSON_HINT,
+        onUsage,
       });
       return parseJson(text);
     },

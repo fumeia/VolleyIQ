@@ -479,6 +479,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 }}
                 onDone={async () => { await reload(); setTab('review'); }}
                 pending={suggested.length}
+                suggested={suggested}
+                fileUrl={() => player.current?.fileUrl() ?? null}
+                reload={reload}
                 onClearSuggestions={async () => {
                   const n = suggested.length;
                   try { await api.clearSuggestions(match.id); } catch { /* fall back below */ }

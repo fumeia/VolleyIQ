@@ -21,9 +21,30 @@ export interface VEvent {
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
   /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
   hint?: 'quiet' | 'gap' | null;
+  /** The AI check's answer for this suggestion, kept until the rally is reviewed. */
+  ai?: AiTouch | null;
 }
+export type AiPosition = 'front-left' | 'front-middle' | 'front-right' | 'back-left' | 'back-middle' | 'back-right' | 'unsure';
 /** The AI check's answer for one touch (i = its place in the request, from 1). */
-export interface AiTouch { i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; confidence: number }
+export interface AiTouch {
+  i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null;
+  position?: AiPosition; confidence: number;
+  /** Which half our team was on when it was asked (needed to turn the position into a player). */
+  ourSide?: 'near' | 'far' | null;
+}
+export type AiField = 'contact' | 'team' | 'action' | 'jersey' | 'position';
+/** How often each answered field turned out right, over its recent answers (sure = confidence 0.6+). */
+export type AiStats = Record<AiField, { n: number; correct: number; sureN: number; sureCorrect: number }>;
+export interface AiBudget {
+  currency: string;
+  source: 'gateway' | 'server' | null;
+  spend: number | null; max: number | null; remaining: number | null; resetAt: string | null;
+  monthCalls: number;
+  perTouch: number | null;
+  today: { used: number; limit: number };
+  maxTouches: number; maxExamples: number;
+}
+export interface AiExampleLabel { contact: 'yes' | 'no'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; ourSide: 'near' | 'far' | null }
 /** A saved state of a match's tagging; auto = saved by the app before a restore. */
 /** The newest app of a release channel, as the server found it on GitHub. */
 export interface AppRelease { version: string; name: string | null; notes: string; published: string | null; size: number; assetId: number }
@@ -151,8 +172,14 @@ export const api = {
   about: () => req<{ ai: { scan: boolean; summary: boolean; touches: boolean; model: string | null }; updates: { configured: boolean; repo: string | null } }>('GET', '/api/about'),
   appUpdate: (channel: 'stable' | 'test') => req<{ configured: boolean; channel?: string; latest: AppRelease | null }>('GET', `/api/app/update?channel=${channel}`),
   touchCheckEnabled: () => req<{ enabled: boolean; model: string | null }>('GET', '/api/ai/touches/enabled'),
-  touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[] }) =>
-    req<{ touches: AiTouch[] }>('POST', '/api/ai/touches', body),
+  touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[]; examples?: boolean }) =>
+    req<{ touches: AiTouch[]; examples?: number }>('POST', '/api/ai/touches', body),
+  saveAi: (matchId: number, results: { id: number; ai: AiTouch | null }[]) => req<{ updated: number }>('POST', `/api/matches/${matchId}/ai`, { results }),
+  aiFeedback: (items: { field: AiField; confidence: number; correct: boolean }[]) => req<{ saved: number }>('POST', '/api/ai/feedback', { items }),
+  aiStats: () => req<{ fields: AiStats; examples: number }>('GET', '/api/ai/stats'),
+  aiExample: (image: string, label: AiExampleLabel) => req<{ ok: boolean }>('POST', '/api/ai/examples', { image, label }),
+  clearAiExamples: () => req<{ deleted: number }>('DELETE', '/api/ai/examples'),
+  aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>

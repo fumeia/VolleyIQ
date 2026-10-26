@@ -30,13 +30,14 @@ export function makeInsighter(env = {}, generate = null) {
   return {
     enabled: true,
     model,
-    async generate(stats, lang) {
+    async generate(stats, lang, { onUsage = null } = {}) {
       const text = await aiComplete(cfg, {
         system: SYSTEM,
         text: `Language: ${lang === 'de' ? 'de' : 'en'}\nStatistics:\n${JSON.stringify(stats)}`,
         maxTokens: 1200,
         schema: SCHEMA,
         jsonHint: 'Return ONLY a JSON object of the form {"bullets": ["...", "..."]} with 2-7 items.',
+        onUsage,
       });
       const out = parseJson(text);
       return Array.isArray(out.bullets) ? out.bullets.slice(0, 7).map(String) : [];

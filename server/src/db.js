@@ -159,6 +159,37 @@ const MIGRATIONS = [
       for (const e of aces) insert.run(m.id, e.t == null ? null : e.t + 0.05, e.set_no);
     }
   },
+  // v14: the AI check learns from the coach. Its answer per touch (to apply later, e.g.
+  // after checking every rally at once), whether each answered field was right once the
+  // rally was saved, the coach's corrected touches as examples, and what each call cost.
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'ai')) db.exec('ALTER TABLE events ADD COLUMN ai TEXT');
+    db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_feedback (
+    id INTEGER PRIMARY KEY,
+    field TEXT NOT NULL,                     -- contact | team | action | jersey | position
+    confidence REAL,
+    correct INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_feedback_field ON ai_feedback(field, id);
+  CREATE TABLE IF NOT EXISTS ai_examples (
+    id INTEGER PRIMARY KEY,
+    image TEXT NOT NULL,                     -- base64 JPEG (the same 2x2 picture the check uses)
+    label TEXT NOT NULL,                     -- JSON: contact, team, action, jersey, ourSide
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY,
+    task TEXT NOT NULL,                      -- touches | scan | summary
+    model TEXT,
+    items INTEGER NOT NULL DEFAULT 1,        -- touches checked (examples not counted)
+    cost REAL,                               -- as reported by the gateway, else null
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );`);
+  },
 ];
 
 function migrate(db) {

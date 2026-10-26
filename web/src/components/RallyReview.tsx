@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, wantsSpots, type ActionCode } from '../lib/actions';
 import { ActionPicker } from './ActionPicker';
-import { api, type Match, type Player, type VEvent } from '../lib/api';
+import { api, type AiBudget, type AiStats, type AiTouch, type Match, type Player, type VEvent } from '../lib/api';
 import { touchPictures } from '../lib/frames';
 import { plural } from './analysis/ui';
+import { aiWord, courtPosition, feedbackFor, nextTouch, planAnswer } from '../lib/aiTrust';
+import { aiPrefs, checkRally, estimate, money } from '../lib/aiCheck';
 import { courtFields, type Pt } from '../lib/court';
 import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { pointsOfSet, rotationAfter, suggest } from '../lib/rotation';
@@ -40,10 +42,8 @@ const SPEEDS = [1, 1.5, 2];
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
 const STEP_PAUSE_MS = 700;
-/** The AI check's action words, as our action codes. */
-const AI_ACTION: Record<string, ActionCode> = { serve: 'serve', receive: 'receive', set: 'set', attack: 'attack', block: 'block_touch', dig: 'dig', freeball: 'freeball' };
-/** Below this confidence the AI's answer is only shown, not applied. */
-const AI_SURE = 0.6;
+/** Swipe a chip up this far (px) to remove it. */
+const CHIP_SWIPE = 40;
 
 const load = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const store = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -79,8 +79,13 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   // AI check (optional, needs an AI backend on the server and a local video file).
   const [aiOn, setAiOn] = useState(false);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
-  const [aiNotes, setAiNotes] = useState<Map<number, string>>(new Map());
+  // The AI's answer per touch of this rally (from the check of this rally, or of all rallies before).
+  const [answers, setAnswers] = useState<Map<number, AiTouch>>(new Map());
   const [aiSummary, setAiSummary] = useState<{ text: string; undo?: () => void } | null>(null);
+  const [aiStats, setAiStats] = useState<AiStats | null>(null);
+  const [budget, setBudget] = useState<AiBudget | null>(null);
+  const chipDrag = useRef<{ id: number; x: number; y: number; el: HTMLElement; moved: boolean } | null>(null);
+  const addSide = useRef<'us' | 'them' | null>(null);
   const stopAt = useRef<number | null>(null);
   const passed = useRef<Set<number>>(new Set());
   const jumpTo = useRef<number | null>(null);
@@ -107,23 +112,43 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   // New rally: fresh state (touches heard twice already folded), play it.
   useEffect(() => {
     if (!r) return;
-    setDrafts({});
-    setRemoved(new Set([...duplicates(r.events), ...alreadySaved(r.events, confirmed)]));
+    const base = { drafts: {}, removed: new Set([...duplicates(r.events), ...alreadySaved(r.events, confirmed)]), owner: new Map<number, 'us' | 'them'>() };
     setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
-    setOwner(new Map());
     setSel(null);
-    setAiNotes(new Map());
-    setAiSummary(null);
+    // Answers from an earlier AI check (e.g. of all rallies after the detection): applied right away.
+    const stored = new Map(r.events.filter((e) => e.ai).map((e) => [e.id, e.ai!] as const));
+    if (stored.size) {
+      const got = applyAnswers(stored, base);
+      setDrafts(got.drafts); setRemoved(got.removed); setOwner(got.owner);
+      setAiSummary({ text: `From the AI check: ${got.text}`, undo: () => { setDrafts(base.drafts); setRemoved(base.removed); setOwner(base.owner); setAiSummary(null); } });
+    } else {
+      setDrafts(base.drafts); setRemoved(base.removed); setOwner(base.owner);
+      setAiSummary(null);
+    }
+    setAnswers(stored);
     playRally();
   }, [r?.key, r?.start]);
 
-  useEffect(() => { api.touchCheckEnabled().then((x) => setAiOn(x.enabled)).catch(() => setAiOn(false)); }, []);
+  useEffect(() => {
+    api.touchCheckEnabled().then((x) => {
+      setAiOn(x.enabled);
+      if (!x.enabled) return;
+      api.aiStats().then((s) => setAiStats(s.fields)).catch(() => {});
+      api.aiBudget().then(setBudget).catch(() => {});
+    }).catch(() => setAiOn(false));
+  }, []);
 
   // A touch just added by hand: open it.
   useEffect(() => {
     if (selectAt.current == null || !r) return;
     const e = r.events.find((x) => x.t != null && Math.abs(x.t - selectAt.current!) < 0.02);
-    if (e) { open(e, false); selectAt.current = null; }
+    if (e) {
+      const side = addSide.current;
+      if (side) setOwner((m) => new Map(m).set(e.id, side));
+      open(e, false);
+      selectAt.current = null;
+      addSide.current = null;
+    }
   }, [rallies]);
 
   // Keep the open question in view (the video stays pinned above it).
@@ -199,11 +224,15 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       player.current?.pause();
       const at = Math.round(t * 100) / 100;
       const numbered = !r || /^\d+$/.test(r.key);
-      // Kept as ours: possession parity matching who served (0 = the serve).
       const rally = numbered ? (newRally || !r ? 900000 + Math.round(at * 10) : Number(r.key)) : null;
-      const poss = newRally ? 0 : serving === 'them' ? 1 : 2;
+      // The likely touch after the one before it: its action, and the same or the other team.
+      const prev = newRally || !r ? null : [...r.events].reverse().find((e) => (e.t ?? 0) < at && !removed.has(e.id)) ?? null;
+      const guess = nextTouch(prev ? view(prev).action : null);
+      const prevSide = prev ? (isTheirs(prev) ? 'them' : 'us') : serving === 'them' ? 'them' : 'us';
+      addSide.current = newRally || !prev ? null : guess.sameTeam ? prevSide : prevSide === 'us' ? 'them' : 'us';
+      const poss = !prev ? 0 : possOf(prev) + (guess.sameTeam ? 0 : 1);
       await api.addEvent(match.id, {
-        t: at, action: newRally ? 'serve' : 'dig', status: 'suggested', source: 'auto',
+        t: at, action: guess.action, status: 'suggested', source: 'auto',
         rally, poss: rally == null ? null : poss, set_no: newRally || !r ? setAt(match.calibration, at) : r.set,
       });
       if (newRally) jumpTo.current = at;
@@ -318,10 +347,6 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     advance(e);
   }
 
-  function removeTouch(e: VEvent) {
-    setRemoved((s) => new Set(s).add(e.id));
-    advance(e);
-  }
 
   async function finish(result: 'won' | 'lost' | null) {
     if (busy) return;
@@ -342,6 +367,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       })));
       const clientId = o.add ? add({ action: o.add, value: o.addValue ?? null, t: rally.end + 0.5, set_no: rally.set }) : null;
       if (drop.length) await removeMany(drop);
+      learn(rally.events, (e) => (o.change?.id === e.id ? o.change.action : view(e).action));
       navigator.vibrate?.(result ? [20, 40, 20] : 15);
       const text = `rally at ${fmtTime(rally.start)}${result ? (result === 'won' ? ' (won)' : ' (lost)') : ''}`;
       setLast({
@@ -432,64 +458,132 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     open(e);
   }
 
+  /** Answers → chip changes, as far as each kind of answer has proven right before. */
+  function applyAnswers(found: Map<number, AiTouch>, base: { drafts: Record<number, Partial<VEvent>>; removed: Set<number>; owner: Map<number, 'us' | 'them'> }) {
+    const drop = new Set(base.removed), side = new Map(base.owner);
+    const fill: Record<number, Partial<VEvent>> = { ...base.drafts };
+    let dropped = 0, actions = 0, numbers = 0, spots = 0;
+    for (const e of r.events) {
+      const a = found.get(e.id);
+      if (!a) continue;
+      const cur = { ...e, ...fill[e.id] };
+      const plan = planAnswer(a, {
+        stats: aiStats, action: cur.action, hasPlayer: cur.player_id != null,
+        byNumber: (n) => roster.find((p) => p.number === n)?.id ?? null,
+        atPosition: (pos) => rotation?.positions[pos - 1] ?? null,
+      });
+      if (plan.drop) { drop.add(e.id); dropped++; continue; }
+      if (plan.side) side.set(e.id, plan.side);
+      if (plan.action) { fill[e.id] = { ...fill[e.id], action: plan.action, value: plan.action === 'receive' ? cur.value : null }; actions++; }
+      const p = plan.player && players.find((x) => x.id === plan.player!.id);
+      if (p) {
+        fill[e.id] = { ...fill[e.id], player_id: p.id, jersey: p.number };
+        if (plan.player!.via === 'jersey') numbers++; else spots++;
+      }
+    }
+    const parts = [dropped && `${dropped} not a touch`, actions && plural(actions, 'action'), numbers && `${plural(numbers, 'player')} by number`, spots && `${plural(spots, 'player')} by court position`].filter(Boolean);
+    return { drafts: fill, removed: drop, owner: side, text: `${parts.length ? parts.join(', ') : 'nothing changed'}. Check the chips, then save the rally as usual.` };
+  }
+
   /**
    * AI check of this rally: three frames per touch go to the vision model, which says
-   * whether it is a touch, whose, which action and the number. Confident answers are
-   * filled in (nothing is saved until the rally is); every answer shows on its chip.
+   * whether it is a touch, whose, which action, the number and where the player stands.
+   * Answers are filled in as far as they are trusted (nothing is saved until the rally is).
    */
   async function aiCheck() {
     const url = player.current?.fileUrl();
     if (!url || aiBusy || !r) return;
-    const list = r.events.filter((e) => e.t != null).slice(0, 16);
-    if (!list.length) return;
     player.current?.pause();
     stopAt.current = null;
     const before = { drafts, removed, owner };
     try {
-      setAiBusy('Reading frames…');
-      const pics = await touchPictures(url, list.map((e) => e.t!), (k) => `Touch ${k + 1} of ${list.length}`,
-        (d) => setAiBusy(`Reading frames ${d}/${list.length}…`));
-      setAiBusy('Asking the AI…');
-      const half = match.calibration ? ourHalfAt(match.calibration, list[0].t!) : null;
-      const { touches } = await api.touchCheck({
-        images: pics.map((data) => ({ media_type: 'image/jpeg', data })),
-        ourSide: half === 'near' || half === 'far' ? half : null,
-        roster: roster.filter((p) => p.number != null).map((p) => ({ number: p.number!, role: p.role })),
-      });
-      const notes = new Map<number, string>();
-      const drop = new Set(removed), side = new Map(owner);
-      const fill: Record<number, Partial<VEvent>> = {};
-      let dropped = 0, numbers = 0, actions = 0;
-      for (const a of touches) {
-        const e = list[a.i - 1];
-        if (!e) continue;
-        const sure = a.confidence >= AI_SURE;
-        notes.set(e.id, `AI: ${a.contact === 'no' ? 'no touch' : a.action}${a.jersey != null ? ` #${a.jersey}` : ''}${a.team === 'theirs' ? ', theirs' : a.team === 'ours' ? ', ours' : ''} (${Math.round(a.confidence * 100)}%)`);
-        if (a.contact === 'no') { if (sure) { drop.add(e.id); dropped++; } continue; }
-        if (a.team !== 'unsure' && sure) side.set(e.id, a.team === 'ours' ? 'us' : 'them');
-        if (a.team === 'theirs' || !sure) continue;
-        const code = AI_ACTION[a.action];
-        const p = a.jersey != null ? roster.find((x) => x.number === a.jersey) : undefined;
-        if (code && code !== view(e).action) { fill[e.id] = { action: code, value: code === 'receive' ? view(e).value : null }; actions++; }
-        if (p && view(e).player_id == null) { fill[e.id] = { ...fill[e.id], player_id: p.id, jersey: p.number }; numbers++; }
-      }
-      setRemoved(drop);
-      setOwner(side);
-      setDrafts((d) => {
-        const n = { ...d };
-        for (const [id, f] of Object.entries(fill)) n[Number(id)] = { ...n[Number(id)], ...f };
-        return n;
-      });
-      setAiNotes(notes);
+      const found = await checkRally(r.events, { match, players, url, examples: aiPrefs.examples() }, setAiBusy);
+      const got = applyAnswers(found, before);
+      setDrafts(got.drafts); setRemoved(got.removed); setOwner(got.owner);
+      setAnswers(found);
       setAiSummary({
-        text: `AI checked ${touches.length} touches: ${dropped} not a touch, ${plural(actions, 'action')} and ${plural(numbers, 'player')} filled in. Check the chips, then save the rally as usual.`,
-        undo: () => { setDrafts(before.drafts); setRemoved(before.removed); setOwner(before.owner); setAiNotes(new Map()); setAiSummary(null); },
+        text: `AI checked ${plural(found.size, 'touch')}: ${got.text}`,
+        undo: () => { setDrafts(before.drafts); setRemoved(before.removed); setOwner(before.owner); setAiSummary(null); },
       });
+      api.aiBudget().then(setBudget).catch(() => {});
     } catch (e) {
       setAiSummary({ text: e instanceof Error ? e.message : 'AI check failed' });
     } finally {
       setAiBusy(null);
     }
+  }
+
+  /**
+   * After a rally is saved: was each AI answer right? That decides how far each kind of
+   * answer is trusted next time. Touches it got wrong are kept on the server as examples
+   * (the AI can be shown them later, when that option is on).
+   */
+  function learn(events: VEvent[], finalAction: (e: VEvent) => ActionCode) {
+    const items: ReturnType<typeof feedbackFor> = [];
+    const wrong: { e: VEvent; label: Parameters<typeof api.aiExample>[1] }[] = [];
+    for (const e of events) {
+      const a = answers.get(e.id);
+      if (!a) continue;
+      const v = view(e);
+      const kept = !removed.has(e.id), mine = kept && !isTheirs(e);
+      const pos = courtPosition(a.position, a.ourSide);
+      const number = players.find((p) => p.id === v.player_id)?.number ?? null;
+      const f = feedbackFor(a, { kept, ours: mine, action: finalAction(e), playerId: v.player_id, number, positionPlayer: pos != null ? rotation?.positions[pos - 1] ?? null : null });
+      items.push(...f);
+      if (f.some((x) => !x.correct && x.field !== 'position' && x.field !== 'jersey')) {
+        wrong.push({ e, label: { contact: kept ? 'yes' : 'no', team: !kept ? 'unsure' : mine ? 'ours' : 'theirs', action: mine ? aiWord(finalAction(e)) ?? 'unknown' : 'unknown', jersey: mine ? number : null, ourSide: a.ourSide ?? null } });
+      }
+    }
+    if (!items.length) return;
+    api.aiFeedback(items).then(() => api.aiStats()).then((s) => setAiStats(s.fields)).catch(() => {});
+    const url = player.current?.fileUrl();
+    if (!url) return;
+    // In the background, two at most per rally: the newest corrections are the useful ones.
+    (async () => {
+      for (const w of wrong.slice(0, 2)) {
+        const [pic] = await touchPictures(url, [w.e.t!], () => 'Example');
+        await api.aiExample(pic, w.label);
+      }
+    })().catch(() => {});
+  }
+
+  /** Chips: swipe up to remove, tap to open. The rally card's own left/right swipe is left alone. */
+  const chipDown = (e: VEvent) => (ev: React.PointerEvent<HTMLElement>) => {
+    ev.stopPropagation();
+    // Keep getting the moves when the finger leaves the chip upwards.
+    ev.currentTarget.setPointerCapture?.(ev.pointerId);
+    chipDrag.current = { id: e.id, x: ev.clientX, y: ev.clientY, el: ev.currentTarget, moved: false };
+  };
+  function chipMove(ev: React.PointerEvent<HTMLElement>) {
+    const d = chipDrag.current;
+    if (!d) return;
+    const dx = ev.clientX - d.x, dy = ev.clientY - d.y;
+    if (!d.moved && (Math.abs(dy) < 8 || Math.abs(dx) > Math.abs(dy))) return;
+    d.moved = true;
+    const up = Math.min(0, dy);
+    d.el.classList.add('dragging');
+    d.el.style.transform = `translateY(${up}px)`;
+    d.el.style.opacity = String(Math.max(0.2, 1 + up / 90));
+  }
+  function chipUp(e: VEvent, ev: React.PointerEvent<HTMLElement>) {
+    const d = chipDrag.current;
+    chipDrag.current = null;
+    if (!d) return;
+    d.el.classList.remove('dragging');
+    d.el.style.transform = '';
+    d.el.style.opacity = '';
+    if (!d.moved) return tapChip(e);
+    if (ev.clientY - d.y < -CHIP_SWIPE && !removed.has(e.id)) removeChip(e);
+  }
+  function chipCancel() {
+    const d = chipDrag.current;
+    chipDrag.current = null;
+    if (d) { d.el.classList.remove('dragging'); d.el.style.transform = ''; d.el.style.opacity = ''; }
+  }
+  function removeChip(e: VEvent) {
+    navigator.vibrate?.(10);
+    setRemoved((s) => new Set(s).add(e.id));
+    if (sel === e.id) advance(e);
   }
 
   function togglePlay() {
@@ -549,82 +643,101 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         <div className="help-box small" onClick={() => setHelp(false)}>
           <p><b>One rally at a time.</b> It plays once; then the first touch without a player opens.</p>
           <p><b>Tap a touch</b>: player → action → court spots (where it was played from, where it went) → the next touch opens by itself. <b>Next ▸</b> keeps a touch as it is.</p>
-          <p><b>Chips</b>: faded = unsure or removed (tap ↺ to bring back), greyed = the other team's touch. Open a greyed one and tap <b>✓ It's our touch</b> (or <b>Theirs</b> on one of ours) to fix a single chip. <b>+</b> adds a touch at the video time, <b>Empty</b> clears the rally, <b>⇥ Join next</b> / <b>✂ Split</b> fix rally boundaries.</p>
-          <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>↻touch</b> to replay a short clip instead.</p>
-          <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI, which marks noise as not a touch, sorts ours / theirs and fills in actions and numbers it is sure about. Every chip it looked at gets a ✨; hold or hover it to see the answer. Nothing is saved until you save the rally.</p>
-          <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the chips left = not a rally, right = save. Keys: W, L, N, Enter.</p>
+          <p><b>Swipe a touch up</b> to remove it (noise, a double). Removed touches stay as a small ↺ chip: tap it to bring the touch back. Greyed, struck-through chips are the other team's touches.</p>
+          <p><b>Fix the rally</b>: <b>Touch here</b> adds a missed touch at the video time (it guesses the action from the touch before: serve → pass → set → attack → dig), <b>New rally here</b> starts a rally the detection missed, <b>Join next</b> merges two rallies, <b>New rally from here</b> (on an open touch) splits one.</p>
+          <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>Clip on open</b> to replay a short clip instead.</p>
+          <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
+          <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the rally card left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
         </div>
       )}
 
       <div className="rally-card" onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }} onPointerUp={onSwipeEnd}>
-        <div className="rr-addrow">
-          <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(false)} title="Add a touch at the current video time">
-            + Add touch{now != null ? ` @ ${fmtTime(now)}` : ''}
-          </button>
-        </div>
         <div className="strip">
           {r.events.map((e) => {
             const v = view(e);
             const gone = removed.has(e.id);
+            const note = answers.get(e.id) ? aiNote(answers.get(e.id)!) : undefined;
             return (
               <button key={e.id}
                 className={`touch-chip ${isTheirs(e) ? 'theirs' : ''} ${gone ? 'gone' : ''} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''} ${!e.hint && (e.confidence ?? 1) < 0.4 ? 'weak' : ''}`}
-                title={gone ? `Removed: tap to bring it back${aiNotes.get(e.id) ? ` · ${aiNotes.get(e.id)}` : ''}` : aiNotes.get(e.id)}
-                onClick={() => tapChip(e)}>
-                <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
-                <span>{gone ? '↺' : `${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}{aiNotes.has(e.id) ? ' ✨' : ''}</span>
+                title={gone ? `Removed: tap to bring it back${note ? ` · ${note}` : ''}` : note ?? 'Tap to edit · swipe up to remove'}
+                onPointerDown={chipDown(e)} onPointerMove={chipMove} onPointerUp={(ev) => chipUp(e, ev)} onPointerCancel={chipCancel}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tapChip(e); } else if (ev.key === 'Delete' || ev.key === 'Backspace') removeChip(e); }}>
+                {gone ? <span>↺ {ACTION_BY_CODE[v.action]?.short ?? v.action}</span> : <>
+                  <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
+                  <span>{`${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}{note ? ' ✨' : ''}</span>
+                </>}
               </button>
             );
           })}
         </div>
-        {!selected && <div className="rr-tools">
-          {aiOn && player.current?.fileUrl() && (
-            <button className="icon-btn ai-btn" disabled={!!aiBusy} onClick={aiCheck} title="Send three frames per touch to the AI: real touch or not, whose, which action, which number">
-              {aiBusy ?? '✨ AI check'}
-            </button>
-          )}
-          <button className="icon-btn" onClick={playRally} title="Replay the rally">↻</button>
-          <button className="icon-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
-          <button className={`icon-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
-            onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>⏸·</button>
-          <button className={`icon-btn ${replay ? 'on' : ''}`} title="Replay a short clip when you open a touch (off = just show its frame)"
-            onClick={() => { setReplay(!replay); store('viq:replayTouch', replay ? '0' : '1'); }}>↻touch</button>
-          <span className="rr-serve">
-            Served:
-            <button className={`chip ${serving === 'us' ? 'on' : ''}`} onClick={() => setServing('us')}>Us</button>
-            <button className={`chip ${serving === 'them' ? 'on' : ''}`} onClick={() => setServing('them')}>Them</button>
-          </span>
-          <button className="icon-btn" disabled={busy || now == null} onClick={() => addAt(true)} title="Start a new rally at the current video time">+ Rally</button>
-          <button className="icon-btn" disabled={busy || idx >= rallies.length - 1} onClick={joinNext}
-            title="The next rally is part of this one (merge them)">⇥ Join next</button>
-          <button className="icon-btn" title="Remove all touches of this rally, then add them with +"
-            onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }}>Empty</button>
-        </div>}
-        {aiSummary && !selected && (
-          <div className="ai-summary small">
-            <span>✨ {aiSummary.text}</span>
-            {aiSummary.undo && <button className="btn-ghost small" onClick={aiSummary.undo}>Undo AI</button>}
+        {!selected && <p className="swipe-hint">Tap a touch to edit · swipe it up to remove{removedCount > 0 ? ` · ${removedCount} removed (tap ↺ to restore)` : ''}</p>}
+
+        {!selected && <>
+          <div className="tool-row">
+            <ToolBtn icon="＋" label="Touch here" sub={now != null ? fmtTime(now) : undefined} disabled={busy || now == null} onClick={() => addAt(false)}
+              title="Add a missed touch at the current video time" />
+            <ToolBtn icon="⇤" label="New rally here" sub={now != null ? fmtTime(now) : undefined} tone="split" disabled={busy || now == null} onClick={() => addAt(true)}
+              title="Start a new rally at the current video time" />
+            <ToolBtn icon="⇥" label="Join next rally" tone="split" disabled={busy || idx >= rallies.length - 1} onClick={joinNext}
+              title="The next rally is part of this one (merge them)" />
+            <ToolBtn icon="⌫" label="Clear touches" tone="danger" disabled={r.events.every((e) => removed.has(e.id))}
+              onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }} title="Remove all touches of this rally, then add them with Touch here" />
           </div>
-        )}
-        {!selected && <div className="rotation-info">
-          {rotation
-            ? <>Setter in {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
-            : <><button className="link" onClick={() => onLineup(r.set)}>Enter the line-up</button> to fill in servers and setters</>}
-          {removedCount > 0 && <> · {removedCount} removed (tap ↺ to restore)</>}
-          {serving == null && <> · greyed = their touch</>}
-        </div>}
+
+          <div className="rr-play-row">
+            <button className="seg-btn" onClick={playRally} title="Replay the rally">↻ Replay</button>
+            <button className="seg-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
+            <button className={`seg-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
+              onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>Pause at touches</button>
+            <button className={`seg-btn ${replay ? 'on' : ''}`} title="Replay a short clip when you open a touch (off = just show its frame)"
+              onClick={() => { setReplay(!replay); store('viq:replayTouch', replay ? '0' : '1'); }}>Clip on open</button>
+          </div>
+          <div className="rr-serve-row">
+            <span>Served by</span>
+            <div className="segmented">
+              <button className={serving === 'us' ? 'on' : ''} onClick={() => setServing('us')}>Us</button>
+              <button className={serving === 'them' ? 'on' : ''} onClick={() => setServing('them')}>Them</button>
+            </div>
+          </div>
+
+          {aiOn && player.current?.fileUrl() && (() => {
+            const n = Math.min(16, r.events.filter((x) => x.t != null).length);
+            const est = estimate(budget, n, 1, aiPrefs.examples());
+            return (
+              <button className="ai-run" disabled={!!aiBusy || n === 0} onClick={aiCheck}
+                title="Three frames per touch go to the AI: real touch or not, whose, which action, which player">
+                <span>{aiBusy ?? (answers.size ? '✨ Check this rally again' : '✨ AI check this rally')}</span>
+                {!aiBusy && <small>{plural(n, 'touch')}{est.cost != null && budget ? ` · ≈ ${money(est.cost, budget.currency)}` : ''}{budget?.remaining != null ? ` · ${money(budget.remaining, budget.currency)} left` : ''}</small>}
+              </button>
+            );
+          })()}
+          {aiSummary && (
+            <div className="ai-summary small">
+              <span>✨ {aiSummary.text}</span>
+              {aiSummary.undo && <button className="btn-ghost small" onClick={aiSummary.undo}>Undo AI</button>}
+            </div>
+          )}
+          <div className="rotation-info">
+            {rotation
+              ? <>Setter in {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
+              : <><button className="link" onClick={() => onLineup(r.set)}>Enter the line-up</button> to fill in servers and setters</>}
+            {serving == null && <> · greyed = their touch</>}
+          </div>
+        </>}
       </div>
 
       {selected && sv && def && (isTheirs(selected) ? (
         <div className="touch-editor">
           <span className="small">This touch is counted as the other team's.</span>
-          <div className="row wrap">
-            <button className="btn small btn-primary" onClick={() => setTouchOwner(selected, 'us')}>✓ It's our touch</button>
-            <button className="btn-ghost small" onClick={() => setServing(serving === 'us' ? 'them' : 'us')}>Swap the whole rally's sides</button>
-            {r.events[0]?.id !== selected.id && (
-              <button className="btn-ghost small" disabled={busy} onClick={() => splitAt(selected)}>✂ New rally starts here</button>
-            )}
+          <div className="tool-row">
+            <ToolBtn icon="✓" label="It's our touch" tone="primary" onClick={() => setTouchOwner(selected, 'us')} />
+            <ToolBtn icon="⇄" label="Swap the whole rally" onClick={() => setServing(serving === 'us' ? 'them' : 'us')} />
+            {r.events[0]?.id !== selected.id
+              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} />
+              : <span />}
+            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
           </div>
         </div>
       ) : (
@@ -634,15 +747,16 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <button className={step === 'action' ? 'on' : ''} onClick={() => setStep('action')}>{def.short}</button>
             {wantsSpots(sv.action, spots.location, spots.scope) && <>›<button className={step === 'from' || step === 'to' ? 'on' : ''}
               onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>📍{sv.x != null ? ' ✓' : ''}</button></>}
-            <span className="crumbs-end">
-              {r.events[0]?.id !== selected.id && (
-                <button className="btn-ghost small" disabled={busy} title="A new rally starts with this touch" onClick={() => splitAt(selected)}>✂ Split</button>
-              )}
-              <button className="btn-ghost small" title="Count this as the other team's touch" onClick={() => setTouchOwner(selected, 'them')}>Theirs</button>
-              <button className="btn-ghost small danger" onClick={() => removeTouch(selected)}>✕ Not a touch</button>
-              <button className="btn-ghost small" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)}>◂</button>
-              <button className="btn-ghost small" onClick={() => advance(selected)}>Next ▸</button>
-            </span>
+            {answers.get(selected.id) && <span className="ai-note small">✨ {aiNote(answers.get(selected.id)!)}</span>}
+          </div>
+          <div className="tool-row five">
+            <ToolBtn icon="◂" label="Back" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)} />
+            {r.events[0]?.id !== selected.id
+              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} title="A new rally starts with this touch" />
+              : <span />}
+            <ToolBtn icon="⇄" label="Their touch" onClick={() => setTouchOwner(selected, 'them')} title="Count this as the other team's touch" />
+            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
+            <ToolBtn icon="▸" label="Next" tone="primary" onClick={() => advance(selected)} title="Keep this touch as it is" />
           </div>
 
           {step === 'player' && (
@@ -700,4 +814,22 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
       </div>
     </div>
   );
+}
+
+/** A labelled tool: an icon over a short text, big enough to hit and to see. */
+function ToolBtn({ icon, label, sub, tone, ...rest }: { icon: string; label: string; sub?: string; tone?: 'split' | 'danger' | 'primary' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button className={`tool-btn ${tone ?? ''}`} {...rest}>
+      <span className="tool-ico" aria-hidden>{icon}</span>
+      <span>{label}</span>
+      {sub && <small>{sub}</small>}
+    </button>
+  );
+}
+
+/** The AI's answer for one touch, in a few words. */
+function aiNote(a: AiTouch) {
+  if (a.contact === 'no') return `AI: no touch (${Math.round(a.confidence * 100)}%)`;
+  const pos = a.position && a.position !== 'unsure' ? `, ${a.position.replace('-', ' ')}` : '';
+  return `AI: ${a.action}${a.jersey != null ? ` #${a.jersey}` : ''}${a.team === 'theirs' ? ', theirs' : a.team === 'ours' ? ', ours' : ''}${pos} (${Math.round(a.confidence * 100)}%)`;
 }

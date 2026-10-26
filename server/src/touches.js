@@ -6,6 +6,10 @@ import { aiComplete, aiConfig, parseJson } from './ai.js';
 
 export const MAX_TOUCHES = 16;
 export const ACTIONS = ['serve', 'receive', 'set', 'attack', 'block', 'dig', 'freeball', 'unknown'];
+/** Where the touching player stands in their own half, as seen in the picture (front = at the net). */
+export const POSITIONS = ['front-left', 'front-middle', 'front-right', 'back-left', 'back-middle', 'back-right', 'unsure'];
+/** Solved examples sent along with a check when asked for (the coach's own corrections). */
+export const MAX_EXAMPLES = 3;
 
 const SYSTEM = `You check automatically detected ball contacts in an indoor volleyball match video.
 Each image is ONE detected sound that may be a ball contact. It has three panels: top left = 0.3 s before the sound, top right = at the sound, bottom left = 0.2 s after. The bottom-right panel names the touch.
@@ -15,6 +19,7 @@ For every image decide:
 - team: "ours" or "theirs" for the player who touches it, using the court side you are told our team plays on; "unsure" if you cannot tell.
 - action: serve, receive (first touch of a serve), set, attack, block (at the net, hands above it), dig (defending an attack), freeball (an easy ball played over), or unknown.
 - jersey: the number on the touching player's shirt only if you can actually read it, else null.
+- position: where the touching player stands in their own half: front (close to the net) or back, and left / middle / right as seen in the picture; "unsure" if you cannot tell.
 - confidence: 0 to 1 for your whole answer about this touch.
 
 Rules: judge only what the panels show. The ball is small: look for it near hands and arms. Use the order of the touches (a rally goes serve, receive, set, attack, then block or dig on the other side) only to break ties, never against what you see. Never invent a number.`;
@@ -28,12 +33,13 @@ const TOUCH = {
     team: { type: 'string', enum: ['ours', 'theirs', 'unsure'] },
     action: { type: 'string', enum: ACTIONS },
     jersey: { type: ['integer', 'null'] },
+    position: { type: 'string', enum: POSITIONS },
     confidence: { type: 'number' },
   },
-  required: ['i', 'contact', 'team', 'action', 'jersey', 'confidence'],
+  required: ['i', 'contact', 'team', 'action', 'jersey', 'position', 'confidence'],
 };
 const SCHEMA = { type: 'object', additionalProperties: false, properties: { touches: { type: 'array', items: TOUCH } }, required: ['touches'] };
-const JSON_HINT = 'Return ONLY a JSON object {"touches":[{"i":1,"contact":"yes|no|unsure","team":"ours|theirs|unsure","action":"serve|receive|set|attack|block|dig|freeball|unknown","jersey":7 or null,"confidence":0.8}]} with one entry per image, i = the touch number shown in its panel.';
+const JSON_HINT = 'Return ONLY a JSON object {"touches":[{"i":1,"contact":"yes|no|unsure","team":"ours|theirs|unsure","action":"serve|receive|set|attack|block|dig|freeball|unknown","jersey":7 or null,"position":"front-left|front-middle|front-right|back-left|back-middle|back-right|unsure","confidence":0.8}]} with one entry per image, i = the touch number shown in its panel.';
 
 /** Keep only well-formed answers, one per asked touch number. */
 export function cleanAnswer(data, n) {
@@ -48,6 +54,7 @@ export function cleanAnswer(data, n) {
       team: ['ours', 'theirs', 'unsure'].includes(t.team) ? t.team : 'unsure',
       action: ACTIONS.includes(t.action) ? t.action : 'unknown',
       jersey,
+      position: POSITIONS.includes(t.position) ? t.position : 'unsure',
       confidence: Math.max(0, Math.min(1, Number(t.confidence) || 0)),
     });
   }
@@ -63,14 +70,43 @@ export function makeTouchChecker(env = {}, check = null) {
   return {
     enabled: true,
     model,
-    /** [images] one per touch, in order; [context] { ourSide, roster: [{number, role}] }. */
-    async check(images, context) {
+    /**
+     * [images] one per touch, in order; [context] { ourSide, roster: [{number, role}] };
+     * [examples] solved touches from this coach ({ image, label }), sent first.
+     */
+    async check(images, context, { examples = [], onUsage = null } = {}) {
       const side = context.ourSide === 'near' ? 'the NEAR half (bottom of the picture, closer to the camera)'
         : context.ourSide === 'far' ? 'the FAR half (top of the picture, beyond the net)' : 'an unknown half (answer team "unsure" unless it is obvious)';
       const roster = (context.roster ?? []).map((p) => `#${p.number}${p.role ? ` ${p.role}` : ''}`).join(', ');
-      const text = `Our team plays on ${side} in this rally.${roster ? ` Our shirt numbers: ${roster}.` : ''} There are ${images.length} touches, numbered 1 to ${images.length} in time order.`;
-      const reply = await aiComplete(cfg, { system: SYSTEM, text, images, maxTokens: 300 + 120 * images.length, schema: SCHEMA, jsonHint: JSON_HINT });
+      const ex = examples.slice(0, MAX_EXAMPLES);
+      const solved = ex.length
+        ? `The first ${ex.length} image${ex.length === 1 ? ' is a solved example' : 's are solved examples'} from earlier rallies, checked by the coach (their panel says "Example"); do not answer for them:\n${ex.map((x, k) => `Example ${k + 1}: ${describe(x.label)}.`).join('\n')}\nThe images after them are the touches to check.\n`
+        : '';
+      const text = `${solved}Our team plays on ${side} in this rally.${roster ? ` Our shirt numbers: ${roster}.` : ''} There are ${images.length} touches, numbered 1 to ${images.length} in time order.`;
+      const all = [...ex.map((x) => ({ media_type: 'image/jpeg', data: x.image })), ...images];
+      const reply = await aiComplete(cfg, { system: SYSTEM, text, images: all, maxTokens: 300 + 130 * images.length, schema: SCHEMA, jsonHint: JSON_HINT, onUsage });
       return cleanAnswer(parseJson(reply), images.length);
     },
+  };
+}
+
+/** An example's answer in words (its team relative to the side named in that example). */
+function describe(l) {
+  if (l.contact === 'no') return 'no ball contact';
+  const parts = [l.action !== 'unknown' ? `a ${l.action}` : 'a touch', l.team === 'ours' ? `by our team (on the ${l.ourSide ?? 'unknown'} half)` : l.team === 'theirs' ? `by the other team (our team was on the ${l.ourSide ?? 'unknown'} half)` : null,
+    l.jersey != null ? `shirt #${l.jersey}` : null];
+  return parts.filter(Boolean).join(', ');
+}
+
+/** A stored example's label, cleaned: what the coach saved for that touch. */
+export function cleanLabel(l) {
+  if (!l || typeof l !== 'object') return null;
+  const contact = l.contact === 'no' ? 'no' : 'yes';
+  return {
+    contact,
+    team: ['ours', 'theirs'].includes(l.team) ? l.team : 'unsure',
+    action: ACTIONS.includes(l.action) ? l.action : 'unknown',
+    jersey: Number.isInteger(l.jersey) && l.jersey >= 0 && l.jersey <= 99 ? l.jersey : null,
+    ourSide: ['near', 'far'].includes(l.ourSide) ? l.ourSide : null,
   };
 }
