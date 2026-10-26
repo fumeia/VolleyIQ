@@ -3,6 +3,7 @@ import { ATTACKS, SERVES } from '../../lib/sequence';
 import { CourtMaps } from '../CourtMaps';
 import { AttackSection } from './AttackSection';
 import { BLOCKS, BlockSection } from './BlockSection';
+import { SetterView } from './SetterView';
 import { ServePassSection } from './ServePassSection';
 import type { Match, Player, VEvent } from '../../lib/api';
 import { playerStats } from '../../lib/stats';
@@ -26,6 +27,7 @@ export function PlayerLearning({ player, players, events, matches, actions, show
   const charts = ([
     ['attack', 'Attack', mine.some((e) => ATTACKS.includes(e.action))],
     ['servepass', 'Serve & pass', mine.some((e) => SERVES.includes(e.action) || e.action === 'receive')],
+    ['setting', 'Setting', player.role === 'S' && mine.some((e) => e.action === 'set' && e.x != null)],
     ['block', 'Block', mine.some((e) => BLOCKS.includes(e.action))],
     ['court', 'Court maps', mine.some((e) => e.x != null)],
   ] as const).filter(([, , has]) => has);
@@ -92,6 +94,7 @@ export function PlayerLearning({ player, players, events, matches, actions, show
               </div>
               {shown === 'attack' && <AttackSection players={players} events={events} only={player.id} />}
               {shown === 'servepass' && <ServePassSection players={players} events={events} only={player.id} />}
+              {shown === 'setting' && <div className="charts"><SetterView players={players} events={events} only={player.id} /></div>}
               {shown === 'block' && <BlockSection players={players} events={events} only={player.id} />}
               {shown === 'court' && <CourtMaps players={players} events={events} only={player.id} />}
             </section>

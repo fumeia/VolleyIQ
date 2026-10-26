@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Set chart**
+- Setting (team stats, and the Setting chart on a setter's page): the setter's sets from the side, like a set-call chart: an arc per kind of set (outside 4/5, shoot/32, quick 1/31, behind A/slide, right side 9, back row blue/white/red) as thick as it is frequent, with share, kill % and efficiency of the attack after it. Only sets by players with the setter role.
+
 **Blocks without a touch**
 - New action "Block, no touch" (Block → No touch): a blocker who jumped while their attack went past, with where it was hit from and where it went.
 - Fast to tag: after They won → Their attack, the "who touched it last" screen has an optional row with our front row; tap the blockers who were there without a touch. Nothing changes if you skip it.

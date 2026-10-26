@@ -887,3 +887,19 @@ button.court-zone:active { background: #2a2f3a; }
 .net-chart { width: 100%; max-height: 260px; }
 .net-chart-n { fill: var(--text); font-size: .42px; text-anchor: middle; font-weight: 700; }
 .net-chart-z { fill: var(--muted); font-size: .4px; text-anchor: middle; }
+
+/* Set chart (side view) */
+.setter-svg { width: 100%; max-height: 360px; margin: 4px 0; }
+.sv-net { fill: rgba(255,255,255,.05); stroke: rgba(255,255,255,.5); stroke-width: .3; }
+.sv-mesh { stroke: rgba(255,255,255,.18); stroke-width: .2; }
+.sv-tape { stroke: #f3f4f6; stroke-width: 1.2; }
+.sv-line { stroke: rgba(255,255,255,.35); stroke-width: .3; }
+.sv-antenna { stroke: #ef4444; stroke-width: .8; stroke-dasharray: 1.2 .8; }
+.sv-zone { fill: var(--muted); font-size: 2.6px; text-anchor: middle; font-weight: 700; }
+.sv-label { fill: var(--text); font-size: 3px; text-anchor: middle; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: .8px; }
+.sv-setter { fill: var(--text); }
+.sv-setter-label { fill: var(--muted); font-size: 2.8px; text-anchor: middle; }
+.setter-view .chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.setter-view .chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.sec-setting { --sec: #22c55e; }
+.sv-setter-pole { stroke: var(--muted); stroke-width: .3; stroke-dasharray: .8 .6; }

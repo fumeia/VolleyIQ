@@ -4,6 +4,7 @@ import type { Player, VEvent } from '../../lib/api';
 import { attackContexts, buildRallies, realAssists, SETS, type AttackContext } from '../../lib/sequence';
 import { eff, errorPct, FRONT_ROW_FROM, pointPct, tally } from '../../lib/trajectory';
 import { signColor, who } from './AttackSection';
+import { SetterView } from './SetterView';
 import { eff3, judge, pct, ratio, StatFigure, sample } from './ui';
 
 /** Where a set went along the net: to the left (zone 4), middle, right (zone 2), or the back row (as for attacks). */
@@ -39,6 +40,7 @@ export function SettingSection({ players, events }: { players: Player[]; events:
 
   return (
     <div className="charts">
+      <SetterView players={players} events={events} />
       <StatFigure title="Setters" subtitle="Assists = sets whose next touch was our kill. Bump sets = sets by a non-setter."
         rows={setters} rowKey={(r) => r.p.id}
         first={{ h: 'Player', cell: (r) => who(r.p) }}
