@@ -93,8 +93,7 @@ On your phone, open **[Releases → latest](../../releases/latest)** of this rep
 Open it, and allow installing apps from your browser if Android asks. In the app,
 enter your server address (e.g. `https://volleyiq.example.com`) and password.
 
-Every push also builds a test APK, published as the pre-release **VolleyIQ Android
-(latest build)**. Updates install over the old version because every build is signed
+Every push also builds a test APK, published as the pre-release **VolleyIQ test build …**. Updates install over the old version because every build is signed
 with the same key (`web/android/keystore/sideload.jks`, committed for sideloading).
 Before publishing the app in a store, use a private key via the `ANDROID_KEYSTORE_*`
 variables (see `web/android/app/build.gradle`).

@@ -1,6 +1,6 @@
 name: Android app
 
-# Every push to main builds a test APK ("VolleyIQ Android (latest build)", a pre-release).
+# Every push to main builds a test APK ("VolleyIQ test build …", a pre-release).
 # A stable release: Actions > Android app > Run workflow on main with a version (e.g. 1.2.0),
 # or push a tag (git tag v1.2.0 && git push origin v1.2.0). Either makes the release "VolleyIQ v1.2.0".
 on:
@@ -103,13 +103,13 @@ jobs:
             The website and server for this version: `git checkout v${{ env.VERSION }}` (see the README to run it).
             What changed: see CHANGELOG.md.
 
-      # A fixed download link for test builds: Releases → "VolleyIQ Android (latest build)".
+      # A fixed download link for test builds: Releases → "VolleyIQ test build …" (tag android-latest).
       - name: Publish latest build
         if: env.STABLE != '1'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
-          name: VolleyIQ Android (latest build)
+          name: VolleyIQ test build ${{ env.VERSION }}
           prerelease: true
           files: |
             VolleyIQ.apk
