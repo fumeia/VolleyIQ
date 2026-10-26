@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Measuring the auto-detection**
+- Every detection run is kept on the server as it came from the phone (the last 10 per match, with its settings).
+- Auto → "How well did the detection do?": against the touches you saved for the match, the share of your touches it found (per skill), how many it reported for the other team or as extras, timing, how often the action and the shirt number were right, the most common action mix-ups, and how reliable heard / quiet / gap detections and each confidence level were.
+
 **Set chart**
 - Setting (team stats, and the Setting chart on a setter's page): the setter's sets from the side, like a set-call chart: an arc per place the sets went (left to the antenna or inside it, middle in front of the setter, behind the setter, right, and the back row: left, pipe, alpha; shoot sets drawn straight, quicks flat), drawn in 3D on our half with the court, the 3 m line and a shadow on the floor for each set, so front-row and back-row sets are easy to tell apart as thick as it is frequent, with share, kill % and efficiency of the attack after it. Only sets by players with the setter role.
 

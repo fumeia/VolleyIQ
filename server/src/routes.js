@@ -654,9 +654,18 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.post('/api/matches/:id/suggestions', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Match not found', 404);
-    const { events = [], replace = true } = req.body ?? {};
+    const { events = [], replace = true, params = null } = req.body ?? {};
     if (!Array.isArray(events) || events.length > 10000) return bad(reply, 'events must be an array (max 10000)');
+    // The run as detected (also the touches skipped below as already saved: those are hits).
+    const RUN_KEYS = ['t', 'action', 'rally', 'poss', 'jersey', 'confidence', 'hint', 'set_no'];
+    const runEvents = events.map((raw) => cleanEvent({ ...raw, source: 'auto', status: 'suggested', client_id: null })[0])
+      .filter((ev) => ev && ev.t != null).map((ev) => Object.fromEntries(RUN_KEYS.map((k) => [k, ev[k]])));
     const save = db.transaction(() => {
+      if (runEvents.length) {
+        const p = params && typeof params === 'object' ? JSON.stringify(params).slice(0, 2000) : null;
+        db.prepare('INSERT INTO detection_runs (match_id, params, events) VALUES (?, ?, ?)').run(match.id, p, JSON.stringify(runEvents));
+        db.prepare('DELETE FROM detection_runs WHERE match_id = ? AND id NOT IN (SELECT id FROM detection_runs WHERE match_id = ? ORDER BY id DESC LIMIT 10)').run(match.id, match.id);
+      }
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
       if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
       // A new run skips touches already saved (reviewed or tagged), so it only brings back what is missing.
@@ -676,6 +685,14 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
       return n;
     });
     return { inserted: save() };
+  });
+
+  // ---------- detection runs (to measure the auto-detection) ----------
+  app.get('/api/matches/:id/runs', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    return db.prepare('SELECT id, params, created_at, events FROM detection_runs WHERE match_id = ? ORDER BY id DESC').all(match.id)
+      .map((r) => ({ id: r.id, created_at: r.created_at, params: r.params ? JSON.parse(r.params) : null, events: JSON.parse(r.events) }));
   });
 
   // ---------- saved versions of a match ----------

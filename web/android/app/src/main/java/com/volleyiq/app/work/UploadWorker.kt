@@ -26,7 +26,10 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         val token = inputData.getString(KEY_TOKEN)
         if (!file.exists()) return@withContext Result.failure(workDataOf(AnalysisWorker.KEY_ERROR to "Results file missing"))
 
-        val body = JSONObject().put("events", JSONArray(file.readText())).put("replace", true).toString()
+        val paramsFile = File(file.path + ".params.json")
+        val body = JSONObject().put("events", JSONArray(file.readText())).put("replace", true).apply {
+            if (paramsFile.exists()) runCatching { put("params", JSONObject(paramsFile.readText())) }
+        }.toString()
         try {
             val conn = (URL("$apiBase/api/matches/$matchId/suggestions").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -43,6 +46,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             when {
                 code in 200..299 -> {
                     file.delete()
+                    paramsFile.delete()
                     Result.success(workDataOf(AnalysisWorker.KEY_COUNT to JSONObject(text).optInt("inserted")))
                 }
                 code == 401 -> Result.failure(workDataOf(AnalysisWorker.KEY_ERROR to "Not logged in on the server; log in again and re-run"))

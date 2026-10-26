@@ -201,6 +201,7 @@ export const api = {
   edits: (matchId?: number, status: 'open' | 'accepted' | 'rejected' = 'open') =>
     req<EditSuggestion[]>('GET', `/api/edits?status=${status}${matchId ? `&match_id=${matchId}` : ''}`),
   decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),
+  detectionRuns: (matchId: number) => req<import('./detectionReport').DetectionRun[]>('GET', `/api/matches/${matchId}/runs`),
   aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),

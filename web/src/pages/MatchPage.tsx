@@ -511,6 +511,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 onDone={async () => { await reload(); setTab('review'); }}
                 pending={suggested.length}
                 suggested={suggested}
+                confirmed={confirmed}
                 fileUrl={() => player.current?.fileUrl() ?? null}
                 reload={reload}
                 onClearSuggestions={async () => {

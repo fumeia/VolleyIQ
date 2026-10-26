@@ -353,3 +353,17 @@ test('suggesting a touch that is not tagged (e.g. a block without a touch), acce
   assert.equal((await app.inject({ url: `/api/matches/${m.id}` })).json().events.length, 2);
   await app.close();
 });
+
+test('each detection run is kept as it came, with the touches already saved, for measuring', async () => {
+  const app = await setup();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action: 'serve', t: 10 } });
+  const run = [{ t: 10.1, action: 'serve', rally: 1, poss: 0 }, { t: 11, action: 'receive', rally: 1, poss: 1, jersey: 7, confidence: 0.4 }, { action: 'dig' }];
+  const r = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions`, payload: { events: run, params: { sensitivity: 1.2 } } })).json();
+  assert.equal(r.inserted, 2, 'the serve is already saved (the dig without a time is kept as a suggestion, not in the run)');
+  const runs = (await app.inject({ url: `/api/matches/${m.id}/runs` })).json();
+  assert.equal(runs.length, 1);
+  assert.deepEqual(runs[0].params, { sensitivity: 1.2 });
+  assert.deepEqual(runs[0].events.map((e) => [e.t, e.action, e.jersey]), [[10.1, 'serve', null], [11, 'receive', 7]]);
+  await app.close();
+});

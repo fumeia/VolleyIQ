@@ -217,6 +217,18 @@ const MIGRATIONS = [
   (db) => {
     if (!db.prepare('PRAGMA table_info(edit_suggestions)').all().some((c) => c.name === 'kind')) db.exec("ALTER TABLE edit_suggestions ADD COLUMN kind TEXT NOT NULL DEFAULT 'edit'");
   },
+  // v18: every auto-detection run as it came from the phone (before review changes anything),
+  // to measure the detection against the tags saved afterwards.
+  `
+  CREATE TABLE IF NOT EXISTS detection_runs (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    params TEXT,                             -- JSON: settings of the run, when the app sends them
+    events TEXT NOT NULL,                    -- JSON: [{t, action, rally, poss, jersey, confidence, hint, set_no}]
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS detection_runs_match ON detection_runs(match_id, id);
+  `,
 ];
 
 function migrate(db) {

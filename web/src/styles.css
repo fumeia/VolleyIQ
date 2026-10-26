@@ -932,3 +932,7 @@ button.court-zone:active { background: #2a2f3a; }
 .replay-edit:disabled { opacity: .5; border-color: var(--line); color: var(--muted); background: transparent; }
 .edit-notice { margin: 0; padding: 6px 10px; border-radius: 8px; background: rgba(34,197,94,.15); }
 .replay-video { scroll-margin-top: 0; }
+.detection-report summary { cursor: pointer; }
+.detection-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.detection-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 4px; }
+.detection-table td { padding: 4px; border-top: 1px solid var(--line); }

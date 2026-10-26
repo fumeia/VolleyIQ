@@ -151,6 +151,10 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
             val file = File(applicationContext.filesDir, "suggestions-$matchId.json")
             file.writeText(JSONArray(events.map { JSONObject(it.filterValues { v -> v != null }) }).toString())
+            // The run's settings go along with the results, to compare runs on the server.
+            File(file.path + ".params.json").writeText(JSONObject()
+                .put("sensitivity", sensitivity).put("readJerseys", readJerseys).put("detectCuts", detectCuts)
+                .put("courtMarked", single != null || segmentsJson != null).put("roster", roster.size).toString())
             Notifications.done(applicationContext, notificationId, "Analysis finished", "${events.size} touches suggested. Open VolleyIQ to review")
             Result.success(workDataOf(KEY_FILE to file.absolutePath, KEY_COUNT to events.size, KEY_RALLIES to rallies.size))
         } catch (e: java.util.concurrent.CancellationException) {
