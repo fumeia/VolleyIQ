@@ -65,7 +65,7 @@ export function teamTour(team: string): TourStep[] {
     {
       target: '[data-tour="tab-players"]',
       title: 'A page per player',
-      text: <>Under <b>Players</b>, tap a name: strengths, faults, charts per skill and how it changed over the matches. The address of that page can be sent on its own.</>,
+      text: <>Under <b>Players</b>, tap a name: strengths, faults, practice tips (switch them on there), charts per skill and how it changed over the matches. The address of that page can be sent on its own.</>,
     },
     {
       target: '[data-tour="tab-replays"]',
@@ -88,12 +88,22 @@ export function playerTour(name: string): TourStep[] {
   return [
     {
       title: `${name}'s page`,
-      text: <>Built from {name}'s own tagged touches in every match. A quick look in 4 steps.</>,
+      text: <>Built from {name}'s own tagged touches in every match. A quick look in 6 steps.</>,
     },
     {
       target: '[data-tour="learn"]',
       title: 'Strengths and faults',
-      text: <>What stands out in the numbers, good and bad, each with the figures behind it. Further down: charts per skill and the match-by-match trend.</>,
+      text: <>What stands out in the numbers, good and bad, each with the figures behind it.</>,
+    },
+    {
+      target: '[data-tour="tips"]',
+      title: 'Practice tips',
+      text: <>Switch on <b>Show practice tips</b> for drills that fit these numbers. They are pre-written suggestions picked from the tagged touches, not a personal assessment.</>,
+    },
+    {
+      target: '.player-charts',
+      title: 'Charts',
+      text: <>Further down: the attack, serve & pass and court charts of this player alone, and the match-by-match trend.</>,
     },
     {
       target: '[data-tour="tabs"]',

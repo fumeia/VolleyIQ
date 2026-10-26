@@ -55,6 +55,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const { token, matchId, playerId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<TeamShare | null>(null);
+  // The viewer's own choice for the practice tips (remembered on this device); until they pick, the team's setting.
+  const [tips, setTips] = useState<boolean | null>(() => { try { const v = localStorage.getItem('viq:showTips'); return v == null ? null : v === '1'; } catch { return null; } });
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -86,7 +88,15 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
     body = (
       <>
         <Link to={`${base}/players`} className="back-link">← All players</Link>
-        <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={!!data.team.show_tips}
+        <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={tips ?? !!data.team.show_tips}
+          tipsToggle={
+            <label className="toggle small" data-tour="tips">
+              <input type="checkbox" checked={tips ?? !!data.team.show_tips} onChange={(e) => {
+                setTips(e.target.checked);
+                try { localStorage.setItem('viq:showTips', e.target.checked ? '1' : '0'); } catch { /* private mode */ }
+              }} /> Show practice tips
+            </label>
+          }
           actions={<CopyLink label="🔗 Copy link" />} />
       </>
     );

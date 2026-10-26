@@ -107,7 +107,7 @@ export function Reports() {
                     const on = e.target.checked;
                     setShowTips(on);
                     await api.updateTeam(teamId, { show_tips: on ? 1 : 0 });
-                  }} /> Show the pre-written practice tips (also on the public player pages)
+                  }} /> Show the pre-written practice tips (also the default on the public player pages, where viewers can switch them)
                 </label>
               )}
               actions={url

@@ -61,7 +61,7 @@ export function TeamPage() {
           await api.updateTeam(team.id, { show_tips: e.target.checked ? 1 : 0 });
           load();
         }} />
-        <span>Show "What to practise" on the player pages <small className="muted">(also on the public link)</small></span>
+        <span>Show "What to practise" on the player pages <small className="muted">(also the default on the public link, where viewers can switch them)</small></span>
       </label>
       {!!team.show_tips && <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>}
 
