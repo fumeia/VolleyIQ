@@ -13,6 +13,7 @@
 - Optional: show the AI your corrected touches as examples with each check (costs more per check).
 - Check every rally at once, by hand or right after the auto-detection.
 - The Auto screen shows the AI credit left, today's checks, the cost of checking the rallies waiting in Review and whether it fits.
+- A long rally is sent in several smaller requests, so gateways with a request size limit ("413 Request Entity Too Large") work; `AI_MAX_REQUEST_KB` sets the size.
 - Server: `AI_MONTHLY_BUDGET` and `AI_CURRENCY` (only needed when the gateway does not report a budget).
 
 ## v1.0.0

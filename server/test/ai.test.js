@@ -117,7 +117,7 @@ test('AI learning: examples go along when asked, feedback adds up per field, bud
     enabled: true, model: 'm',
     check: async (images, ctx, opts) => {
       calls.push(opts.examples.map((x) => x.label.action));
-      opts.onUsage({ cost: 0.01 * images.length, tokensIn: 1, tokensOut: 1 });
+      opts.onUsage(images.length)({ cost: 0.01 * images.length, tokensIn: 1, tokensOut: 1 });
       return images.map((_, k) => ({ i: k + 1, contact: 'yes', team: 'ours', action: 'set', jersey: null, position: 'front-left', confidence: 0.7 }));
     },
   };
@@ -157,4 +157,32 @@ test('AI learning: examples go along when asked, feedback adds up per field, bud
   const token = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/share`, payload: {} })).json().share_token;
   assert.equal('ai' in (await app.inject({ url: `/api/share/${token}` })).json().events[0], false);
   await app.close();
+});
+
+test('touch check: large rallies go in several requests, and a 413 splits a request again', async () => {
+  const { chunkBySize, makeTouchChecker } = await import('../src/touches.js');
+  const im = (n) => ({ media_type: 'image/jpeg', data: 'x'.repeat(n) });
+  assert.deepEqual(chunkBySize([im(300), im(300), im(300), im(300)], 700), [[0, 2], [2, 4]]);
+  assert.deepEqual(chunkBySize([im(300), im(300)], 700, 200), [[0, 1], [1, 2]]);
+  assert.deepEqual(chunkBySize([im(900)], 700), [[0, 1]], 'one picture always goes, even when large');
+
+  const orig = global.fetch;
+  const sent = [];
+  // The gateway refuses requests of more than 2 pictures; answers every touch number it is shown.
+  global.fetch = async (url, o) => {
+    const body = JSON.parse(o.body);
+    const pics = body.messages[1].content.filter((c) => c.type === 'image_url').length;
+    if (pics > 2) return { ok: false, status: 413, text: async () => '<html>413 Request Entity Too Large</html>' };
+    const m = body.messages[1].content.at(-1).text.match(/touches (\d+) to (\d+)/);
+    const first = m ? Number(m[1]) : 1;
+    sent.push(pics);
+    const touches = Array.from({ length: pics }, (_, k) => ({ i: first + k, contact: 'yes', team: 'ours', action: 'dig', jersey: null, position: 'unsure', confidence: 0.8 }));
+    return { ok: true, status: 200, headers: new Headers(), json: async () => ({ choices: [{ message: { content: JSON.stringify({ touches }) } }] }) };
+  };
+  try {
+    const c = makeTouchChecker({ LITELLM_BASE_URL: 'https://gw', LITELLM_API_KEY: 'k', AI_MAX_REQUEST_KB: '2' });
+    const got = await c.check([im(500), im(500), im(500), im(500), im(500)], { ourSide: 'near', roster: [] });
+    assert.deepEqual(got.map((t) => t.i), [1, 2, 3, 4, 5]);
+    assert.deepEqual(sent, [2, 2, 1], 'chunks of 4 + 1 by size, the 4 split once more by the 413');
+  } finally { global.fetch = orig; }
 });

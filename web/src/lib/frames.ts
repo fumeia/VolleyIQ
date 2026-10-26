@@ -63,7 +63,7 @@ export async function touchPictures(url: string, times: number[], label: (k: num
       ctx.font = '26px sans-serif';
       ctx.fillText('top left: 0.3 s before · top right: at the sound', CELL_W + 30, CELL_H + 150);
       ctx.fillText('bottom left: 0.2 s after', CELL_W + 30, CELL_H + 190);
-      out.push(canvas.toDataURL('image/jpeg', 0.72).split(',')[1]);
+      out.push(canvas.toDataURL('image/jpeg', 0.65).split(',')[1]);
       onProgress?.(k + 1);
     }
   } finally {

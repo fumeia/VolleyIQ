@@ -435,7 +435,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
     const examples = req.body?.examples ? pickExamples() : [];
     try {
-      return { touches: await touches.check(images, { ourSide, roster }, { examples, onUsage: usage('touches', touches.model, images.length) }), examples: examples.length };
+      return { touches: await touches.check(images, { ourSide, roster }, { examples, onUsage: (count) => usage('touches', touches.model, count) }), examples: examples.length };
     } catch (e) {
       req.log?.error({ err: e }, 'touch check failed');
       return bad(reply, `AI check failed: ${String(e?.message ?? e).slice(0, 200)}`, 502);
