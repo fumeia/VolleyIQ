@@ -88,17 +88,26 @@ one SQLite file on your server.
 
 ## Install the Android app
 
-Every push builds a signed APK with GitHub Actions and attaches it to the
-**VolleyIQ Android (latest build)** release of this repository.
+On your phone, open **[Releases → latest](../../releases/latest)** of this repository and tap **VolleyIQ.apk**
+(or use `https://github.com/<owner>/<repo>/releases/latest/download/VolleyIQ.apk`).
+Open it, and allow installing apps from your browser if Android asks. In the app,
+enter your server address (e.g. `https://volleyiq.example.com`) and password.
 
-1. On the phone, open the repository's **Releases** page and download **VolleyIQ.apk**.
-2. Open it and allow installing apps from your browser if Android asks.
-3. In the app, enter your server address (e.g. `https://volleyiq.example.com`) and password.
+Every push also builds a test APK, published as the pre-release **VolleyIQ Android
+(latest build)**. Updates install over the old version because every build is signed
+with the same key (`web/android/keystore/sideload.jks`, committed for sideloading).
+Before publishing the app in a store, use a private key via the `ANDROID_KEYSTORE_*`
+variables (see `web/android/app/build.gradle`).
 
-Updates install over the old version because every build is signed with the
-same key (`web/android/keystore/sideload.jks`, committed for sideloading).
-Before publishing the app anywhere, use a private key via the
-`ANDROID_KEYSTORE_*` variables (see `web/android/app/build.gradle`).
+### Making a release
+
+Update `CHANGELOG.md`, then tag the commit on `main`:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+GitHub Actions builds the APK and publishes the release **VolleyIQ v1.1.0** with it.
 
 ## Run the server
 
@@ -158,11 +167,18 @@ own Docker project and a marked block in the Caddyfile.
 Two features are hidden unless an AI backend is configured in `.env`:
 
 - **Match sheet scan** reads the teams, rosters and set scores off a photo of the score sheet.
+- **AI touch check** (Review, with a video file): three frames per detected touch go to a vision model, which marks noise, sorts ours / theirs and fills in the action and number it is sure about, before you save the rally. At most `AI_DAILY_LIMIT` checks a day.
 - **Coach summary** writes a few plain-language points (English or German) from the computed stats; it only uses the numbers it is given.
 
 Use either an OpenAI-compatible gateway such as LiteLLM (`LITELLM_BASE_URL`,
 `LITELLM_API_KEY`, `LITELLM_MODEL`) or the Anthropic API (`ANTHROPIC_API_KEY`).
-See `.env.example`.
+See `.env.example`. After changing `.env`, recreate the container and check the
+setup (lists the models your key can use and sends two tiny test requests; the key is never printed):
+
+```bash
+docker compose up -d --force-recreate
+docker compose exec app node src/ai-check.js
+```
 
 ## How auto-detection works
 

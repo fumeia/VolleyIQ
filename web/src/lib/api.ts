@@ -1,6 +1,7 @@
 import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
+import type { MatchSheetFlow, SheetSet } from './sheetFlow';
 
 export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -8,7 +9,7 @@ export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
-  calibration?: Calibration | null; lineups?: Lineups | null; created_at?: string; event_count?: number; suggested_count?: number;
+  calibration?: Calibration | null; lineups?: Lineups | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
 }
@@ -21,6 +22,10 @@ export interface VEvent {
   /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
   hint?: 'quiet' | 'gap' | null;
 }
+/** The AI check's answer for one touch (i = its place in the request, from 1). */
+export interface AiTouch { i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; confidence: number }
+/** A saved state of a match's tagging; auto = saved by the app before a restore. */
+export interface MatchVersion { id: number; label: string; auto: number; event_count: number; created_at: string }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
 /** Summary fields read off a photo of an official match sheet (best-effort). */
@@ -31,6 +36,8 @@ export interface MatchSheet {
   winner: 'A' | 'B' | null; setsWon: { A: number; B: number } | null;
   sets: { a: number; b: number }[];
   rosters: { A: SheetPlayer[]; B: SheetPlayer[] };
+  /** Per set: starting six, substitutions, service rounds and time-outs of both teams. */
+  flow?: SheetSet[];
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -118,6 +125,10 @@ export const api = {
   match: (id: number) => req<MatchBundle>('GET', `/api/matches/${id}`),
   createMatch: (m: Partial<Match>) => req<Match>('POST', '/api/matches', m),
   updateMatch: (id: number, m: Partial<Match>) => req<Match>('PATCH', `/api/matches/${id}`, m),
+  versions: (id: number) => req<MatchVersion[]>('GET', `/api/matches/${id}/versions`),
+  saveVersion: (id: number, label: string) => req<MatchVersion[]>('POST', `/api/matches/${id}/versions`, { label }),
+  restoreVersion: (id: number, vid: number) => req<MatchBundle & { versions: MatchVersion[] }>('POST', `/api/matches/${id}/versions/${vid}/restore`, {}),
+  deleteVersion: (id: number, vid: number) => req<MatchVersion[]>('DELETE', `/api/matches/${id}/versions/${vid}`),
   deleteMatch: (id: number) => req('DELETE', `/api/matches/${id}`),
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
   shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`),
@@ -132,6 +143,9 @@ export const api = {
   scanMatchsheet: (images: { media_type: string; data: string }[]) =>
     req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
   insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
+  touchCheckEnabled: () => req<{ enabled: boolean; model: string | null }>('GET', '/api/ai/touches/enabled'),
+  touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[] }) =>
+    req<{ touches: AiTouch[] }>('POST', '/api/ai/touches', body),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 
 /**
  * AI coach summary: a few grounded bullet points in English or German, generated
- * from the computed stats payload. Hidden unless the server has a key set up.
+ * from the computed stats payload. Hidden unless the server has a key set up, and
+ * never on the public share links (/s/...): only the logged-in coach can spend credits.
  */
 export function CoachSummary({ stats }: { stats: unknown }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -12,8 +14,12 @@ export function CoachSummary({ stats }: { stats: unknown }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { api.insightsEnabled().then((r) => setEnabled(r.enabled)).catch(() => setEnabled(false)); }, []);
-  if (!enabled) return null;
+  const isPublic = useLocation().pathname.startsWith('/s/');
+  useEffect(() => {
+    if (isPublic) return;
+    api.insightsEnabled().then((r) => setEnabled(r.enabled)).catch(() => setEnabled(false));
+  }, [isPublic]);
+  if (isPublic || !enabled) return null;
 
   async function generate(l: 'en' | 'de') {
     setBusy(true); setError(''); setLang(l);

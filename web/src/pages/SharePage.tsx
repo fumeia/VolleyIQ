@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PlayerLearning } from '../components/analysis/PlayerLearning';
+import { roleName } from '../components/analysis/PlayersSection';
 import { StatsView } from '../components/StatsView';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
-/** Public, read-only match report for teammates: shareable images first, interactive details below. */
+/** Public, read-only match report for teammates: the stats first, the report images on their own tab. */
 export function SharePage() {
   const { token } = useParams();
   const [data, setData] = useState<MatchBundle | null>(null);
   const [error, setError] = useState(false);
+  const [view, setView] = useState<'stats' | 'images'>('stats');
 
   useEffect(() => {
     api.shared(token!).then(setData).catch(() => setError(true));
@@ -25,20 +27,27 @@ export function SharePage() {
         <h1>{m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label}</h1>
         <p className="muted">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</p>
       </div>
-      <MatchReportView match={m} players={data.players} events={data.events} />
-      <h2 className="section-title">Details</h2>
-      <StatsView players={data.players} events={data.events} matches={[data.match]} />
+      <nav className="tabs public-tabs">
+        <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Stats</button>
+        <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>Report images</button>
+      </nav>
+      {view === 'stats'
+        ? <StatsView players={data.players} events={data.events} matches={[data.match]} />
+        : <MatchReportView match={m} players={data.players} events={data.events} />}
     </div>
   );
 }
 
 type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
+type View = 'stats' | 'trends' | 'players';
 
 /**
- * The public team site (no login): season overview, every match, and a learning page
- * per player, all under the one shareable team link.
+ * The public team site (no login), under the one shareable team link:
+ *   Stats   /s/t/:token[/m/:match]          the analysis tabs, for all matches or one
+ *   Trends  /s/t/:token[/m/:match]/trends   the report images (season trends, or one match)
+ *   Players /s/t/:token/players             everyone, and /p/:player for each learning page
  */
-export function TeamSharePage() {
+export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const { token, matchId, playerId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<TeamShare | null>(null);
@@ -47,43 +56,62 @@ export function TeamSharePage() {
   useEffect(() => {
     api.sharedTeam(token!).then((d) => setData({ ...d, events: d.events.map((e) => ({ ...e, status: 'confirmed' as const })) })).catch(() => setError(true));
   }, [token]);
-  useEffect(() => { window.scrollTo(0, 0); }, [matchId, playerId]);
+  useEffect(() => { window.scrollTo(0, 0); }, [view, matchId, playerId]);
 
   if (error) return <div className="center error">This link is invalid or was revoked.</div>;
   if (!data) return <div className="center muted">Loading…</div>;
   const base = `/s/t/${token}`;
-  const active = data.players.filter((p) => data.events.some((e) => e.player_id === p.id))
-    .sort((a, b) => (a.number ?? 99) - (b.number ?? 99));
-  const match = matchId ? data.matches.find((m) => m.id === Number(matchId)) : null;
-  const player = playerId ? data.players.find((p) => p.id === Number(playerId)) : null;
+  const match = matchId ? data.matches.find((m) => m.id === Number(matchId)) ?? null : null;
+  const player = playerId ? data.players.find((p) => p.id === Number(playerId)) ?? null : null;
+  const tab: View = player ? 'players' : view;
+  const scope = match ? `${base}/m/${match.id}` : base;
+  const events = match ? data.events.filter((e) => e.match_id === match.id) : data.events;
+  const active = data.players
+    .map((p) => ({ p, n: data.events.filter((e) => e.player_id === p.id).length }))
+    .filter((r) => r.n > 0)
+    .sort((a, b) => (a.p.number ?? 99) - (b.p.number ?? 99));
+  const matchPicker = (to: (id: number | null) => string) => (
+    <select className="input" value={match?.id ?? ''} onChange={(e) => navigate(to(e.target.value ? Number(e.target.value) : null))}>
+      <option value="">All matches ({data.matches.length})</option>
+      {[...data.matches].reverse().map((m) => <option key={m.id} value={m.id}>{m.played_on ?? ''} {m.opponent ?? m.label}</option>)}
+    </select>
+  );
 
   let body: React.ReactNode;
   if (player) {
-    body = <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={!!data.team.show_tips}
-      actions={<CopyLink label="🔗 Copy link" />} />;
-  } else if (match) {
-    const events = data.events.filter((e) => e.match_id === match.id);
     body = (
       <>
-        <div className="share-hero">
-          <h1>{match.opponent ? `${data.team.name} vs ${match.opponent}` : match.label}</h1>
-          <p className="muted">{[match.played_on, match.opponent ? match.label : null].filter(Boolean).join(' · ')}</p>
-        </div>
-        <MatchReportView match={{ ...match, team_name: data.team.name }} players={data.players} events={events} />
-        <h2 className="section-title">Details</h2>
-        <StatsView players={data.players} events={events} matches={[match]} />
+        <Link to={`${base}/players`} className="back-link">← All players</Link>
+        <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={!!data.team.show_tips}
+          actions={<CopyLink label="🔗 Copy link" />} />
+      </>
+    );
+  } else if (tab === 'players') {
+    body = (
+      <div className="player-grid">
+        {active.map(({ p, n }) => (
+          <Link key={p.id} to={`${base}/p/${p.id}`} className="card player-link">
+            <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
+            <span className="grow"><b>{p.name}</b><small className="muted">{roleName(p.role)} · {n} touches</small></span>
+            <span className="muted">›</span>
+          </Link>
+        ))}
+      </div>
+    );
+  } else if (tab === 'trends') {
+    body = (
+      <>
+        <div className="row wrap">{matchPicker((id) => (id ? `${base}/m/${id}/trends` : `${base}/trends`))}</div>
+        {match
+          ? <MatchReportView match={{ ...match, team_name: data.team.name }} players={data.players} events={events} />
+          : <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />}
       </>
     );
   } else {
     body = (
       <>
-        <div className="share-hero">
-          <h1>{data.team.name}</h1>
-          <p className="muted">Season · {data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</p>
-        </div>
-        <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />
-        <h2 className="section-title">Details</h2>
-        <StatsView players={data.players} events={data.events} matches={data.matches} />
+        <div className="row wrap">{matchPicker((id) => (id ? `${base}/m/${id}` : base))}</div>
+        <StatsView players={data.players} events={events} matches={match ? [match] : data.matches} />
       </>
     );
   }
@@ -92,24 +120,13 @@ export function TeamSharePage() {
     <div className="page share">
       <header className="public-head">
         <Link to={base} className="brand"><img src="/icon.svg" alt="" /> {data.team.name}</Link>
-        <nav className="public-nav">
-          <Link to={base} className={!match && !player ? 'on' : ''}>Season</Link>
-          <select className="input" value={match?.id ?? ''} onChange={(e) => e.target.value && navigate(`${base}/m/${e.target.value}`)}>
-            <option value="">Matches…</option>
-            {[...data.matches].reverse().map((m) => <option key={m.id} value={m.id}>{m.played_on ?? ''} {m.opponent ?? m.label}</option>)}
-          </select>
-          <select className="input" value={player?.id ?? ''} onChange={(e) => e.target.value && navigate(`${base}/p/${e.target.value}`)}>
-            <option value="">Players…</option>
-            {active.map((p) => <option key={p.id} value={p.id}>#{p.number ?? '–'} {p.name}</option>)}
-          </select>
-        </nav>
+        <span className="muted small">{data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</span>
       </header>
-      {!player && !match && active.length > 0 && (
-        <div className="player-chips">
-          <span className="muted small">Learning page per player:</span>
-          {active.map((p) => <Link key={p.id} to={`${base}/p/${p.id}`} className="chip">#{p.number ?? '–'} {p.name}</Link>)}
-        </div>
-      )}
+      <nav className="tabs public-tabs">
+        <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
+        <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
+        <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`}>Players</Link>
+      </nav>
       {body}
     </div>
   );

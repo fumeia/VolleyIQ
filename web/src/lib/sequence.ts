@@ -69,23 +69,32 @@ export function buildRallies(events: VEvent[]): Rally[] {
 }
 
 /** How the opponent won a rally, from the tag that ended it. */
-export type TheirPoint = 'attack' | 'block' | 'ace' | 'unforced';
+export type TheirPoint = 'attack' | 'block' | 'ace' | 'unforced' | 'unknown';
 export const THEIR_POINTS: { key: TheirPoint; label: string }[] = [
   { key: 'attack', label: 'Their attack' }, { key: 'block', label: 'Their block' },
   { key: 'ace', label: 'Their ace' }, { key: 'unforced', label: 'Our unforced error' },
+  { key: 'unknown', label: 'Not specified' },
 ];
 
 /**
  * A lost rally by what ended it. A dig or block that could not keep their attack in
- * play, and the generic "they won", are their attack; a blocked attack is their
- * block; a pass graded 0 is their ace; serve, attack (out / net) and set errors are
- * ours alone.
+ * play is their attack; a blocked attack is their block; a pass graded 0 is their ace;
+ * serve, attack (out / net) and set errors are ours alone. "They won" carries the kind
+ * in its value when it was given (1 attack, 2 block, 3 ace).
  */
 export function theirPoint(end: VEvent): TheirPoint {
   if (end.action === 'attack_blocked') return 'block';
   if (end.action === 'receive') return 'ace';
-  if (end.action === 'dig_error' || end.action === 'block_error' || end.action === 'opp_point') return 'attack';
+  if (end.action === 'dig_error' || end.action === 'block_error') return 'attack';
+  if (end.action === 'opp_point') return end.value === 1 ? 'attack' : end.value === 2 ? 'block' : end.value === 3 ? 'ace' : 'unknown';
   return 'unforced';
+}
+
+/** Where a point of theirs landed on our side: the spot of the touch that missed, or of "They won". */
+export function theirPointSpot(end: VEvent): { x: number; y: number } | null {
+  if ((end.action === 'dig_error' || end.action === 'receive') && end.fx != null && end.fy != null) return { x: end.fx, y: end.fy };
+  if (end.action === 'opp_point' && end.x != null && end.y != null) return { x: end.x, y: end.y };
+  return null;
 }
 
 export type Phase = 'sideout' | 'transition' | 'unknown';

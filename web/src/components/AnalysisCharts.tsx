@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { BarChart, GroupedColumns, LineChart, Scatter, SERIES } from '../charts/Charts';
 import type { Match, Player, VEvent } from '../lib/api';
 import { breakPct, coachPayload, keyFindings, rotationStats, sideOutPct } from '../lib/analysis';
@@ -17,38 +17,28 @@ const who = (p: Player) => `#${p.number ?? '–'} ${p.name.split(' ')[0]}`;
  * rotations, point sources, zones, and (for several matches) the season trend.
  */
 export function AnalysisCharts({ players, events, matches }: { players: Player[]; events: VEvent[]; matches?: Match[] }) {
-  const [focus, setFocus] = useState<number | null>(null);
   const all = useMemo(() => events.filter((e) => e.status === 'confirmed'), [events]);
-  // One player: their touches only (score progression and rotations stay team-level).
-  const confirmed = useMemo(() => (focus == null ? all : all.filter((e) => e.player_id === focus)), [all, focus]);
-  const focusName = focus == null ? null : who(players.find((p) => p.id === focus)!);
-  const people = useMemo(() => players.filter((p) => all.some((e) => e.player_id === p.id)), [players, all]);
-  const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
+  const rows = useMemo(() => playerStats(players, all).filter((r) => r.count > 0), [players, all]);
   const season = (matches?.length ?? 0) > 1;
-  const flow = useMemo(() => (season || focus != null ? [] : scoreFlow(all)), [all, season, focus]);
+  const flow = useMemo(() => (season ? [] : scoreFlow(all)), [all, season]);
   const lineups = useMemo(() => new Map((matches ?? []).map((m) => [m.id, m.lineups])), [matches]);
   const rotations = useMemo(() => rotationStats(all, lineups, players), [all, lineups, players]);
   const hasRotations = rotations.some((r) => r.receiving + r.serving > 0);
   // Without line-ups, the rotations come from the order in which our players served.
   const inferred = useMemo(() => (hasRotations ? [] : rotationTable(inferRotations(buildRallies(all), players))), [hasRotations, all, players]);
-  const sources = useMemo(() => pointSources(confirmed), [confirmed]);
+  const sources = useMemo(() => pointSources(all), [all]);
 
   if (!all.length) return <p className="muted small">No saved touches yet. Tag or review the match to see charts.</p>;
-  const forWho = focusName ? ` · ${focusName}` : '';
 
   const attackers = rows.filter((r) => r.stats.attempts > 0).sort((a, b) => b.stats.attempts - a.stats.attempts);
   const ordered = [...(matches ?? [])].sort((a, b) => (a.played_on ?? '').localeCompare(b.played_on ?? '') || a.id - b.id);
   const perMatch = (f: (evs: VEvent[]) => number | null) =>
-    ordered.map((m, i) => ({ x: i + 1, y: f(confirmed.filter((e) => e.match_id === m.id)) })).filter((p): p is { x: number; y: number } => p.y != null);
+    ordered.map((m, i) => ({ x: i + 1, y: f(all.filter((e) => e.match_id === m.id)) })).filter((p): p is { x: number; y: number } => p.y != null);
   const matchName = (x: number) => { const m = ordered[x - 1]; return m ? m.opponent ?? m.label : String(x); };
 
   return (
     <div className="charts">
-      <select className="input" value={focus ?? ''} onChange={(e) => setFocus(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">Whole team</option>
-        {people.map((p) => <option key={p.id} value={p.id}>{who(p)} {p.role ? `(${p.role})` : ''}</option>)}
-      </select>
-      {focus == null && (() => {
+      {(() => {
         // The team's strengths and weaknesses are in the Overview box; this adds the rotations (needs line-ups).
         const team = statLine(all.filter((e) => e.player_id != null));
         const rot = keyFindings(team, [], [], rotations, []).filter((f) => f.text.startsWith('Side-out'));
@@ -60,7 +50,7 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
         ) : null;
       })()}
 
-      {focus == null && <CoachSummary stats={coachPayload(players, all, lineups, season)} />}
+      {<CoachSummary stats={coachPayload(players, all, lineups, season)} />}
 
       {flow.map(({ set, points }) => {
         const last = points[points.length - 1];
@@ -76,13 +66,13 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
 
       {season && (
         <>
-          <LineChart title={`Attack efficiency per match${forWho}`} subtitle="(kills − errors) / attempts, in date order"
+          <LineChart title={`Attack efficiency per match`} subtitle="(kills − errors) / attempts, in date order"
             series={[{ name: 'Attack eff.', color: SERIES.blue, points: perMatch((evs) => statLine(evs.filter((e) => e.player_id != null)).attackEff) }]}
             xTitle="Match" yTitle="Efficiency" yFmt={eff} xFmt={matchName} categorical refLine={{ y: 0, label: '0' }} />
-          <LineChart title={`Pass average per match${forWho}`} subtitle="Receive grade 0–3"
+          <LineChart title={`Pass average per match`} subtitle="Receive grade 0–3"
             series={[{ name: 'Pass avg', color: SERIES.blue, points: perMatch((evs) => statLine(evs).recAvg) }]}
             xTitle="Match" yTitle="Grade" yDomain={[0, 3]} yFmt={(v) => v.toFixed(1)} xFmt={matchName} categorical />
-          {focus == null && <LineChart title="Side-out and break points per match" subtitle="Rallies won on their serve (side-out) and on ours (break point)"
+          {<LineChart title="Side-out and break points per match" subtitle="Rallies won on their serve (side-out) and on ours (break point)"
             series={[
               { name: 'Side-out %', color: SERIES.blue, points: perMatch((evs) => phaseScoring(buildRallies(evs)).sideoutPct) },
               { name: 'Break %', color: SERIES.orange, points: perMatch((evs) => phaseScoring(buildRallies(evs)).breakPct) },
@@ -92,13 +82,13 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
       )}
 
 
-      {focus == null && <Scatter title="Volume vs efficiency" subtitle="Each dot is a player: how often they attack and how well"
+      {<Scatter title="Volume vs efficiency" subtitle="Each dot is a player: how often they attack and how well"
         points={attackers.map((r) => ({ x: r.stats.attempts, y: r.stats.attackEff ?? 0, label: `#${r.player.number ?? '–'}`, name: who(r.player) }))}
         xTitle="Attempts" yTitle="Efficiency" yFmt={eff} />}
 
 
 
-      {focus == null && (hasRotations ? (
+      {(hasRotations ? (
         <GroupedColumns title="Points won by rotation" subtitle="Named by the setter's position; side-out = on their serve, break = on ours"
           categories={rotations.map((r) => `S${r.rotation}`)}
           series={[
@@ -118,8 +108,8 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
         ) : <p className="muted small chart-note">Tag our serves (with the server) to see side-out and break-point % per rotation.</p>
       ))}
 
-      {focus == null && <BarChart title="How we scored" rows={sources.won.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.aqua} fmt={(v) => String(Math.round(v))} />}
-      {focus == null && <BarChart title="How the opponent scored" rows={sources.lost.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.orange} fmt={(v) => String(Math.round(v))} />}
+      {<BarChart title="How we scored" rows={sources.won.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.aqua} fmt={(v) => String(Math.round(v))} />}
+      {<BarChart title="How the opponent scored" rows={sources.lost.map((b) => ({ label: b.label, value: b.value }))} valueTitle="Points" color={SERIES.orange} fmt={(v) => String(Math.round(v))} />}
 
 
 

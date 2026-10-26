@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type MatchSheet, type SheetPlayer } from '../lib/api';
+import { api, type MatchSheet, type SheetPlayer, type Team } from '../lib/api';
 import { ROLES, type RoleCode } from '../lib/actions';
+import { replaySet, type MatchSheetFlow } from '../lib/sheetFlow';
 
 /** Map a role word off the sheet (de/fr/en or a code) to our role codes. */
 function toRole(s: string | null | undefined, libero: boolean): RoleCode {
@@ -22,22 +23,35 @@ async function toBase64(file: File): Promise<{ media_type: string; data: string 
   return { media_type: file.type || 'image/jpeg', data: btoa(bin) };
 }
 
+/** Same club, ignoring case, punctuation and team suffixes ("Volley Nord H2" ~ "volley nord"). */
+const sameTeam = (a: string, b: string) => {
+  const n = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüéèà]+/g, ' ').trim();
+  const x = n(a), y = n(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+
 /**
  * Scan an official match sheet photo and pre-fill a match: tap a team to set it
  * as the opponent (with the date and league), or turn a roster into a team.
  */
-export function MatchSheetScan({ onPick, onTeamCreated }: {
-  onPick: (v: { opponent: string; date: string | null; label: string }) => void;
+export function MatchSheetScan({ onPick, onTeamCreated, onAttach }: {
+  /** New match: this team is the opponent (so the other one is ours, with the match flow). */
+  onPick?: (v: { opponent: string; date: string | null; label: string; flow: MatchSheetFlow | null; liberoNo: number | null }) => void;
   onTeamCreated: (teamId: number) => void;
+  /** Existing match: this team is ours; keep the sheet's match flow with the match. */
+  onAttach?: (flow: MatchSheetFlow, liberoNo: number | null) => void;
 }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sheet, setSheet] = useState<MatchSheet | null>(null);
-  const [created, setCreated] = useState<Record<'A' | 'B', number | null>>({ A: null, B: null });
+  const [created, setCreated] = useState<Record<'A' | 'B', string | null>>({ A: null, B: null });
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [target, setTarget] = useState<Record<'A' | 'B', number | ''>>({ A: '', B: '' });
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { api.matchsheetEnabled().then((r) => setEnabled(r.enabled)).catch(() => setEnabled(false)); }, []);
+  useEffect(() => { api.teams().then(setTeams).catch(() => {}); }, []);
 
   if (enabled === false || enabled === null) return null; // hidden unless the server has it set up
 
@@ -48,6 +62,9 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
       const images = await Promise.all([...files].slice(0, 4).map(toBase64));
       const { data } = await api.scanMatchsheet(images);
       setSheet(data);
+      // An existing team with the same name: update it rather than creating a second one.
+      const match = (side: 'A' | 'B') => teams.find((t) => data.teams[side] && sameTeam(t.name, data.teams[side]!))?.id ?? '';
+      setTarget({ A: match('A'), B: match('B') });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed');
     } finally {
@@ -56,6 +73,10 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
     }
   }
 
+  /** The sheet's match flow with [ours] as our team (null when the grids were not read). */
+  const flowFor = (s: MatchSheet, ours: 'A' | 'B'): MatchSheetFlow | null =>
+    s.flow?.length ? { ourTeam: ours, sets: s.sets.map((x) => ({ a: x.a, b: x.b })), flow: s.flow } : null;
+  const liberoOf = (s: MatchSheet, side: 'A' | 'B') => s.rosters[side].find((p) => p.libero)?.number ?? null;
   const label = (s: MatchSheet) => [s.league && `${s.league}`, s.matchNo && `#${s.matchNo}`].filter(Boolean).join(' · ');
 
   async function createTeam(side: 'A' | 'B', s: MatchSheet) {
@@ -68,10 +89,39 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
       for (const p of roster) {
         await api.addPlayer(team.id, { name: p.name, number: p.number ?? undefined, role: toRole(p.role, p.libero) });
       }
-      setCreated((c) => ({ ...c, [side]: team.id }));
+      setCreated((c) => ({ ...c, [side]: '✓ team created' }));
       onTeamCreated(team.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create the team');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Bring an existing team up to date with the sheet, matched by jersey number: players
+   * already there keep their name and role (and come back if they were removed); only
+   * numbers that are new get added.
+   */
+  async function updateTeam(side: 'A' | 'B', s: MatchSheet, teamId: number) {
+    setBusy(true);
+    try {
+      const team = await api.team(teamId);
+      let kept = 0, added = 0, back = 0;
+      for (const p of s.rosters[side]) {
+        const have = p.number == null ? undefined : team.players.find((x) => x.number === p.number);
+        if (have) {
+          kept++;
+          if (!have.active) { await api.updatePlayer(have.id, { active: 1 }); back++; }
+        } else {
+          await api.addPlayer(teamId, { name: p.name, number: p.number ?? undefined, role: toRole(p.role, p.libero) });
+          added++;
+        }
+      }
+      setCreated((c) => ({ ...c, [side]: `✓ ${kept} kept${back ? ` (${back} back)` : ''}, ${added} added` }));
+      onTeamCreated(teamId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update the team');
     } finally {
       setBusy(false);
     }
@@ -84,13 +134,29 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
     return (
       <div className="sheet-team">
         <div className="row between">
-          <button type="button" className="btn-ghost small" onClick={() => onPick({ opponent: name, date: s.date, label: label(s) })}>
-            Use <b>{name}</b> as opponent
-          </button>
-          {roster.length > 0 && (created[side]
-            ? <span className="muted small">✓ team created</span>
-            : <button type="button" className="btn small" disabled={busy} onClick={() => createTeam(side, s)}>Create team ({roster.length})</button>)}
+          {onPick && (
+            <button type="button" className="btn-ghost small" onClick={() => { const ours = side === 'A' ? 'B' : 'A'; onPick({ opponent: name, date: s.date, label: label(s), flow: flowFor(s, ours), liberoNo: liberoOf(s, ours) }); }}>
+              Use <b>{name}</b> as opponent
+            </button>
+          )}
+          {onAttach && flowFor(s, side) && (
+            <button type="button" className="btn-ghost small" onClick={() => onAttach(flowFor(s, side)!, liberoOf(s, side))}>
+              We are <b>{name}</b>: keep the match flow
+            </button>
+          )}
         </div>
+        {roster.length > 0 && (created[side] ? <span className="muted small">{created[side]}</span> : (
+          <div className="row wrap">
+            <select className="input slim" value={target[side]} onChange={(e) => setTarget((t) => ({ ...t, [side]: e.target.value ? Number(e.target.value) : '' }))}>
+              <option value="">New team</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>Update {t.name}</option>)}
+            </select>
+            {target[side] === ''
+              ? <button type="button" className="btn small" disabled={busy} onClick={() => createTeam(side, s)}>Create team ({roster.length})</button>
+              : <button type="button" className="btn small" disabled={busy} onClick={() => updateTeam(side, s, target[side] as number)}
+                  title="Players are matched by jersey number: existing names and roles are kept, new numbers are added">Update roster</button>}
+          </div>
+        ))}
         {roster.length > 0 && (
           <ul className="sheet-roster">
             {roster.map((p: SheetPlayer, i) => (
@@ -121,6 +187,13 @@ export function MatchSheetScan({ onPick, onTeamCreated }: {
             <p className="small">Result: {sheet.winner && sheet.setsWon ? `${sheet.setsWon.A}–${sheet.setsWon.B} · ` : ''}
               {sheet.sets.map((x, i) => <span key={i} className="set-chip">{x.a}–{x.b}</span>)}</p>
           )}
+          {sheet.flow?.length ? (
+            <p className="small">Match flow: {sheet.flow.map((f) => {
+              const fin = sheet.sets[f.set - 1];
+              const ok = !!fin && replaySet(f, fin).ok;
+              return <span key={f.set} className={`set-chip ${ok ? '' : 'bad'}`} title={ok ? 'Service rounds add up to the set score' : 'The service rounds do not add up to the set score: a cell was misread, so this set is not used'}>Set {f.set} {ok ? '✓' : '✗'}</span>;
+            })}</p>
+          ) : null}
           {teamBlock('A', sheet)}
           {teamBlock('B', sheet)}
         </div>

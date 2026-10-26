@@ -1,8 +1,11 @@
 name: Android app
 
+# Every push builds a test APK ("VolleyIQ Android (latest build)", a pre-release).
+# A version tag (git tag v1.2.0 && git push origin v1.2.0) builds a stable release.
 on:
   push:
     branches: [main, "claude/**"]
+    tags: ["v*"]
     paths: ["web/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
@@ -41,17 +44,22 @@ jobs:
           npm run build
           npx cap sync android
 
+      - name: Version
+        run: |
+          if [ "${{ github.ref_type }}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v="0.${{ github.run_number }}"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
       - name: Unit tests + APK
         working-directory: web/android
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 0.${{ github.run_number }}
+          VERSION_NAME: ${{ env.VERSION }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testReleaseUnitTest assembleRelease
           cp app/build/outputs/apk/release/app-release.apk ../../VolleyIQ.apk
           # Same file under a per-build name: a download can't be cut short by the next build replacing it.
-          cp ../../VolleyIQ.apk ../../VolleyIQ-0.${{ github.run_number }}.apk
+          cp ../../VolleyIQ.apk "../../VolleyIQ-$VERSION_NAME.apk"
           echo "APK_MB=$(( $(stat -c %s ../../VolleyIQ.apk) / 1048576 ))" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -59,8 +67,24 @@ jobs:
           name: VolleyIQ-apk
           path: VolleyIQ.apk
 
-      # A fixed download link for the phone: Releases → "VolleyIQ Android (latest build)".
+      # Stable release for a version tag: …/releases/latest/download/VolleyIQ.apk always points to it.
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VolleyIQ ${{ github.ref_name }}
+          make_latest: true
+          files: |
+            VolleyIQ.apk
+            VolleyIQ-${{ env.VERSION }}.apk
+          body: |
+            Android app, version ${{ env.VERSION }} (about ${{ env.APK_MB }} MB). On your phone: tap **VolleyIQ.apk** below, open it, and allow installing from your browser if Android asks.
+            The website and server for this version: `git checkout ${{ github.ref_name }}` (see the README to run it).
+            What changed: see CHANGELOG.md.
+
+      # A fixed download link for test builds: Releases → "VolleyIQ Android (latest build)".
       - name: Publish latest build
+        if: github.ref_type != 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
@@ -68,14 +92,15 @@ jobs:
           prerelease: true
           files: |
             VolleyIQ.apk
-            VolleyIQ-0.${{ github.run_number }}.apk
+            VolleyIQ-${{ env.VERSION }}.apk
           body: |
-            Latest Android build from `${{ github.ref_name }}` (${{ github.sha }}), version 0.${{ github.run_number }}, about ${{ env.APK_MB }} MB.
-            On your phone: tap **VolleyIQ-0.${{ github.run_number }}.apk** below, open it, and allow installing from your browser if Android asks.
+            Test build from `${{ github.ref_name }}` (${{ github.sha }}), version ${{ env.VERSION }}, about ${{ env.APK_MB }} MB. For a stable version, use the newest "VolleyIQ v…" release instead.
+            On your phone: tap **VolleyIQ-${{ env.VERSION }}.apk** below, open it, and allow installing from your browser if Android asks.
             If Android says the package is invalid, the download was incomplete: delete it and download again (it should be about ${{ env.APK_MB }} MB).
 
       # Keeps the two newest, so a download of the previous build that is still running isn't cut off either.
       - name: Remove older per-build APKs from the release
+        if: github.ref_type != 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

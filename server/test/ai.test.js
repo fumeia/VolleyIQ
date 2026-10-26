@@ -8,6 +8,9 @@ test('aiConfig picks LiteLLM/OpenAI over Anthropic, else Anthropic, else null', 
   assert.equal(aiConfig({ LITELLM_BASE_URL: 'https://x', LITELLM_API_KEY: 'k', ANTHROPIC_API_KEY: 'a' }).kind, 'openai');
   assert.equal(aiConfig({ ANTHROPIC_API_KEY: 'a' }).kind, 'anthropic');
   assert.equal(aiConfig({}), null);
+  const env = { LITELLM_BASE_URL: 'https://x', LITELLM_API_KEY: 'k', LITELLM_MODEL: 'base', SCAN_MODEL: 'eyes' };
+  assert.equal(aiConfig(env, 'scan').model, 'eyes');
+  assert.equal(aiConfig(env, 'summary').model, 'base');
 });
 
 test('parseJson tolerates fences and surrounding prose', () => {
@@ -51,4 +54,34 @@ test('scanner and insighter are enabled via a LiteLLM config and call the gatewa
     const ins = makeInsighter(env);
     assert.deepEqual(await ins.generate({ x: 1 }, 'en'), ['one', 'two']);
   } finally { global.fetch = orig; }
+});
+
+test('gateway URL: root, /v1 and trailing slashes all reach /v1/chat/completions', async () => {
+  const { gatewayRoot } = await import('../src/ai.js');
+  for (const u of ['https://gw.example.com', 'https://gw.example.com/', 'https://gw.example.com/v1', 'https://gw.example.com/v1/']) {
+    assert.equal(`${gatewayRoot(u)}/v1/chat/completions`, 'https://gw.example.com/v1/chat/completions');
+  }
+});
+
+test('touch check: answers are cleaned, the route validates input and has a daily cap', async () => {
+  const { cleanAnswer } = await import('../src/touches.js');
+  const got = cleanAnswer({ touches: [{ i: 1, contact: 'yes', team: 'ours', action: 'dig', jersey: 7, confidence: 0.9 }, { i: 1, contact: 'no' }, { i: 5 }, { i: 2, contact: 'maybe', action: 'spike', jersey: 'x', confidence: 3 }] }, 2);
+  assert.deepEqual(got, [
+    { i: 1, contact: 'yes', team: 'ours', action: 'dig', jersey: 7, confidence: 0.9 },
+    { i: 2, contact: 'unsure', team: 'unsure', action: 'unknown', jersey: null, confidence: 1 },
+  ]);
+
+  const { buildApp } = await import('../src/index.js');
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const calls = [];
+  const fake = { enabled: true, model: 'test', check: async (images, ctx) => { calls.push(ctx); return images.map((_, k) => ({ i: k + 1, contact: 'yes', team: 'ours', action: 'set', jersey: null, confidence: 0.7 })); } };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-')), WEB_DIST: '/none', AI_DAILY_LIMIT: '1' }, { touches: fake });
+  assert.equal((await app.inject({ url: '/api/ai/touches/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/ai/touches', payload: { images: [] } })).statusCode, 400);
+  const img = { media_type: 'image/jpeg', data: 'abc' };
+  const ok = await app.inject({ method: 'POST', url: '/api/ai/touches', payload: { images: [img, img], ourSide: 'far', roster: [{ number: 7, role: 'OH' }, { number: 'x' }] } });
+  assert.equal(ok.json().touches.length, 2);
+  assert.deepEqual(calls[0], { ourSide: 'far', roster: [{ number: 7, role: 'OH' }] });
+  assert.equal((await app.inject({ method: 'POST', url: '/api/ai/touches', payload: { images: [img] } })).statusCode, 429);
+  await app.close();
 });

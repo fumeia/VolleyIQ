@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
+import { MAX_TOUCHES } from './touches.js';
+import { cleanSheet } from './sheet.js';
 import { cleanImages } from './vision.js';
 
 function bad(reply, msg, code = 400) {
@@ -60,7 +62,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400 }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -86,7 +88,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   const coach = { onRequest: requireCoach };
 
   function withCalibration(m) {
-    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null };
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null };
   }
 
   function matchBundle(match) {
@@ -231,8 +233,14 @@ export function registerRoutes(app, { db, vision, insights }) {
           ...(v.subs?.length ? { subs: v.subs.map((x) => ({ t: x.t, out: x.out, in: x.in })) } : {}),
         }])));
     }
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, m.id);
+    let sheet = m.sheet;
+    if ('sheet' in b) {
+      const clean = b.sheet === null ? null : cleanSheet(b.sheet);
+      if (b.sheet !== null && !clean) return bad(reply, 'sheet: { ourTeam: "A" | "B", sets, flow }');
+      sheet = clean && JSON.stringify(clean);
+    }
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, m.id);
     return withCalibration(q.match.get(m.id));
   });
 
@@ -268,7 +276,7 @@ export function registerRoutes(app, { db, vision, insights }) {
   app.get('/api/share/team/:token', async (req, reply) => {
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const matches = db.prepare('SELECT id, label, opponent, played_on FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
@@ -388,6 +396,40 @@ export function registerRoutes(app, { db, vision, insights }) {
     }
   });
 
+  // ---------- AI check of detected touches (optional) ----------
+  // A cap on AI calls per day, so a bug or a stuck button cannot use up the credits.
+  const aiUse = { day: '', n: 0 };
+  const aiAllowed = () => {
+    const day = new Date().toISOString().slice(0, 10);
+    if (aiUse.day !== day) { aiUse.day = day; aiUse.n = 0; }
+    return aiUse.n++ < aiDailyLimit;
+  };
+  app.get('/api/ai/touches/enabled', coach, async () => ({ enabled: !!touches?.enabled, model: touches?.model ?? null }));
+
+  app.post('/api/ai/touches', coach, async (req, reply) => {
+    if (!touches?.enabled) return bad(reply, 'The AI touch check is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
+    const list = Array.isArray(req.body?.images) ? req.body.images : null;
+    if (!list?.length) return bad(reply, 'images required: one per touch');
+    if (list.length > MAX_TOUCHES) return bad(reply, `at most ${MAX_TOUCHES} touches per request`);
+    const images = [];
+    for (const im of list) {
+      if (!im || !['image/jpeg', 'image/png', 'image/webp'].includes(im.media_type) || typeof im.data !== 'string' || im.data.length > 700_000) {
+        return bad(reply, 'each image: jpeg/png/webp, base64, under ~500 KB');
+      }
+      images.push({ media_type: im.media_type, data: im.data });
+    }
+    const ourSide = ['near', 'far'].includes(req.body?.ourSide) ? req.body.ourSide : null;
+    const roster = (Array.isArray(req.body?.roster) ? req.body.roster : []).slice(0, 30)
+      .filter((p) => Number.isInteger(p?.number)).map((p) => ({ number: p.number, role: typeof p.role === 'string' ? p.role.slice(0, 4) : null }));
+    if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
+    try {
+      return { touches: await touches.check(images, { ourSide, roster }) };
+    } catch (e) {
+      req.log?.error({ err: e }, 'touch check failed');
+      return bad(reply, `AI check failed: ${String(e?.message ?? e).slice(0, 200)}`, 502);
+    }
+  });
+
   // Delete every unreviewed auto suggestion of a match (saved/confirmed touches are kept),
   // to clear the review queue before re-running the detection.
   app.post('/api/matches/:id/suggestions/clear', coach, async (req, reply) => {
@@ -424,5 +466,60 @@ export function registerRoutes(app, { db, vision, insights }) {
       return n;
     });
     return { inserted: save() };
+  });
+
+  // ---------- saved versions of a match ----------
+  // A version keeps everything tagged for the match; restoring one replaces the tags with
+  // it, after saving the current state as a version of its own (so a restore can be undone).
+  const VERSION_COLS = ['player_id', 'jersey', 'action', 'value', 'zone', 'x', 'y', 'fx', 'fy', 'rally', 'poss', 't', 'set_no', 'source', 'status', 'confidence', 'hint', 'client_id'];
+  const MAX_VERSIONS = 30;
+  const listVersions = (matchId) => db.prepare('SELECT id, label, auto, event_count, created_at FROM match_versions WHERE match_id = ? ORDER BY id DESC').all(matchId);
+  function saveVersion(match, label, auto) {
+    const events = q.events.all(match.id).map((e) => Object.fromEntries(VERSION_COLS.map((k) => [k, e[k]])));
+    const data = JSON.stringify({ events, lineups: match.lineups ?? null, calibration: match.calibration ?? null, sheet: match.sheet ?? null });
+    const r = db.prepare('INSERT INTO match_versions (match_id, label, auto, event_count, data) VALUES (?, ?, ?, ?, ?)')
+      .run(match.id, label, auto ? 1 : 0, events.length, data);
+    // Keep the newest; automatic ones go first when there are too many.
+    const extra = db.prepare('SELECT id FROM match_versions WHERE match_id = ? ORDER BY auto DESC, id ASC').all(match.id);
+    for (const v of extra.slice(0, Math.max(0, extra.length - MAX_VERSIONS))) db.prepare('DELETE FROM match_versions WHERE id = ?').run(v.id);
+    return r.lastInsertRowid;
+  }
+
+  app.get('/api/matches/:id/versions', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    return listVersions(match.id);
+  });
+
+  app.post('/api/matches/:id/versions', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const label = String(req.body?.label ?? '').trim().slice(0, 80) || `Saved ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+    saveVersion(match, label, false);
+    return listVersions(match.id);
+  });
+
+  app.post('/api/matches/:id/versions/:vid/restore', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const v = db.prepare('SELECT * FROM match_versions WHERE id = ? AND match_id = ?').get(req.params.vid, match.id);
+    if (!v) return bad(reply, 'Version not found', 404);
+    const data = JSON.parse(v.data);
+    const playerOk = new Set(db.prepare('SELECT id FROM players').all().map((p) => p.id));
+    db.transaction(() => {
+      saveVersion(match, `Before restoring "${v.label}"`, true);
+      db.prepare('DELETE FROM events WHERE match_id = ?').run(match.id);
+      for (const e of data.events ?? []) {
+        const row = Object.fromEntries(VERSION_COLS.map((k) => [k, e[k] ?? null]));
+        q.insertEvent.run({ ...row, player_id: playerOk.has(row.player_id) ? row.player_id : null, source: row.source ?? 'manual', status: row.status ?? 'confirmed', match_id: match.id });
+      }
+      db.prepare('UPDATE matches SET lineups = ?, calibration = ?, sheet = ? WHERE id = ?').run(data.lineups, data.calibration, data.sheet, match.id);
+    })();
+    return { ...matchBundle(q.match.get(match.id)), versions: listVersions(match.id) };
+  });
+
+  app.delete('/api/matches/:id/versions/:vid', coach, async (req) => {
+    db.prepare('DELETE FROM match_versions WHERE id = ? AND match_id = ?').run(req.params.vid, req.params.id);
+    return listVersions(Number(req.params.id));
   });
 }

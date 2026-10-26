@@ -148,7 +148,7 @@ export function StatsView({ players, events, matches, onPlay }: {
       </details>
 
       {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
-      {section === 'rotations' && <RotationsSection players={players} events={confirmed} />}
+      {section === 'rotations' && <RotationsSection players={players} events={confirmed} matches={matches} />}
       {section === 'attack' && <AttackSection players={players} events={confirmed} />}
       {section === 'servepass' && <ServePassSection players={players} events={confirmed} />}
       {section === 'setting' && <SettingSection players={players} events={confirmed} />}

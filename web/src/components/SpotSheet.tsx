@@ -20,7 +20,7 @@ interface Props {
 }
 
 /** The area below the video (portrait) or next to it (landscape), so the court can take all of it. */
-function useBelowVideo() {
+export function useBelowVideo() {
   const [box, setBox] = useState({ top: 0, left: 0 });
   useLayoutEffect(() => {
     const measure = () => {
