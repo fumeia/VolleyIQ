@@ -8,6 +8,9 @@ test('aiConfig picks LiteLLM/OpenAI over Anthropic, else Anthropic, else null', 
   assert.equal(aiConfig({ LITELLM_BASE_URL: 'https://x', LITELLM_API_KEY: 'k', ANTHROPIC_API_KEY: 'a' }).kind, 'openai');
   assert.equal(aiConfig({ ANTHROPIC_API_KEY: 'a' }).kind, 'anthropic');
   assert.equal(aiConfig({}), null);
+  const env = { LITELLM_BASE_URL: 'https://x', LITELLM_API_KEY: 'k', LITELLM_MODEL: 'base', SCAN_MODEL: 'eyes' };
+  assert.equal(aiConfig(env, 'scan').model, 'eyes');
+  assert.equal(aiConfig(env, 'summary').model, 'base');
 });
 
 test('parseJson tolerates fences and surrounding prose', () => {

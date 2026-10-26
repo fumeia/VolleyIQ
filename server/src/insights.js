@@ -22,7 +22,7 @@ const SCHEMA = {
 
 /** [generate] is injectable for tests; otherwise enabled when an AI backend is set. */
 export function makeInsighter(env = {}, generate = null) {
-  const cfg = aiConfig(env);
+  const cfg = aiConfig(env, 'summary');
   const model = cfg?.model ?? (env.VISION_MODEL || 'claude-opus-5-5');
   if (generate) return { enabled: true, model, generate };
   if (!cfg) return { enabled: false, model, generate: async () => { throw new Error('disabled'); } };

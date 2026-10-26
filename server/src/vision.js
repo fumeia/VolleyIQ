@@ -81,7 +81,7 @@ const JSON_HINT = 'Return ONLY a JSON object with keys: teams{A,B}, date, time, 
  * env.ANTHROPIC_API_KEY enables it; env.VISION_MODEL overrides the model.
  */
 export function makeVisionScanner(env = {}, scan = null) {
-  const cfg = aiConfig(env);
+  const cfg = aiConfig(env, 'scan');
   const model = cfg?.model ?? (env.VISION_MODEL || 'claude-opus-5-5');
   if (scan) return { enabled: true, model, scan };
   if (!cfg) return { enabled: false, model, scan: async () => { throw new Error('disabled'); } };

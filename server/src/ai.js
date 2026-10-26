@@ -10,15 +10,18 @@
  *  - LITELLM_BASE_URL (+ LITELLM_API_KEY, LITELLM_MODEL)   e.g. https://litellm.example.com
  *  - or OPENAI_BASE_URL (+ OPENAI_API_KEY, OPENAI_MODEL)
  *  - or ANTHROPIC_API_KEY (+ VISION_MODEL, default claude-opus-5-5)
+ * [task] picks a per-feature model when one is set: SCAN_MODEL for the match-sheet
+ * scan (needs image input), SUMMARY_MODEL for the coach summary (text only).
  */
-export function aiConfig(env = {}) {
+export function aiConfig(env = {}, task = null) {
+  const own = task === 'scan' ? env.SCAN_MODEL : task === 'summary' ? env.SUMMARY_MODEL : null;
   const liteUrl = env.LITELLM_BASE_URL || env.OPENAI_BASE_URL;
   const liteKey = env.LITELLM_API_KEY || env.OPENAI_API_KEY || env.LITELLM_KEY;
   if (liteUrl && liteKey) {
-    return { kind: 'openai', baseUrl: liteUrl, apiKey: liteKey, model: env.LITELLM_MODEL || env.OPENAI_MODEL || env.VISION_MODEL || 'gpt-4o' };
+    return { kind: 'openai', baseUrl: liteUrl, apiKey: liteKey, model: own || env.LITELLM_MODEL || env.OPENAI_MODEL || env.VISION_MODEL || 'gpt-4o' };
   }
   const anthKey = env.ANTHROPIC_API_KEY || env.VISION_API_KEY;
-  if (anthKey) return { kind: 'anthropic', apiKey: anthKey, model: env.VISION_MODEL || 'claude-opus-5-5' };
+  if (anthKey) return { kind: 'anthropic', apiKey: anthKey, model: own || env.VISION_MODEL || 'claude-opus-5-5' };
   return null;
 }
 
