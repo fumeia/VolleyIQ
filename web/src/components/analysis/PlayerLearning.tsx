@@ -1,4 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ATTACKS, SERVES } from '../../lib/sequence';
+import { CourtMaps } from '../CourtMaps';
+import { AttackSection } from './AttackSection';
+import { ServePassSection } from './ServePassSection';
 import type { Match, Player, VEvent } from '../../lib/api';
 import { playerStats } from '../../lib/stats';
 import { playerCoaching } from './coaching';
@@ -17,6 +21,14 @@ export function PlayerLearning({ player, players, events, matches, actions, show
   const mine = useMemo(() => events.filter((e) => e.player_id === player.id), [events, player.id]);
   const c = useMemo(() => playerCoaching(player, events, players), [player, events, players]);
   const s = playerStats([player], events)[0].stats;
+  // Charts of this player only, for the skills they have touches in.
+  const charts = ([
+    ['attack', 'Attack', mine.some((e) => ATTACKS.includes(e.action))],
+    ['servepass', 'Serve & pass', mine.some((e) => SERVES.includes(e.action) || e.action === 'receive')],
+    ['court', 'Court maps', mine.some((e) => e.x != null)],
+  ] as const).filter(([, , has]) => has);
+  const [chart, setChart] = useState<string | null>(null);
+  const shown = charts.find(([k]) => k === chart)?.[0] ?? charts[0]?.[0];
   const perMatch = matches
     .map((m) => ({ m, n: mine.filter((e) => e.match_id === m.id).length, s: playerStats([player], events.filter((e) => e.match_id === m.id))[0].stats }))
     .filter((r) => r.n > 0);
@@ -28,7 +40,7 @@ export function PlayerLearning({ player, players, events, matches, actions, show
         <div className="grow"><h1>{player.name}</h1><small>{roleName(player.role)} · {mine.length} touches in {perMatch.length} match{perMatch.length === 1 ? '' : 'es'}</small></div>
         {actions}
       </header>
-      {mine.length < 10 ? <p className="muted">Not enough tagged touches yet for a learning page.</p> : (
+      {mine.length < 10 ? <><p className="muted">Not enough tagged touches yet for a learning page.</p>{tipsToggle}</> : (
         <>
           <PlayerTiles player={player} s={s} />
           <div className="learn-cols" data-tour="learn">
@@ -67,6 +79,19 @@ export function PlayerLearning({ player, players, events, matches, actions, show
                 { h: 'Pass', cell: (r) => ({ text: avg2(r.s.recAvg), tone: sample(judge.passAvg(r.s.recAvg), r.s.receptions), title: `${r.s.receptions} passes` }) },
                 { h: 'Srv err', cell: (r) => { const v = r.s.serves ? r.s.serveErrors / r.s.serves : null; return { text: pct(v), tone: sample(judge.serveErrPct(v), r.s.serves) }; } },
               ]} />
+          )}
+          {charts.length > 0 && (
+            <section className="player-charts">
+              <h2 className="section-title">Charts</h2>
+              <div className="stats-sections">
+                {charts.map(([k, label]) => (
+                  <button key={k} className={`sec-btn sec-${k} ${shown === k ? 'on' : ''}`} onClick={() => setChart(k)} aria-pressed={shown === k}>{label}</button>
+                ))}
+              </div>
+              {shown === 'attack' && <AttackSection players={players} events={events} only={player.id} />}
+              {shown === 'servepass' && <ServePassSection players={players} events={events} only={player.id} />}
+              {shown === 'court' && <CourtMaps players={players} events={events} only={player.id} />}
+            </section>
           )}
         </>
       )}

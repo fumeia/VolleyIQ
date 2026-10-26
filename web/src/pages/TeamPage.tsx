@@ -56,6 +56,15 @@ export function TeamPage() {
         </div>
       </header>
 
+      <label className="toggle tips-toggle">
+        <input type="checkbox" checked={!!team.show_tips} onChange={async (e) => {
+          await api.updateTeam(team.id, { show_tips: e.target.checked ? 1 : 0 });
+          load();
+        }} />
+        <span>Show "What to practise" on the player pages <small className="muted">(also on the public link)</small></span>
+      </label>
+      {!!team.show_tips && <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>}
+
       <h2 className="section-title">Roster</h2>
       <form className="roster-form" onSubmit={async (e) => {
         e.preventDefault();

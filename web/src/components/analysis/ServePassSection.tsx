@@ -11,11 +11,16 @@ import { avg2, diverge, eff3, HalfZones, judge, meters, pct, plural, ratio, sequ
 const ZONE_ORDER = [4, 3, 2, 5, 6, 1];
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
-/** Serve (where we serve, what it earns, how we miss) and serve-receive (who passes how well, from where). */
-export function ServePassSection({ players, events }: { players: Player[]; events: VEvent[] }) {
-  const [receiver, setReceiver] = useState<number | null>(null);
-  const serves = useMemo(() => events.filter((e) => SERVES.includes(e.action)), [events]);
-  const passes = useMemo(() => events.filter((e) => e.action === 'receive' && e.value != null), [events]);
+/**
+ * Serve (where we serve, what it earns, how we miss) and serve-receive (who passes how
+ * well, from where). [only]: one player's serves and passes (player pages).
+ */
+export function ServePassSection({ players: all, events, only }: { players: Player[]; events: VEvent[]; only?: number }) {
+  const players = only == null ? all : all.filter((p) => p.id === only);
+  const mine = (e: VEvent) => only == null || e.player_id === only;
+  const [receiver, setReceiver] = useState<number | null>(only ?? null);
+  const serves = useMemo(() => events.filter((e) => SERVES.includes(e.action) && mine(e)), [events, only]);
+  const passes = useMemo(() => events.filter((e) => e.action === 'receive' && e.value != null && mine(e)), [events, only]);
   const rallies = useMemo(() => buildRallies(events), [events]);
 
   const servers = players.map((p) => ({ p, list: serves.filter((e) => e.player_id === p.id) })).filter((r) => r.list.length).sort((a, b) => b.list.length - a.list.length);
@@ -44,7 +49,7 @@ export function ServePassSection({ players, events }: { players: Player[]; event
 
   // Side-out % by the grade of the first pass: how much a good pass is worth.
   const soByGrade = [3, 2, 1, 0].map((g) => {
-    const rs = rallies.filter((r) => r.weServed === false && r.won != null && r.touches[0]?.action === 'receive' && r.touches[0].value === g);
+    const rs = rallies.filter((r) => r.weServed === false && r.won != null && r.touches[0]?.action === 'receive' && r.touches[0].value === g && mine(r.touches[0]));
     return { g, n: rs.length, won: rs.filter((r) => r.won).length };
   });
 
@@ -54,6 +59,7 @@ export function ServePassSection({ players, events }: { players: Player[]; event
 
   return (
     <div className="charts">
+      {serves.length > 0 && <>
       <h3 className="section-title">Serve</h3>
       <StatFigure title="Servers" subtitle="Serve efficiency = (aces − errors) / serves. Error kinds from where the missed serve went."
         rows={servers} rowKey={(r) => r.p.id}
@@ -85,6 +91,9 @@ export function ServePassSection({ players, events }: { players: Player[]; event
           { h: 'Ace%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.acePct(pointPct(r.t)), r.t.n) }) },
         ]} />
 
+      </>}
+
+      {passes.length > 0 && <>
       <h3 className="section-title">Serve receive</h3>
       <StatFigure title="Receivers" subtitle="Pass grade 0–3 (3 = perfect). Distance = how far the pass landed from the target (1 m off the net, right of centre)."
         rows={receivers} rowKey={(r) => r.p.id}
@@ -108,10 +117,12 @@ export function ServePassSection({ players, events }: { players: Player[]; event
         series={[{ name: 'Points won', color: SERIES.blue, values: soByGrade.map((x) => ratio(x.won, x.n)), notes: soByGrade.map((x) => `${x.won}/${x.n}`) }]}
         yTitle="Side-out %" fmt={pct} yDomain={[0, 1]} />
 
-      <select className="input" value={receiver ?? ''} onChange={(e) => setReceiver(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">All receivers</option>
-        {receivers.map(({ p, list }) => <option key={p.id} value={p.id}>{who(p)} ({list.length} passes)</option>)}
-      </select>
+      {only == null && (
+        <select className="input" value={receiver ?? ''} onChange={(e) => setReceiver(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">All receivers</option>
+          {receivers.map(({ p, list }) => <option key={p.id} value={p.id}>{who(p)} ({list.length} passes)</option>)}
+        </select>
+      )}
 
       <HalfZones title={`Pass quality by where the serve was taken${forWho}`} subtitle="Average grade per zone of our court (from the first tap: where the ball was received)"
         half="ours" values={passZoneValues}
@@ -145,6 +156,7 @@ export function ServePassSection({ players, events }: { players: Player[]; event
           <div className="plot-wrap paper"><CourtFull points={passDots} showTarget yRange={[-3, 10.5]} /></div>
         </figure>
       )}
+      </>}
     </div>
   );
 }

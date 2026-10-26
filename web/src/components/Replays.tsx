@@ -7,6 +7,7 @@ import { ActionPicker } from './ActionPicker';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
+import { FrameStep, SpeedControl } from './SpeedControl';
 
 interface Props {
   token: string;
@@ -40,6 +41,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [set, setSet] = useState<number | null>(null);
   const [lead, setLead] = useState(0);
+  const [rate, setRate] = useState(1);
   const [cur, setCur] = useState<number | null>(null);
   const [playAll, setPlayAll] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -72,6 +74,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
     setCur(e.id);
     if (!p) return;
     p.seek(Math.max(0, e.t! - LEADS[lead].before));
+    p.setRate(rate);
     p.play();
     stopAt.current = e.t! + LEADS[lead].after;
   }
@@ -151,6 +154,8 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         <button className="btn btn-primary" disabled={!source || !clips.length} onClick={() => { setPlayAll(true); play(current ?? clips[0]); }}>▶ Play all {clips.length}</button>
         <button className="btn" disabled={!source || idx <= 0} onClick={() => play(clips[idx - 1])}>◀</button>
         <button className="btn" disabled={!source || idx >= clips.length - 1} onClick={() => play(clips[idx + 1])}>▶</button>
+        <SpeedControl className="btn" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
+        {source?.type === 'file' && <FrameStep player={player} className="btn" />}
         <button className="btn-ghost small" onClick={() => setLead((lead + 1) % LEADS.length)}>{LEADS[lead].label} clips</button>
         <label className="toggle replay-edit-toggle">
           <input type="checkbox" checked={editing} onChange={(e) => setEditing(e.target.checked)} />

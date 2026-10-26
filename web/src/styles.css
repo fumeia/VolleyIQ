@@ -844,3 +844,13 @@ button.court-zone:active { background: #2a2f3a; }
 .sec-setting { --sec: #22c55e; } .sec-defense { --sec: #38bdf8; } .sec-errors { --sec: #ef4444; } .sec-players { --sec: #facc15; }
 .sec-tables { --sec: #94a3b8; } .sec-court { --sec: #d97706; }
 .paper .stats-sections, .print-root .stats-sections { display: none; }
+
+/* Playback speed picker and frame steps */
+.speed-ctl { position: relative; display: inline-flex; }
+.speed-ctl > button.slow { color: var(--accent); font-weight: 700; }
+.speed-pop { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+.speed-pop.from-left { right: auto; left: 0; }
+.speed-pop { flex-wrap: wrap; max-width: calc(100vw - 24px); }
+.speed-pop button { min-width: 44px; min-height: 36px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; }
+.speed-pop button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }

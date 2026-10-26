@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Player pages**
+- Charts for the player alone below the numbers, strengths, faults and practice tips: Attack (efficiency by pass and by where it was hit from, shot directions, kill % by zone, shot chart), Serve & pass (zones, depth, pass quality by zone, where the passes went) and Court maps. The same charts on the team pages are unchanged.
+- The "What to practise" switch is also on the team page, and shows for players with few touches too.
+
+**Playback**
+- Speed picker with 0.1×, 0.25×, 0.5×, 0.75×, 1×, 1.5×, 2× (one tap to open, one to pick), and frame-by-frame steps for video files: in Replays, Review and the match video.
+
 **Public link: Replays**
 - A short guided tour on the public links (team, player page, single match) shows what is in them: the four views, season or one match, the stats topics, green / red, player pages and Replays. It opens once per device, can be skipped at any step and comes back with the ? Guide button.
 - A Replays tab plays every tagged touch of a match as a short clip, filtered by skill, player, set and points / errors, one at a time or all in a row. Viewers choose their own copy of the match video; it plays on their device and is never uploaded (a YouTube match plays from YouTube).

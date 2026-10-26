@@ -19,9 +19,9 @@ const phaseKey = (c: AttackContext | undefined) => {
   return c.quality === 3 ? 'p3' : c.quality === 2 ? 'p2' : c.quality != null && c.quality <= 1 ? 'p1' : null;
 };
 
-/** Attack: who scores, from which first contact, which shots work, where. */
-export function AttackSection({ players, events }: { players: Player[]; events: VEvent[] }) {
-  const [focus, setFocus] = useState<number | null>(null);
+/** Attack: who scores, from which first contact, which shots work, where. [only]: one player's attacks (player pages). */
+export function AttackSection({ players, events, only }: { players: Player[]; events: VEvent[]; only?: number }) {
+  const [focus, setFocus] = useState<number | null>(only ?? null);
   const [shots, setShots] = useState<'all' | 'point' | 'error' | 'play'>('all');
   const ctxById = useMemo(() => new Map(attackContexts(buildRallies(events)).map((c) => [c.attack.id, c])), [events]);
   const allAttacks = useMemo(() => events.filter((e) => ATTACKS.includes(e.action)), [events]);
@@ -58,12 +58,14 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
 
   return (
     <div className="charts">
-      <select className="input" value={focus ?? ''} onChange={(e) => setFocus(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">All attackers</option>
-        {attackers.map(({ p, list }) => <option key={p.id} value={p.id}>{who(p)} ({list.length} attacks)</option>)}
-      </select>
+      {only == null && (
+        <select className="input" value={focus ?? ''} onChange={(e) => setFocus(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">All attackers</option>
+          {attackers.map(({ p, list }) => <option key={p.id} value={p.id}>{who(p)} ({list.length} attacks)</option>)}
+        </select>
+      )}
 
-      <StatFigure title="Attackers" subtitle="Efficiency = (kills − errors − blocked) / attempts. Side-out = first ball after our pass; transition = after a dig, block or free ball."
+      {only == null && <StatFigure title="Attackers" subtitle="Efficiency = (kills − errors − blocked) / attempts. Side-out = first ball after our pass; transition = after a dig, block or free ball."
         rows={attackers} rowKey={(r) => r.p.id}
         first={{ h: 'Player', cell: (r) => who(r.p) }}
         columns={[
@@ -82,7 +84,7 @@ export function AttackSection({ players, events }: { players: Player[]; events: 
             return best && best[1].n ? `${DIRECTIONS.find((x) => x.key === best[0])!.label} ${pct(best[1].n / r.list.filter((e) => direction(e)).length)}` : '–';
           } },
         ]}
-        play={(r) => r.list} />
+        play={(r) => r.list} />}
 
       <GroupedColumns title={`Attack after the first contact${forWho}`}
         subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball): how much the attack depends on the pass"

@@ -17,6 +17,7 @@ import { zoneOf } from '../lib/court';
 import { MatchSheetScan } from '../components/MatchSheetScan';
 import { MoreMenu } from '../components/MoreMenu';
 import { EditsPanel } from '../components/EditsPanel';
+import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
@@ -348,11 +349,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <button className="tp-main" onClick={() => player.current?.toggle()}>{playing ? '❚❚' : '▶'}</button>
                   <button onClick={() => player.current?.seekBy(2)}>+2</button>
                   <button onClick={() => player.current?.seekBy(10)}>+10</button>
-                  <button className="tp-rate" onClick={() => {
-                    const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : rate === 2 ? 0.5 : 1;
-                    setRate(next);
-                    player.current?.setRate(next);
-                  }}>{rate}×</button>
+                  {source?.type === 'file' && <FrameStep player={player} />}
+                  <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
                 </div>
                 )}
               </>

@@ -12,6 +12,7 @@ import { pointsOfSet, rotationAfter, suggest } from '../lib/rotation';
 import { SpotSheet } from './SpotSheet';
 import { ourHalfAt } from '../lib/calibration';
 import { fmtTime } from './TagPad';
+import { FrameStep, SpeedControl } from './SpeedControl';
 import type { PlayerHandle } from './VideoPlayer';
 
 interface Props {
@@ -38,7 +39,6 @@ type Step = 'player' | 'action' | 'from' | 'to' | 'grade';
 
 // Positions in court order as seen from behind our baseline: front row, then back row.
 const COURT_ORDER = [4, 3, 2, 5, 6, 1];
-const SPEEDS = [1, 1.5, 2];
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
 const STEP_PAUSE_MS = 700;
@@ -614,8 +614,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     else { p.setRate(speed); p.play(); }
   }
 
-  function cycleSpeed() {
-    const s = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+  function pickSpeed(s: number) {
     setSpeed(s);
     store('viq:reviewSpeed', String(s));
     player.current?.setRate(s);
@@ -710,7 +709,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 
           <div className="rr-play-row">
             <button className="seg-btn" onClick={playRally} title="Replay the rally">↻ Replay</button>
-            <button className="seg-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
+            <SpeedControl className="seg-btn" rate={speed} youtube={!player.current?.fileUrl()} onRate={pickSpeed} />
+            {player.current?.fileUrl() && <FrameStep player={player} className="seg-btn" />}
             <button className={`seg-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
               onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>Pause at touches</button>
             <button className={`seg-btn ${replay ? 'on' : ''}`} title="Opening a touch plays the 1.5 s before it (off = just show its frame)"
