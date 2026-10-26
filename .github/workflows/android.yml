@@ -50,11 +50,20 @@ jobs:
           npm run build
           npx cap sync android
 
+      # Stable: the tag or the version typed in. Test builds: the next patch after the latest
+      # release plus the build number (after v1.0.0: 1.0.1-dev.86), so they never look older.
       - name: Version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.ref_type }}" = tag ]; then v="${GITHUB_REF_NAME#v}"
           elif [ -n "${{ inputs.release }}" ]; then v="${{ inputs.release }}"; v="${v#v}"
-          else v="0.${{ github.run_number }}"; fi
+          else
+            last=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+            last="${last#v}"
+            if [[ "$last" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then base="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"; else base="0.0.1"; fi
+            v="$base-dev.${{ github.run_number }}"
+          fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
           if [ "${{ github.ref_type }}" = tag ] || [ -n "${{ inputs.release }}" ]; then echo "STABLE=1" >> "$GITHUB_ENV"; fi
 
@@ -116,5 +125,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           old=$(gh release view android-latest --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' \
-            | { grep -E '^VolleyIQ-0\.[0-9]+\.apk$' || true; } | sort -t. -k2,2n | head -n -2)
+            | { grep -E '^VolleyIQ-(0\.[0-9]+|[0-9.]+-dev\.[0-9]+)\.apk$' || true; } \
+            | awk '{ n = $0; sub(/\.apk$/, "", n); sub(/.*[.]/, "", n); print n, $0 }' | sort -n | cut -d' ' -f2- | head -n -2)
           for name in $old; do gh release delete-asset android-latest "$name" --repo "$GITHUB_REPOSITORY" --yes; done
