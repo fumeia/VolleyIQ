@@ -190,8 +190,9 @@ export function MatchSheetScan({ onPick, onTeamCreated, onAttach }: {
           {sheet.flow?.length ? (
             <p className="small">Match flow: {sheet.flow.map((f) => {
               const fin = sheet.sets[f.set - 1];
-              const ok = !!fin && replaySet(f, fin).ok;
-              return <span key={f.set} className={`set-chip ${ok ? '' : 'bad'}`} title={ok ? 'Service rounds add up to the set score' : 'The service rounds do not add up to the set score: a cell was misread, so this set is not used'}>Set {f.set} {ok ? '✓' : '✗'}</span>;
+              const r = fin ? replaySet(f, fin) : null;
+              const ok = !!r?.ok;
+              return <span key={f.set} className={`set-chip ${ok ? '' : 'bad'}`} title={ok ? 'Service rounds add up to the set score' : `Does not add up (probably a misread cell): ${r?.issues.map((x) => x.text).join('; ') ?? 'no final score'}. The rotation stats leave this set out; the tag check still uses it.`}>Set {f.set} {ok ? '✓' : '✗'}</span>;
             })}</p>
           ) : null}
           {teamBlock('A', sheet)}

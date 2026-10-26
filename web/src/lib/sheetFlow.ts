@@ -33,50 +33,71 @@ export interface SheetPoint {
 
 const other = (s: Side): Side => (s === 'A' ? 'B' : 'A');
 
+/** A written service-round cell: its score, row (0 = round 1) and column (0 = I). */
+export interface TurnCell { value: number | null; row: number; col: number }
+
 /**
- * Own score at the end of each service turn, in turn order. The team that received
- * first rotates before its first serve, so its first turn is column II (column I's
- * first cell is crossed out).
+ * The service-round cells of a team in turn order. The team that received first
+ * rotates before its first serve, so its first turn is column II (column I's first
+ * cell is crossed out). An unreadable cell between written ones stays in as null.
  */
-export function turnEnds(half: SheetHalf, servedFirst: boolean): number[] {
-  const cells: Cell[] = [];
-  for (const row of half.rounds) for (let c = 0; c < 6; c++) cells.push(row[c] ?? null);
-  const out: number[] = [];
+export function turnCells(half: SheetHalf, servedFirst: boolean): TurnCell[] {
+  const cells: TurnCell[] = [];
+  half.rounds.forEach((row, r) => { for (let c = 0; c < 6; c++) cells.push({ value: (row[c] ?? null) as number | null, row: r, col: c }); });
+  const out: TurnCell[] = [];
   for (let k = servedFirst ? 0 : 1; k < cells.length; k++) {
     const c = cells[k];
-    if (c === 'X') continue;
-    if (c == null) break;
+    if ((c.value as unknown) === 'X') continue;
     out.push(c);
   }
+  // Empty cells after the last written one are turns that never came.
+  while (out.length && out[out.length - 1].value == null) out.pop();
   return out;
 }
 
+/** Own score at the end of each service turn, in turn order (unreadable cells left out). */
+export function turnEnds(half: SheetHalf, servedFirst: boolean): number[] {
+  return turnCells(half, servedFirst).map((c) => c.value).filter((v): v is number => v != null);
+}
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+/** A spot where the scanned sheet does not add up: what is written there, and what the replay needed. */
+export interface SheetIssue { team: Side; row: number | null; col: number | null; text: string }
+
 /**
- * Replays one set. [final] is the set score from the result box. Returns the points
- * and whether the replay ends exactly on that score (otherwise a cell was misread).
+ * Replays one set. [final] is the set score from the result box. Returns the points,
+ * whether the replay matches the sheet exactly, and where it does not: a cell lower
+ * than the score the team already had, an unreadable cell, cells left over, or a
+ * different end score. The points are still a best guess when it does not match.
  */
-export function replaySet(s: SheetSet, final: { a: number; b: number }): { points: SheetPoint[]; ok: boolean } {
-  if (!s.firstServe) return { points: [], ok: false };
-  const ends: Record<Side, number[]> = { A: turnEnds(s.A, s.firstServe === 'A'), B: turnEnds(s.B, s.firstServe === 'B') };
+export function replaySet(s: SheetSet, final: { a: number; b: number }): { points: SheetPoint[]; ok: boolean; issues: SheetIssue[] } {
+  if (!s.firstServe) return { points: [], ok: false, issues: [{ team: 'A', row: null, col: null, text: 'Who served first is not known' }] };
+  const cells: Record<Side, TurnCell[]> = { A: turnCells(s.A, s.firstServe === 'A'), B: turnCells(s.B, s.firstServe === 'B') };
   const target: Record<Side, number> = { A: final.a, B: final.b };
   const score: Record<Side, number> = { A: 0, B: 0 };
   const slot: Record<Side, number> = { A: 0, B: 0 };
   const turn: Record<Side, number> = { A: 0, B: 0 };
   const points: SheetPoint[] = [];
+  const issues: SheetIssue[] = [];
+  const where = (c: TurnCell) => `service round ${c.row + 1}, column ${ROMAN[c.col]}`;
   let server: Side = s.firstServe;
-  let mismatch = false;
   // Played until the final score in the result box (or past it, when a cell was misread).
   const done = () => (score.A >= target.A && score.B >= target.B) || score.A > target.A || score.B > target.B;
   while (!done() && points.length < 120) {
-    const end = ends[server][turn[server]];
+    const cell = cells[server][turn[server]];
     // No cell for this turn: the set ended in it, so the server keeps scoring up to the final score.
-    const keeps = end == null ? score[server] < target[server] : score[server] < end;
+    // An unreadable cell: assume the serve was lost at once.
+    const end = cell ? cell.value : undefined;
+    const keeps = end === undefined ? score[server] < target[server] : end != null && score[server] < end;
     const winner = keeps ? server : other(server);
     score[winner]++;
     points.push({ set: s.set, server, slot: { ...slot }, winner, score: { ...score } });
     if (winner !== server) {
+      if (cell && cell.value == null) issues.push({ team: server, row: cell.row, col: cell.col, text: `Team ${server}, ${where(cell)}: unreadable (counted as losing the serve at once, at ${score[server]})` });
       // The turn must end on the score written in its cell (lower = a misread cell).
-      if (end != null && score[server] !== end) mismatch = true;
+      else if (cell && end != null && score[server] !== end) {
+        issues.push({ team: server, row: cell.row, col: cell.col, text: `Team ${server}, ${where(cell)}: ${end} is written, but the team already had ${score[server]} there` });
+      }
       turn[server]++;
       slot[winner] = (slot[winner] + 1) % 6;
       server = winner;
@@ -84,9 +105,17 @@ export function replaySet(s: SheetSet, final: { a: number; b: number }): { point
   }
   // Every cell used exactly once: the last server's final turn may have its cell (the
   // circled score) or not; all other turns must have ended where the sheet says.
-  const used = (t: Side) => turn[t] + (t === server && ends[t].length > turn[t] ? 1 : 0);
-  const cellsOk = used('A') === ends.A.length && used('B') === ends.B.length;
-  return { points, ok: score.A === target.A && score.B === target.B && cellsOk && !mismatch };
+  for (const t of ['A', 'B'] as Side[]) {
+    const used = turn[t] + (t === server && cells[t].length > turn[t] ? 1 : 0);
+    if (used < cells[t].length) {
+      const c = cells[t][used];
+      issues.push({ team: t, row: c.row, col: c.col, text: `Team ${t}: ${cells[t].length - used} service-round cell${cells[t].length - used === 1 ? '' : 's'} left over after the set ended (from ${where(c)})` });
+    }
+  }
+  if (score.A !== target.A || score.B !== target.B) {
+    issues.push({ team: 'A', row: null, col: null, text: `The service rounds give ${score.A}:${score.B}, the result box ${target.A}:${target.B}` });
+  }
+  return { points, ok: issues.length === 0, issues };
 }
 
 /** Jersey number in a column at a moment of the set (a substitute counts from the score it came in at). */

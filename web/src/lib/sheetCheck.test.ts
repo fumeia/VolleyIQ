@@ -49,4 +49,15 @@ describe('check tags against the match sheet', () => {
     const [c] = checkAgainstSheet(evs, sheet);
     expect(c.diffs.map((d) => d.kind).sort()).toEqual(['missing', 'wrong']);
   });
+
+  it('still compares point by point when one scanned cell does not add up', () => {
+    // Team B's second turn misread as 3 although B already had 4 there: the sheet is off by one point
+    // at that spot, but the two extra tagged points elsewhere are still found.
+    const misread = { ...sheet, flow: [{ ...set5, B: half([7, 8, 9, 10, 11, 12], [['X', 3, 3, 13, null, null]]) }] };
+    const [c] = checkAgainstSheet(tagsFor([4, 30]), misread);
+    expect(c.sheetOk).toBe(false);
+    expect(c.issues.some((x) => x.text.includes('column III'))).toBe(true);
+    expect(c.diffs.filter((d) => d.kind === 'extra').length).toBeGreaterThanOrEqual(2);
+    expect(c.diffs.every((d) => d.kind !== 'extra' || !!d.ctx)).toBe(true);
+  });
 });

@@ -701,3 +701,4 @@ button.court-zone:active { background: #2a2f3a; }
 .sheet-check { display: flex; flex-direction: column; gap: 10px; }
 .sheet-check-set ul { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .sheet-check-set li .btn-ghost { margin-left: 4px; }
+.sheet-issues ul { margin: 4px 0; padding-left: 18px; }

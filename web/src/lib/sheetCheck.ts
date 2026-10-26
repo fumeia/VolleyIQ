@@ -1,6 +1,6 @@
-import type { VEvent } from './api';
+import type { Player, VEvent } from './api';
 import { buildRallies } from './sequence';
-import { replaySet, type MatchSheetFlow } from './sheetFlow';
+import { inColumn, replaySet, type MatchSheetFlow, type SheetIssue, type SheetPoint } from './sheetFlow';
 
 /**
  * Tagged points against the match sheet, set by set: both are lists of points (who
@@ -10,11 +10,11 @@ import { replaySet, type MatchSheetFlow } from './sheetFlow';
  */
 
 type Team = 'us' | 'them';
-interface Pt { winner: Team; server: Team | null }
+interface Pt { winner: Team; server: Team | null; /** Sheet points: who served and our rotation, in words. */ ctx?: string }
 export interface Tagged extends Pt { t: number | null; end: VEvent }
 
 export type Diff =
-  | { kind: 'extra'; tagged: Tagged; sheetScore: { us: number; them: number } }
+  | { kind: 'extra'; tagged: Tagged; sheetScore: { us: number; them: number }; ctx?: string }
   | { kind: 'missing'; sheet: Pt; sheetScore: { us: number; them: number }; after: Tagged | null }
   | { kind: 'wrong'; tagged: Tagged; sheet: Pt; sheetScore: { us: number; them: number } };
 
@@ -22,8 +22,9 @@ export interface SetCheck {
   set: number;
   tagged: { us: number; them: number };
   sheet: { us: number; them: number };
-  /** false: the sheet's rounds for this set did not add up, so only the totals are compared. */
+  /** false: the sheet's rounds do not add up exactly ([issues] says where); the comparison is a best guess around those spots. */
   sheetOk: boolean;
+  issues: SheetIssue[];
   diffs: Diff[];
 }
 
@@ -64,7 +65,7 @@ export function align(tags: Tagged[], sheet: Pt[]) {
 }
 
 /** Every set that has both tags and a sheet entry. */
-export function checkAgainstSheet(events: VEvent[], sheet: MatchSheetFlow): SetCheck[] {
+export function checkAgainstSheet(events: VEvent[], sheet: MatchSheetFlow, players: Player[] = []): SetCheck[] {
   const us = sheet.ourTeam;
   const out: SetCheck[] = [];
   for (const f of sheet.flow) {
@@ -74,9 +75,19 @@ export function checkAgainstSheet(events: VEvent[], sheet: MatchSheetFlow): SetC
     if (!tags.length) continue;
     const sheetScore = { us: us === 'A' ? final.a : final.b, them: us === 'A' ? final.b : final.a };
     const tagged = { us: tags.filter((p) => p.winner === 'us').length, them: tags.filter((p) => p.winner === 'them').length };
-    const { points, ok } = replaySet(f, final);
-    if (!ok) { out.push({ set: f.set, tagged, sheet: sheetScore, sheetOk: false, diffs: [] }); continue; }
-    const sheetPts: Pt[] = points.map((p) => ({ winner: p.winner === us ? 'us' : 'them', server: p.server === us ? 'us' : 'them' }));
+    // Even when a scanned cell does not add up, the rest of the flow still locates the differences.
+    const { points, ok, issues } = replaySet(f, final);
+    const half = f[us];
+    const them = us === 'A' ? 'B' : 'A';
+    const setterNos = new Set(players.filter((p) => p.role === 'S' && p.number != null).map((p) => p.number!));
+    const setterCol = half.start.findIndex((n) => n != null && setterNos.has(n));
+    const rot = (col: number) => (setterCol >= 0 ? `S${((setterCol - col + 6) % 6) + 1}` : `#${half.start[col] ?? '?'} in position I`);
+    const ctx = (p: SheetPoint, k: number) => {
+      const prev = k > 0 ? points[k - 1].score : { A: 0, B: 0 };
+      const no = inColumn(half, p.slot[us], prev[us], prev[them]);
+      return p.server === us ? `we served${no != null ? ` (#${no})` : ''} in ${rot(p.slot[us])}` : `they served, we were in ${rot(p.slot[us])}`;
+    };
+    const sheetPts: Pt[] = points.map((p, k) => ({ winner: p.winner === us ? 'us' : 'them', server: p.server === us ? 'us' : 'them', ctx: ctx(p, k) }));
     const diffs: Diff[] = [];
     // Score on the sheet just before each sheet point, to say where a difference is.
     const before = (j: number) => {
@@ -87,12 +98,12 @@ export function checkAgainstSheet(events: VEvent[], sheet: MatchSheetFlow): SetC
     let lastTag: Tagged | null = null, j0 = 0;
     for (const o of align(tags, sheetPts)) {
       if (o.op === 'match') { lastTag = tags[o.i]; j0 = o.j + 1; continue; }
-      if (o.op === 'extra') diffs.push({ kind: 'extra', tagged: tags[o.i], sheetScore: before(j0) });
+      if (o.op === 'extra') diffs.push({ kind: 'extra', tagged: tags[o.i], sheetScore: before(j0), ctx: (sheetPts[j0] ?? sheetPts[j0 - 1])?.ctx });
       else if (o.op === 'missing') { diffs.push({ kind: 'missing', sheet: sheetPts[o.j], sheetScore: before(o.j), after: lastTag }); j0 = o.j + 1; }
       else { diffs.push({ kind: 'wrong', tagged: tags[o.i], sheet: sheetPts[o.j], sheetScore: before(o.j) }); lastTag = tags[o.i]; j0 = o.j + 1; }
       if (o.op === 'extra') lastTag = tags[o.i];
     }
-    out.push({ set: f.set, tagged, sheet: sheetScore, sheetOk: true, diffs });
+    out.push({ set: f.set, tagged, sheet: sheetScore, sheetOk: ok, issues, diffs });
   }
   return out;
 }

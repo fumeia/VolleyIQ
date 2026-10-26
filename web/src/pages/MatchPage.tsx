@@ -580,12 +580,12 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
 }) {
   const [open, setOpen] = useState<'scan' | 'check' | null>(null);
   const flow = match.sheet;
-  const checks = useMemo(() => (open === 'check' && flow ? checkAgainstSheet(events, flow) : []), [open, flow, events]);
+  const checks = useMemo(() => (open === 'check' && flow ? checkAgainstSheet(events, flow, players) : []), [open, flow, events, players]);
   // The other team letter fitting the tags much better = ours was picked wrong when attaching.
   const swapped = useMemo(() => {
     if (open !== 'check' || !flow) return false;
     const n = (l: ReturnType<typeof checkAgainstSheet>) => l.reduce((a, c) => a + c.diffs.length + Math.abs(c.tagged.us - c.sheet.us) + Math.abs(c.tagged.them - c.sheet.them), 0);
-    return n(checkAgainstSheet(events, { ...flow, ourTeam: flow.ourTeam === 'A' ? 'B' : 'A' })) * 2 < n(checks);
+    return n(checkAgainstSheet(events, { ...flow, ourTeam: flow.ourTeam === 'A' ? 'B' : 'A' }, players)) * 2 < n(checks);
   }, [open, flow, events, checks]);
   if (!open) {
     return (
@@ -616,16 +616,21 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
             {checks.map((c) => (
               <div key={c.set} className="sheet-check-set">
                 <b>Set {c.set}</b> · tags {sc(c.tagged)} · sheet {sc(c.sheet)}{' '}
-                {!c.sheetOk ? <span className="muted small">(the sheet's rounds for this set did not add up, so only the totals are compared)</span>
-                  : c.diffs.length === 0 ? <span className="tone-good">✓ every point matches</span>
+                {c.diffs.length === 0 ? <span className="tone-good">✓ every point matches</span>
                   : <span className="tone-bad">{c.diffs.length} difference{c.diffs.length === 1 ? '' : 's'}</span>}
+                {!c.sheetOk && (
+                  <div className="small muted sheet-issues">
+                    The scanned sheet does not add up exactly here, probably a misread cell (check it on the paper sheet). The points are still compared; a difference right next to one of these may come from the scan:
+                    <ul>{c.issues.map((x, k) => <li key={k}>{x.text}</li>)}</ul>
+                  </div>
+                )}
                 {c.diffs.length > 8 && <p className="small muted">This many differences usually means the tags and the sheet do not belong to the same set (set number or team switched). The first 8:</p>}
                 <ul>
                   {c.diffs.slice(0, 8).map((d, k) => (
                     <li key={k}>
-                      {d.kind === 'extra' && <>Point for {d.tagged.winner === 'us' ? 'us' : 'them'} tagged that is not on the sheet (sheet at {sc(d.sheetScore)}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
-                      {d.kind === 'missing' && <>Point for {d.sheet.winner === 'us' ? 'us' : 'them'} at {sc(d.sheetScore)} on the sheet is not tagged{d.after ? <>, after the rally at {jump(d.after.end)}</> : ' (start of the set)'}</>}
-                      {d.kind === 'wrong' && <>Tagged for {d.tagged.winner === 'us' ? 'us' : 'them'}, the sheet gives it to {d.sheet.winner === 'us' ? 'us' : 'them'} (at {sc(d.sheetScore)}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
+                      {d.kind === 'extra' && <>Point for {d.tagged.winner === 'us' ? 'us' : 'them'} tagged that is not on the sheet (sheet at {sc(d.sheetScore)}{d.ctx ? `, ${d.ctx}` : ''}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
+                      {d.kind === 'missing' && <>Point for {d.sheet.winner === 'us' ? 'us' : 'them'} at {sc(d.sheetScore)} on the sheet ({d.sheet.ctx}) is not tagged{d.after ? <>, after the rally at {jump(d.after.end)}</> : ' (start of the set)'}</>}
+                      {d.kind === 'wrong' && <>Tagged for {d.tagged.winner === 'us' ? 'us' : 'them'}, the sheet gives it to {d.sheet.winner === 'us' ? 'us' : 'them'} (at {sc(d.sheetScore)}, {d.sheet.ctx}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
                     </li>
                   ))}
                 </ul>
