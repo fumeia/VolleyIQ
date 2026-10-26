@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Public link: Replays**
+- A short guided tour on the public links (team, player page, single match) shows what is in them: the four views, season or one match, the stats topics, green / red, player pages and Replays. It opens once per device, can be skipped at any step and comes back with the ? Guide button.
 - A Replays tab plays every tagged touch of a match as a short clip, filtered by skill, player, set and points / errors, one at a time or all in a row. Viewers choose their own copy of the match video; it plays on their device and is never uploaded (a YouTube match plays from YouTube).
 - With "Suggest corrections" on, a viewer who spots a wrong tag can send a correction (player, action, grade, court spot, an optional note); their shirt number is required. The court is drawn as the camera sees it, following the side switches of your court marking. It shows up in the app under the match's ✎ Edits tab (and as a badge in the match list), where you accept it (the tag changes) or reject it.
 

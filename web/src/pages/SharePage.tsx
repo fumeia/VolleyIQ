@@ -4,6 +4,8 @@ import { PlayerLearning } from '../components/analysis/PlayerLearning';
 import { roleName } from '../components/analysis/PlayersSection';
 import { StatsView } from '../components/StatsView';
 import { Replays } from '../components/Replays';
+import { Tour } from '../components/Tour';
+import { matchTour, playerTour, teamTour } from '../components/ShareTours';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
@@ -28,13 +30,14 @@ export function SharePage() {
         <h1>{m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label}</h1>
         <p className="muted">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</p>
       </div>
-      <nav className="tabs public-tabs">
+      <nav className="tabs public-tabs" data-tour="tabs">
         <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Stats</button>
         <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>Report images</button>
       </nav>
       {view === 'stats'
         ? <StatsView players={data.players} events={data.events} matches={[data.match]} />
         : <MatchReportView match={m} players={data.players} events={data.events} />}
+      <Tour id="match" steps={matchTour(m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label)} />
     </div>
   );
 }
@@ -104,7 +107,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   } else if (tab === 'trends') {
     body = (
       <>
-        <div className="row wrap">{matchPicker((id) => (id ? `${base}/m/${id}/trends` : `${base}/trends`))}</div>
+        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}/trends` : `${base}/trends`))}</div>
         {match
           ? <MatchReportView match={{ ...match, team_name: data.team.name }} players={data.players} events={events} />
           : <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />}
@@ -113,7 +116,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   } else {
     body = (
       <>
-        <div className="row wrap">{matchPicker((id) => (id ? `${base}/m/${id}` : base))}</div>
+        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}` : base))}</div>
         <StatsView players={data.players} events={events} matches={match ? [match] : data.matches} />
       </>
     );
@@ -125,13 +128,15 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
         <Link to={base} className="brand"><img src="/icon.svg" alt="" /> {data.team.name}</Link>
         <span className="muted small">{data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</span>
       </header>
-      <nav className="tabs public-tabs">
+      <nav className="tabs public-tabs" data-tour="tabs">
         <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
         <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
-        <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`}>Players</Link>
-        <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`}>Replays</Link>
+        <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
+        <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
       </nav>
       {body}
+      {/* Someone opening a player's own link gets that page's tour; everyone else the team's. */}
+      {player ? <Tour key="player" id="player" steps={playerTour(player.name.split(' ')[0])} /> : <Tour key="team" id="team" steps={teamTour(data.team.name)} />}
     </div>
   );
 }

@@ -139,10 +139,10 @@ export function StatsView({ players, events, matches, onPlay }: {
   return (
     <PlayContext.Provider value={onPlay ?? null}>
     <div className="stats">
-      <div className="tabs stats-tabs">
+      <div className="tabs stats-tabs" data-tour="sections">
         {SECTIONS.map(([k, label]) => <button key={k} className={`tab ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)}>{label}</button>)}
       </div>
-      <details className="tone-note muted small">
+      <details className="tone-note muted small" data-tour="tone">
         <summary>How green ▲ / red ▼ are decided</summary>
         <p>{TONE_NOTE}</p>
       </details>

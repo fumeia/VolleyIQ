@@ -31,7 +31,7 @@ export function PlayerLearning({ player, players, events, matches, actions, show
       {mine.length < 10 ? <p className="muted">Not enough tagged touches yet for a learning page.</p> : (
         <>
           <PlayerTiles player={player} s={s} />
-          <div className="learn-cols">
+          <div className="learn-cols" data-tour="learn">
             <section className="chart learn-box">
               <h3 className="tone-good">▲ Strengths</h3>
               {c.strengths.length ? <ul>{c.strengths.map((i, k) => <li key={k}>{i.text}</li>)}</ul> : <p className="muted small">Nothing stands out yet. More tagged matches will show more.</p>}
