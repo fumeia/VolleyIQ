@@ -32,6 +32,8 @@ interface VolleyIQPlugin {
   cancelAnalysis(o: { matchId: number }): Promise<void>;
   deleteVideo(o: { uri: string }): Promise<void>;
   requestNotifications(): Promise<{ granted: boolean }>;
+  /** Android's print dialog for the page as it is now (offers Save as PDF). */
+  print(o: { name: string }): Promise<void>;
 }
 
 export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');
@@ -64,4 +66,10 @@ export function describeLink(url: string): string {
   if (/youtube\.com$|youtu\.be$/.test(host)) return 'YouTube';
   if (/vimeo\.com$/.test(host)) return 'Vimeo';
   return host || 'link';
+}
+
+/** Print / save as PDF: the browser's print, or in the app Android's print service (the WebView has no window.print). */
+export function printPage(name: string) {
+  if (isApp()) return Native.print({ name }).catch((e) => alert(`Could not open printing: ${e?.message ?? e}`));
+  window.print();
 }

@@ -2,10 +2,13 @@ package com.volleyiq.app
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResult
 import androidx.work.BackoffPolicy
@@ -64,6 +67,25 @@ class VolleyIQPlugin : Plugin() {
     }
 
     /** Checks that a stored video (content:// or file path) is still readable. */
+    /**
+     * Print (or "Save as PDF") the page as it is now, with its print styles: the WebView has no
+     * window.print(), so this hands the page to Android's print service.
+     */
+    @PluginMethod
+    fun print(call: PluginCall) {
+        val name = call.getString("name")?.takeIf { it.isNotBlank() } ?: "VolleyIQ report"
+        activity.runOnUiThread {
+            try {
+                val manager = activity.getSystemService(Context.PRINT_SERVICE) as PrintManager
+                val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
+                manager.print(name, bridge.webView.createPrintDocumentAdapter(name), attrs)
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject(e.message ?: "Printing is not available")
+            }
+        }
+    }
+
     @PluginMethod
     fun checkVideo(call: PluginCall) {
         val uri = parse(call.getString("uri") ?: return call.reject("uri required"))

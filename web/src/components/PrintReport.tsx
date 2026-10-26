@@ -7,6 +7,7 @@ import { DefenseSection } from './analysis/DefenseSection';
 import { ErrorsSection } from './analysis/ErrorsSection';
 import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
+import { printPage } from '../lib/native';
 import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
@@ -35,7 +36,7 @@ export function PrintReport({ title, subtitle, players, events, matches, onClose
   return createPortal(
     <div className="print-root">
       <div className="print-bar no-print">
-        <button className="btn btn-primary" onClick={() => window.print()}>Save as PDF / print</button>
+        <button className="btn btn-primary" onClick={() => printPage(title)}>Save as PDF / print</button>
         <button className="btn" onClick={onClose}>Close</button>
         <div className="print-parts">
           {PARTS.map(([k, label]) => (
