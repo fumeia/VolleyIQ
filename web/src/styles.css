@@ -833,3 +833,14 @@ button.court-zone:active { background: #2a2f3a; }
 .pg-zero { fill: #ef6b6b; }
 .pass-grades b { display: inline-block; min-width: 1.4em; text-align: center; border-radius: 4px; margin-right: 4px; color: #111; }
 .pg-k3 { background: rgb(34,197,94); } .pg-k2 { background: rgb(163,230,53); } .pg-k1 { background: rgb(245,158,11); } .pg-k0 { background: #ef6b6b; }
+
+/* Stats topics: a grid of outlined buttons, one colour each */
+.stats-sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.sec-btn { --sec: #9ca3af; display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px; border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--sec) 55%, transparent); border-left-width: 4px; border-left-color: var(--sec);
+  background: color-mix(in srgb, var(--sec) 8%, var(--surface)); color: var(--text); font-size: 14px; font-weight: 600; text-align: left; line-height: 1.15; }
+.sec-btn.on { background: color-mix(in srgb, var(--sec) 30%, var(--surface)); border-color: var(--sec); box-shadow: 0 0 0 1px var(--sec); }
+.sec-overview { --sec: #60a5fa; } .sec-rotations { --sec: #a78bfa; } .sec-attack { --sec: #f97316; } .sec-servepass { --sec: #2dd4bf; }
+.sec-setting { --sec: #22c55e; } .sec-defense { --sec: #38bdf8; } .sec-errors { --sec: #ef4444; } .sec-players { --sec: #facc15; }
+.sec-tables { --sec: #94a3b8; } .sec-court { --sec: #d97706; }
+.paper .stats-sections, .print-root .stats-sections { display: none; }
