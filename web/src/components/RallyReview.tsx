@@ -7,7 +7,7 @@ import { plural } from './analysis/ui';
 import { aiWord, courtPosition, feedbackFor, nextTouch, planAnswer } from '../lib/aiTrust';
 import { aiPrefs, checkRally, estimate, money } from '../lib/aiCheck';
 import { courtFields, type Pt } from '../lib/court';
-import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
+import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, rallyTemplate, servingAt, setAt, type Serving } from '../lib/rallyReview';
 import { pointsOfSet, rotationAfter, suggest } from '../lib/rotation';
 import { SpotSheet } from './SpotSheet';
 import { ourHalfAt } from '../lib/calibration';
@@ -86,6 +86,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const [budget, setBudget] = useState<AiBudget | null>(null);
   const chipDrag = useRef<{ id: number; x: number; y: number; el: HTMLElement; moved: boolean } | null>(null);
   const addSide = useRef<'us' | 'them' | null>(null);
+  // Who serves a rally just added by hand (from the saved points before it), set when it opens.
+  const addedServe = useRef<{ start: number; serving: Serving } | null>(null);
   const stopAt = useRef<number | null>(null);
   const passed = useRef<Set<number>>(new Set());
   const jumpTo = useRef<number | null>(null);
@@ -113,7 +115,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   useEffect(() => {
     if (!r) return;
     const base = { drafts: {}, removed: new Set([...duplicates(r.events), ...alreadySaved(r.events, confirmed)]), owner: new Map<number, 'us' | 'them'>() };
-    setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
+    const added = addedServe.current && Math.abs(addedServe.current.start - r.start) < 0.05 ? addedServe.current : null;
+    addedServe.current = null;
+    setServing(rotation ? (rotation.weServe ? 'us' : 'them') : added ? added.serving : guessServing(r.events, info));
     setSel(null);
     // Answers from an earlier AI check (e.g. of all rallies after the detection): applied right away.
     const stored = new Map(r.events.filter((e) => e.ai).map((e) => [e.id, e.ai!] as const));
@@ -223,6 +227,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     try {
       player.current?.pause();
       const at = Math.round(t * 100) / 100;
+      if (newRally) return await addRally(at);
       const numbered = !r || /^\d+$/.test(r.key);
       const rally = numbered ? (newRally || !r ? 900000 + Math.round(at * 10) : Number(r.key)) : null;
       // The likely touch after the one before it: its action, and the same or the other team.
@@ -235,12 +240,28 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         t: at, action: guess.action, status: 'suggested', source: 'auto',
         rally, poss: rally == null ? null : poss, set_no: newRally || !r ? setAt(match.calibration, at) : r.set,
       });
-      if (newRally) jumpTo.current = at;
       selectAt.current = at;
       await reload();
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * A rally the detection missed, starting at [at]: the touches of a typical rally to
+   * fix up, with the side that serves from the saved points before it (and the
+   * rotation from the line-up, as for every rally).
+   */
+  async function addRally(at: number) {
+    const set = setAt(match.calibration, at);
+    const serve = servingAt(pointsOfSet(confirmed, set, at), match.lineups?.[String(set)]?.weServeFirst);
+    const rally = 900000 + Math.round(at * 10);
+    for (const x of rallyTemplate(at, serve)) {
+      await api.addEvent(match.id, { t: x.t, action: x.action, status: 'suggested', source: 'auto', rally, poss: x.poss, set_no: set });
+    }
+    addedServe.current = { start: at, serving: serve };
+    jumpTo.current = at;
+    await reload();
   }
 
   async function runUndo() {
@@ -645,8 +666,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           <p><b>One rally at a time.</b> It plays once; then the first touch without a player opens.</p>
           <p><b>Tap a touch</b>: player → action → court spots (where it was played from, where it went) → the next touch opens by itself. <b>Next ▸</b> keeps a touch as it is.</p>
           <p><b>Swipe a touch up</b> to remove it (noise, a double). Removed touches stay as a small ↺ chip: tap it to bring the touch back. Greyed, struck-through chips are the other team's touches.</p>
-          <p><b>Fix the rally</b>: <b>Touch here</b> adds a missed touch at the video time (it guesses the action from the touch before: serve → pass → set → attack → dig), <b>New rally here</b> starts a rally the detection missed, <b>Join next</b> merges two rallies, <b>New rally from here</b> (on an open touch) splits one.</p>
-          <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>Clip on open</b> to replay a short clip instead.</p>
+          <p><b>Fix the rally</b>: <b>Touch here</b> adds a missed touch at the video time (it guesses the action from the touch before: serve → pass → set → attack → dig), <b>New rally here</b> (or <b>◀ + Rally</b> before the first one) starts a rally the detection missed, with the touches of a typical rally to fix up (who serves comes from the points before), <b>Join next</b> merges two rallies, <b>New rally from here</b> (on an open touch) splits one.</p>
+          <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>Replay touch</b> to play the 1.5 s before it instead (to see how the ball came).</p>
           <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
           <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the rally card left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
@@ -692,8 +713,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <button className="seg-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
             <button className={`seg-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
               onClick={() => { setStepPause(!stepPause); store('viq:stepPause', stepPause ? '0' : '1'); }}>Pause at touches</button>
-            <button className={`seg-btn ${replay ? 'on' : ''}`} title="Replay a short clip when you open a touch (off = just show its frame)"
-              onClick={() => { setReplay(!replay); store('viq:replayTouch', replay ? '0' : '1'); }}>Clip on open</button>
+            <button className={`seg-btn ${replay ? 'on' : ''}`} title="Opening a touch plays the 1.5 s before it (off = just show its frame)"
+              onClick={() => { setReplay(!replay); store('viq:replayTouch', replay ? '0' : '1'); }}>Replay touch</button>
           </div>
           <div className="rr-serve-row">
             <span>Served by</span>
@@ -809,7 +830,10 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         <button className="btn btn-danger" disabled={busy} onClick={notARally}>✕ <small>not a rally</small></button>
       </div>
       <div className="row between">
-        <button className="btn-ghost small" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Rally</button>
+        {idx > 0
+          ? <button className="btn-ghost small" onClick={() => setIdx((i) => Math.max(0, i - 1))}>◀ Rally</button>
+          : <button className="btn-ghost small" disabled={busy || now == null} onClick={() => addAt(true)}
+              title="No rally before this one: add one at the current video time">◀ + Rally{now != null ? ` at ${fmtTime(now)}` : ''}</button>}
         {last && <button className="btn-ghost small" disabled={busy} onClick={runUndo}>↶ Undo {last.text}</button>}
         <button className="btn-ghost small" disabled={idx >= rallies.length - 1} onClick={() => setIdx((i) => i + 1)}>Rally ▶</button>
       </div>

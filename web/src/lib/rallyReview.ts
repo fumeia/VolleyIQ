@@ -120,3 +120,28 @@ export function alreadySaved(events: VEvent[], saved: VEvent[]): number[] {
   };
   return events.filter((e) => e.t != null && near(e.t)).map((e) => e.id);
 }
+
+/**
+ * Who serves a rally starting at video time [t]: the winner of the last saved point
+ * of the set before it, else the line-up's first server; null when neither is known.
+ */
+export function servingAt(points: ('us' | 'them')[], weServeFirst: boolean | null | undefined): Serving {
+  if (points.length) return points[points.length - 1];
+  return weServeFirst == null ? null : weServeFirst ? 'us' : 'them';
+}
+
+/**
+ * The touches of a typical rally starting at [t], to fix up instead of tagging from
+ * scratch: on our serve the serve and our dig of their attack; on theirs their serve,
+ * then our pass, set and attack. [poss] 0 is the serving team (so the side follows).
+ */
+export function rallyTemplate(t: number, serving: Serving): { t: number; action: ActionCode; poss: number }[] {
+  const at = (dt: number) => Math.round((t + dt) * 100) / 100;
+  if (serving === 'us') return [{ t: at(0), action: 'serve', poss: 0 }, { t: at(3.5), action: 'dig', poss: 2 }];
+  return [
+    { t: at(0), action: 'serve', poss: 0 },
+    { t: at(1), action: 'receive', poss: 1 },
+    { t: at(2), action: 'set', poss: 1 },
+    { t: at(3), action: 'attack', poss: 1 },
+  ];
+}

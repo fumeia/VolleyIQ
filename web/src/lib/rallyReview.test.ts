@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VEvent } from './api';
-import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt } from './rallyReview';
+import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, rallyTemplate, servingAt, setAt } from './rallyReview';
 
 let id = 0;
 const ev = (t: number, extra: Partial<VEvent> = {}) =>
@@ -42,5 +42,18 @@ describe('rally review', () => {
   it('folds suggestions of touches that are already saved', () => {
     const a = ev(10), b = ev(12), saved = [ev(10.1, { status: 'confirmed' })];
     expect(alreadySaved([a, b], saved)).toEqual([a.id]);
+  });
+});
+
+describe('a rally added by hand', () => {
+  it('who serves: the last point winner, else the line-up', () => {
+    expect(servingAt(['us', 'them'], true)).toBe('them');
+    expect(servingAt([], false)).toBe('them');
+    expect(servingAt([], null)).toBeNull();
+  });
+  it('template: our serve and dig, or their serve and our pass, set, attack', () => {
+    expect(rallyTemplate(10, 'us').map((e) => [e.t, e.action, e.poss])).toEqual([[10, 'serve', 0], [13.5, 'dig', 2]]);
+    expect(rallyTemplate(10, 'them').map((e) => e.action)).toEqual(['serve', 'receive', 'set', 'attack']);
+    expect(rallyTemplate(10, 'them').filter((e) => e.poss === 1).length).toBe(3);
   });
 });
