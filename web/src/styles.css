@@ -180,7 +180,12 @@ video.video-fill { object-fit: contain; }
 .video-empty { display: grid; place-items: center; color: var(--muted); }
 .video-source { margin: 10px; }
 
-.transport { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--surface); border-bottom: 1px solid var(--line); }
+.transport { display: flex; flex-wrap: wrap; background: var(--surface); border-bottom: 1px solid var(--line); }
+.transport .tp-row2 { flex: 1 0 100%; display: flex; border-top: 1px solid var(--line); }
+.transport .tp-row2 button { flex: 1 1 0; min-height: 40px; border: 0; background: transparent; color: var(--text); font-weight: 600; font-size: 13px; }
+.transport > button { flex: 1 1 0; min-width: 0; padding: 0 2px; }
+.transport .speed-ctl { flex: 2 1 0; display: flex; }
+.transport .speed-ctl > button { flex: 1 1 0; min-width: 0; padding: 0 2px; font-size: 13px; }
 .transport button { min-height: 46px; border: 0; background: transparent; font-weight: 600; color: var(--text); }
 .transport .tp-main { font-size: 20px; color: var(--accent); }
 .transport .tp-rate { color: var(--muted); }
@@ -847,10 +852,15 @@ button.court-zone:active { background: #2a2f3a; }
 
 /* Playback speed picker and frame steps */
 .speed-ctl { position: relative; display: inline-flex; }
-.speed-ctl > button.slow { color: var(--accent); font-weight: 700; }
+.speed-ctl { gap: 4px; }
+.speed-ctl > button.slowmo.on { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .speed-pop { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 60; display: flex; gap: 2px; padding: 4px; border-radius: 10px;
   background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
 .speed-pop.from-left { right: auto; left: 0; }
 .speed-pop { flex-wrap: wrap; max-width: calc(100vw - 24px); }
 .speed-pop button { min-width: 44px; min-height: 36px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; }
 .speed-pop button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.replay-playback { flex: 1 0 100%; display: flex; gap: 6px; }
+.replay-playback > button { flex: 1 1 0; padding: 0 6px; white-space: nowrap; }
+.replay-playback .speed-ctl { flex: 2.2 1 0; display: flex; }
+.replay-playback .speed-ctl > button { flex: 1 1 auto; padding: 0 8px; white-space: nowrap; }

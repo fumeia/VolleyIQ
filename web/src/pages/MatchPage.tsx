@@ -349,8 +349,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <button className="tp-main" onClick={() => player.current?.toggle()}>{playing ? '❚❚' : '▶'}</button>
                   <button onClick={() => player.current?.seekBy(2)}>+2</button>
                   <button onClick={() => player.current?.seekBy(10)}>+10</button>
-                  {source?.type === 'file' && <FrameStep player={player} />}
-                  <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
+                  <div className="tp-row2">
+                    <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
+                    {source?.type === 'file' && <FrameStep player={player} />}
+                  </div>
                 </div>
                 )}
               </>

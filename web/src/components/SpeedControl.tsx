@@ -5,9 +5,16 @@ import type { PlayerHandle } from './VideoPlayer';
 export const SPEEDS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2];
 const FRAME = 1 / 30;
 
-/** The speed as a button; one tap shows every speed, a second picks one. */
+const SLOW_KEY = 'viq:slowRate';
+const loadSlow = () => { try { const v = Number(localStorage.getItem(SLOW_KEY)); return SPEEDS.includes(v) && v < 1 ? v : 0.25; } catch { return 0.25; } };
+
+/**
+ * Slow-mo on / off with one tap (at the slow speed last picked, 0.25× at first), and the
+ * speed as a button that shows every speed. Picking a speed below 1× makes it the slow-mo speed.
+ */
 export function SpeedControl({ rate, onRate, youtube = false, className = '' }: { rate: number; onRate: (r: number) => void; youtube?: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
+  const [slow, setSlow] = useState(loadSlow);
   const box = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -16,13 +23,21 @@ export function SpeedControl({ rate, onRate, youtube = false, className = '' }: 
     return () => window.removeEventListener('pointerdown', close);
   }, [open]);
   const speeds = SPEEDS.filter((s) => !youtube || s >= 0.25);
+  const slowRate = youtube ? Math.max(0.25, slow) : slow;
+  const pick = (s: number) => {
+    if (s < 1) { setSlow(s); try { localStorage.setItem(SLOW_KEY, String(s)); } catch { /* private mode */ } }
+    onRate(s);
+    setOpen(false);
+  };
   return (
     <span className="speed-ctl" ref={box}>
-      <button className={`${className} ${rate < 1 ? 'slow' : ''}`} onClick={() => setOpen(!open)} title="Playback speed" aria-expanded={open}>{rate}×</button>
+      <button className={`${className} slowmo ${rate < 1 ? 'on' : ''}`} aria-pressed={rate < 1} onClick={() => onRate(rate < 1 ? 1 : slowRate)}
+        title={rate < 1 ? 'Back to normal speed' : `Slow motion (${slowRate}×)`}>Slow-mo{rate < 1 ? ` ${rate}×` : ''}</button>
+      <button className={className} onClick={() => setOpen(!open)} title="Playback speed" aria-expanded={open}>{rate}× ▾</button>
       {open && (
         <span className={`speed-pop ${(box.current?.getBoundingClientRect().left ?? 0) < window.innerWidth / 2 ? 'from-left' : ''}`} role="menu">
           {speeds.map((s) => (
-            <button key={s} role="menuitemradio" aria-checked={s === rate} className={s === rate ? 'on' : ''} onClick={() => { onRate(s); setOpen(false); }}>{s}×</button>
+            <button key={s} role="menuitemradio" aria-checked={s === rate} className={s === rate ? 'on' : ''} onClick={() => pick(s)}>{s}×</button>
           ))}
         </span>
       )}

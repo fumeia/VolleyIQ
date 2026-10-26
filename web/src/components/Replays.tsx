@@ -154,8 +154,10 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         <button className="btn btn-primary" disabled={!source || !clips.length} onClick={() => { setPlayAll(true); play(current ?? clips[0]); }}>▶ Play all {clips.length}</button>
         <button className="btn" disabled={!source || idx <= 0} onClick={() => play(clips[idx - 1])}>◀</button>
         <button className="btn" disabled={!source || idx >= clips.length - 1} onClick={() => play(clips[idx + 1])}>▶</button>
-        <SpeedControl className="btn" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
-        {source?.type === 'file' && <FrameStep player={player} className="btn" />}
+        <div className="replay-playback">
+          <SpeedControl className="btn" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
+          {source?.type === 'file' && <FrameStep player={player} className="btn" />}
+        </div>
         <button className="btn-ghost small" onClick={() => setLead((lead + 1) % LEADS.length)}>{LEADS[lead].label} clips</button>
         <label className="toggle replay-edit-toggle">
           <input type="checkbox" checked={editing} onChange={(e) => setEditing(e.target.checked)} />
