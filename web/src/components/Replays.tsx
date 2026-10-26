@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, SKILLS, isNetSpot, wantsSpots, type ActionCode } from '../lib/actions';
-import { api, type Match, type Player, type VEvent } from '../lib/api';
-import type { Pt } from '../lib/court';
+import { ACTION_BY_CODE, SKILLS } from '../lib/actions';
+import type { Match, Player, VEvent } from '../lib/api';
 import { ourHalfAt } from '../lib/calibration';
-import { ActionPicker } from './ActionPicker';
-import { CourtFull } from './CourtFull';
-import { NetSpot } from './NetSpot';
+import { EditSheet } from './EditSheet';
 import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
 import { FrameStep, SpeedControl } from './SpeedControl';
@@ -46,8 +43,10 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const [cur, setCur] = useState<number | null>(null);
   const [playAll, setPlayAll] = useState(false);
   const [editing, setEditing] = useState(false);
-  // A touch that is not tagged, to be suggested at this video time (e.g. a block without a touch).
-  const [adding, setAdding] = useState<{ t: number; sent: boolean } | null>(null);
+  // The correction being made (a tag, or with [add] a touch that is not tagged, at that video time).
+  const [target, setTarget] = useState<{ event: VEvent; add?: { matchId: number; t: number } } | null>(null);
+  const [notice, setNotice] = useState('');
+  const videoBox = useRef<HTMLDivElement>(null);
   const [sent, setSent] = useState<number[]>(() => loadSent(token));
   const player = useRef<PlayerHandle>(null);
   const stopAt = useRef<number | null>(null);
@@ -97,6 +96,36 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
     return () => clearInterval(timer);
   }, []);
 
+  /** Up to the video, play the touch, and open its correction one question at a time. */
+  function startEdit(e: VEvent) {
+    setPlayAll(false);
+    setNotice('');
+    videoBox.current?.scrollIntoView({ block: 'start' });
+    play(e);
+    setTarget({ event: e });
+  }
+  function startAdd() {
+    const t = player.current?.time();
+    if (t == null || !match) return;
+    player.current?.pause();
+    setNotice('');
+    videoBox.current?.scrollIntoView({ block: 'start' });
+    const at = Math.round(t * 100) / 100;
+    setTarget({
+      add: { matchId: match.id, t: at },
+      event: { id: -1, match_id: match.id, player_id: null, jersey: null, action: 'block_miss', value: null, zone: null, x: null, y: null, fx: null, fy: null, t: at, set_no: null, source: 'manual', status: 'confirmed', confidence: null },
+    });
+  }
+  /** The moment around [t] again (for a touch being added). */
+  function playAround(t: number) {
+    const p = player.current;
+    if (!p) return;
+    p.seek(Math.max(0, t - LEADS[lead].before));
+    p.setRate(rate);
+    p.play();
+    stopAt.current = t + 0.5;
+  }
+
   function pickFile(f: File | undefined) {
     if (!f || matchId == null) return;
     setFiles((m) => ({ ...m, [matchId]: { url: URL.createObjectURL(f), name: f.name } }));
@@ -117,7 +146,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         </select>
       </div>
 
-      <div className="replay-video">
+      <div className="replay-video" ref={videoBox}>
         {source ? <VideoPlayer ref={player} source={source} /> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
@@ -168,33 +197,35 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         </label>
       </div>
 
-      {editing && source && !adding && (
-        <button className="btn wide add-touch" onClick={() => {
-          const t = player.current?.time();
-          if (t == null) return;
-          player.current?.pause();
-          setAdding({ t: Math.round(t * 100) / 100, sent: false });
-        }}>＋ Missing touch? Add one at the current video time</button>
+      {editing && source && (
+        <button className="btn wide add-touch" onClick={startAdd}>＋ Missing touch? Add one at the current video time</button>
       )}
-      {adding && match && (adding.sent
-        ? <p className="small muted">✓ Sent: a new touch at {fmtTime(adding.t)}. <button className="link" onClick={() => setAdding(null)}>OK</button></p>
-        : <EditBox key={`add-${adding.t}`} token={token} add={{ matchId: match.id, t: adding.t }} onCancel={() => setAdding(null)}
-            event={{ id: -1, match_id: match.id, player_id: null, jersey: null, action: 'block_miss', value: null, zone: null, x: null, y: null, fx: null, fy: null, t: adding.t, set_no: null, source: 'manual', status: 'confirmed', confidence: null }}
-            players={players.filter((p) => p.active)}
-            flip={!!match.calibration && ourHalfAt(match.calibration, adding.t) === 'far'}
-            onSent={() => setAdding({ ...adding, sent: true })} />
-      )}
-      {editing && current && !adding && (
-        sent.includes(current.id)
-          ? <p className="small muted">✓ You sent a correction for this touch.</p>
-          : <EditBox key={current.id} token={token} event={current} players={players.filter((p) => p.active || p.id === current.player_id)}
-              flip={!!match?.calibration && ourHalfAt(match.calibration, current.t!) === 'far'}
-              onSent={() => { const s = [...sent, current.id]; setSent(s); try { localStorage.setItem(sentKey(token), JSON.stringify(s)); } catch { /* private mode */ } }} />
+      {notice && <p className="small edit-notice">{notice} <button className="link" onClick={() => setNotice('')}>OK</button></p>}
+      {target && match && (
+        <EditSheet key={target.add ? `add-${target.add.t}` : target.event.id} token={token} event={target.event} add={target.add}
+          players={players.filter((p) => p.active || p.id === target.event.player_id)}
+          flip={!!match.calibration && ourHalfAt(match.calibration, target.event.t ?? 0) === 'far'}
+          anchor={videoBox.current}
+          controls={<>
+            <button className="btn small" onClick={() => (target.add ? playAround(target.add.t) : play(target.event))} title="Play it again">↻</button>
+            <SpeedControl className="btn small" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
+          </>}
+          onCancel={() => setTarget(null)}
+          onSent={() => {
+            if (!target.add) { const s = [...sent, target.event.id]; setSent(s); try { localStorage.setItem(sentKey(token), JSON.stringify(s)); } catch { /* private mode */ } }
+            setNotice(target.add ? `✓ Sent: a new touch at ${fmtTime(target.add.t)}.` : '✓ Sent: your correction.');
+            setTarget(null);
+          }} />
       )}
 
       <ol className="replay-list">
         {clips.map((e) => (
-          <li key={e.id}>
+          <li key={e.id} className={editing ? 'with-edit' : ''}>
+            {editing && (
+              <button className="replay-edit" disabled={!source || sent.includes(e.id)} onClick={() => startEdit(e)} title="Suggest a correction for this touch">
+                {sent.includes(e.id) ? '✓' : '✎'}<small>{sent.includes(e.id) ? 'sent' : 'edit'}</small>
+              </button>
+            )}
             <button className={`replay-clip ${e.id === cur ? 'on' : ''}`} disabled={!source} onClick={() => { setPlayAll(false); play(e); }}>
               <span className="replay-time">{fmtTime(e.t!)}</span>
               <b>{who(e)}</b>
@@ -205,120 +236,6 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         ))}
         {!clips.length && <li className="muted small">No touches match these filters.</li>}
       </ol>
-    </div>
-  );
-}
-
-/**
- * "Found a mistake?": the viewer's corrected tag, sent as a suggestion. With [add], a touch
- * that is not tagged at all, at that video time ([event] holds the defaults).
- * [flip]: our team plays the far half at that time.
- */
-function EditBox({ token, event, players, flip, onSent, add, onCancel }: {
-  token: string; event: VEvent; players: Player[]; flip: boolean; onSent: () => void;
-  add?: { matchId: number; t: number }; onCancel?: () => void;
-}) {
-  const [open, setOpen] = useState(!!add);
-  const [action, setAction] = useState<ActionCode>(event.action);
-  const [value, setValue] = useState<number | null>(event.value);
-  const [playerId, setPlayerId] = useState<number | null>(event.player_id);
-  const [spot, setSpot] = useState<{ from: Pt | null; to: Pt | null } | null>(null);
-  const [step, setStep] = useState<'from' | 'to'>('from');
-  const [note, setNote] = useState('');
-  // Who sends it: their shirt number (required), remembered on this device.
-  const [jersey, setJersey] = useState(() => { try { return localStorage.getItem('viq:editJersey') ?? ''; } catch { return ''; } });
-  const sender = /^\d{1,2}$/.test(jersey.trim()) ? Number(jersey.trim()) : null;
-  const [state, setState] = useState<'idle' | 'confirm' | 'sending' | 'error'>('idle');
-  const [err, setErr] = useState('');
-
-  if (!open) return <button className="btn wide found-mistake" onClick={() => setOpen(true)}>Found a mistake in this touch? ✎ Edit it</button>;
-
-  const def = ACTION_BY_CODE[action];
-  const path = def?.court === 'path';
-  const changes: Record<string, unknown> = {};
-  if (action !== event.action) changes.action = action;
-  if (value !== event.value) changes.value = value;
-  if (playerId !== event.player_id) changes.player_id = playerId;
-  if (spot) {
-    const from = path ? spot.from : null;
-    Object.assign(changes, { fx: from?.x ?? null, fy: from?.y ?? null, x: spot.to?.x ?? null, y: spot.to?.y ?? null });
-  }
-  if (add) Object.assign(changes, { action, value, player_id: playerId });
-  const nothing = add ? playerId == null : !Object.keys(changes).length && !note.trim();
-  const shown = spot ?? { from: event.fx != null && event.fy != null ? { x: event.fx, y: event.fy } : null, to: event.x != null && event.y != null ? { x: event.x, y: event.y } : null };
-
-  async function send() {
-    setState('sending');
-    try {
-      try { localStorage.setItem('viq:editJersey', String(sender)); } catch { /* private mode */ }
-      await api.sendEdit(token, add
-        ? { kind: 'add', match_id: add.matchId, t: add.t, changes, note: note.trim(), jersey: sender! }
-        : { event_id: event.id, changes, note: note.trim(), jersey: sender! });
-      onSent();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not send');
-      setState('error');
-    }
-  }
-
-  return (
-    <div className="edit-box">
-      <div className="row between">
-        <b>{add ? `New touch at ${fmtTime(add.t)}` : 'Your correction'}</b>
-        <button className="btn-ghost small" onClick={() => (onCancel ? onCancel() : setOpen(false))}>Cancel</button>
-      </div>
-      {add && <p className="small muted">For a touch that is not in the list, e.g. a block without a touch ("Block → No touch").</p>}
-      <span className="field-label">Who played it</span>
-      <div className="player-grid">
-        {players.map((p) => (
-          <button key={p.id} className={`jersey role-${p.role} ${playerId === p.id ? 'is-selected' : ''}`} onClick={() => setPlayerId(p.id)}>
-            <span className="jersey-num">{p.number ?? '–'}</span><span className="jersey-name">{p.name.split(' ')[0]}</span>
-          </button>
-        ))}
-      </div>
-      <span className="field-label">What it was</span>
-      <ActionPicker value={action} onPick={(c) => { setAction(c); if (c !== 'receive') setValue(null); }} />
-      {action === 'receive' && (
-        <div className="pad-grid pad-grid-4 receive-quick">
-          {[0, 1, 2, 3].map((g) => <button key={g} className={`act act-receive r${g} ${value === g ? 'is-selected' : ''}`} onClick={() => setValue(g)}>{g}</button>)}
-        </div>
-      )}
-      {wantsSpots(action, 'points', 'all') && (
-        <>
-          <span className="field-label">
-            Where {path ? (step === 'from' ? 'it was played from (1/2)' : 'it went (2/2)') : 'it was'} <small className="muted">· as the camera sees it · optional</small>
-          </span>
-          <div className="edit-court">
-            {(() => {
-              const pickSpot = (p: Pt) => {
-                if (path && step === 'from') { setSpot({ from: p, to: null }); setStep('to'); }
-                else { setSpot((s) => ({ from: path ? s?.from ?? null : null, to: p })); setStep('from'); }
-              };
-              // Blocks: a dot on the net to slide along it.
-              return isNetSpot(action, step === 'from' || !path)
-                ? <NetSpot key={`${action}-${step}`} initial={path ? shown.from?.x : shown.to?.x} flip={flip} onPick={pickSpot} label={path ? '✓ Block here, next: where the ball went' : '✓ Block here'} />
-                : <CourtFull from={shown.from} to={shown.to} flip={flip} label="court" onPick={pickSpot} />;
-            })()}
-          </div>
-          {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>{add ? '↺ Clear the spots' : '↺ Keep the tagged spots'}</button>}
-        </>
-      )}
-      <label className="field-label">Your shirt number <small className="muted">(required)</small>
-        <input className="input edit-jersey" inputMode="numeric" maxLength={2} placeholder="#" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))} />
-      </label>
-      <textarea className="input" rows={2} maxLength={500} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-      {state === 'confirm' || state === 'sending' ? (
-        <div className="row">
-          <button className="btn btn-primary grow" disabled={state === 'sending'} onClick={send}>{state === 'sending' ? 'Sending…' : '✓ Send'}</button>
-          <button className="btn" onClick={() => setState('idle')}>Back</button>
-        </div>
-      ) : (
-        <button className="btn btn-primary wide" disabled={nothing || sender == null} onClick={() => setState('confirm')}>
-          {nothing ? (add ? 'Pick who played it' : 'Change something to send it') : sender == null ? 'Enter your shirt number to send' : add ? 'Send new touch…' : 'Send correction…'}
-        </button>
-      )}
-      {state === 'confirm' && <p className="small muted">Your correction is checked in the app before it changes anything.</p>}
-      {state === 'error' && <p className="small error">{err}</p>}
     </div>
   );
 }

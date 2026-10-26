@@ -12,6 +12,9 @@
 - "Blocks along the net": every block per metre from zone 4 to zone 2, as points, touches, no touch and errors, to see the holes in the block.
 - Stats: a "No touch" column for the blockers, and charts of where their attacks went past our block (arrows and by zone), for the team (Defence) and on each player's page (Block).
 
+**Public link: corrections on the phone**
+- With Suggest corrections on, every touch in the Replays list has its own ✎ edit button. It jumps up to the video, plays the touch, and opens the correction under the video one question at a time (who → what → where → send), like the tag pad in the app, so the video stays in view while choosing, sliding the block or tapping the court. Replay and slow-mo are in the panel.
+
 **Public link: suggest a missing touch**
 - In Replays with Suggest corrections on, "Missing touch? Add one at the current video time" sends a new touch (player, action, spots) to the Edits pile in the app, where "Add it" saves it as a tag.
 
