@@ -1,11 +1,12 @@
 name: Android app
 
-# Every push builds a test APK ("VolleyIQ Android (latest build)", a pre-release).
+# Every push to main builds a test APK ("VolleyIQ Android (latest build)", a pre-release).
 # A stable release: Actions > Android app > Run workflow on main with a version (e.g. 1.2.0),
 # or push a tag (git tag v1.2.0 && git push origin v1.2.0). Either makes the release "VolleyIQ v1.2.0".
 on:
   push:
-    branches: [main, "claude/**"]
+    # Only main: one build per change (a second branch would race it for the test release).
+    branches: [main]
     tags: ["v*"]
     paths: ["web/**", ".github/workflows/android.yml"]
   workflow_dispatch:
