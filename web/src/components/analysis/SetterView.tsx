@@ -12,13 +12,13 @@ import { eff3, judge, pct, ratio, sample, StatFigure } from './ui';
  */
 export const SET_KINDS = [
   { key: 'outside', label: 'Left, to the antenna', color: '#16a34a', front: true, from: 0, to: 1.5 },
-  { key: 'shoot', label: 'Left, inside the antenna', color: '#2563eb', front: true, from: 1.5, to: 3.5 },
-  { key: 'quick', label: 'Middle, in front of the setter', color: '#db2777', front: true, from: 3.5, to: 6.3 },
+  { key: 'shoot', label: 'Shoot (left, inside the antenna)', color: '#2563eb', front: true, from: 1.5, to: 3.5 },
+  { key: 'quick', label: 'Quick (middle, in front of the setter)', color: '#db2777', front: true, from: 3.5, to: 6.3 },
   { key: 'behind', label: 'Behind the setter', color: '#a16207', front: true, from: 6.3, to: 7.8 },
   { key: 'right', label: 'Right, to the antenna', color: '#ea580c', front: true, from: 7.8, to: 9.01 },
   { key: 'blue', label: 'Back row, left', color: '#1d6fb8', front: false, from: 0, to: 3 },
-  { key: 'white', label: 'Back row, middle (pipe)', color: '#9ca3af', front: false, from: 3, to: 6 },
-  { key: 'red', label: 'Back row, right', color: '#dc2626', front: false, from: 6, to: 9.01 },
+  { key: 'white', label: 'Pipe', color: '#9ca3af', front: false, from: 3, to: 6 },
+  { key: 'red', label: 'Alpha', color: '#dc2626', front: false, from: 6, to: 9.01 },
 ] as const;
 export type SetKind = (typeof SET_KINDS)[number]['key'];
 
@@ -67,8 +67,15 @@ export function SetterView({ players, events, only }: { players: Player[]; event
     const dx = r.list.map((e) => e.x!).sort((a, b) => a - b);
     const mid = dx[Math.floor(dx.length / 2)];
     const tx = X(mid), fx = X(sx);
+    // A shoot is played fast and flat: a straight line, hit a little higher than it was set.
+    if (r.key === 'shoot') {
+      const ty = NET - 7;
+      return { d: `M ${fx} ${NET - 4} L ${tx} ${ty}`, tx, ty, top: ty };
+    }
     const ty = r.front ? NET - 4 : FLOOR + 4;
-    const h = r.front ? 10 + Math.abs(mid - sx) * 3.4 : 20 + Math.abs(mid - sx) * 2;
+    const far = Math.abs(mid - sx);
+    // Quicks stay low and flat; the high sets to the antennas arc higher the further they go.
+    const h = r.key === 'quick' ? 3 + far * 1.2 : r.front ? 10 + far * 3.4 : 20 + far * 2;
     const cy = Math.min(NET - 4, ty) - h;
     return { d: `M ${fx} ${NET - 4} Q ${(fx + tx) / 2} ${cy * 2 - (NET - 4 + ty) / 2} ${tx} ${ty}`, tx, ty, top: cy };
   };
@@ -97,7 +104,7 @@ export function SetterView({ players, events, only }: { players: Player[]; event
         <line x1={X(0)} x2={X(9)} y1={NET} y2={NET} className="sv-tape" />
         <line x1={X(0)} x2={X(0)} y1={NET - 8} y2={NET + 9} className="sv-antenna" />
         <line x1={X(9)} x2={X(9)} y1={NET - 8} y2={NET + 9} className="sv-antenna" />
-        {[1.5, 4.5, 7.5].map((m, k) => <text key={m} x={X(m)} y={FLOOR - 1.5} className="sv-zone">zone {[4, 3, 2][k]}</text>)}
+        {[1.5, 4.5, 7.5].map((m, k) => <text key={m} x={X(m)} y={NET + 5.5} className="sv-zone">zone {[4, 3, 2][k]}</text>)}
         {rows.map((r) => {
           const a = arc(r);
           const w = 0.8 + 4.2 * (r.list.length / max);
