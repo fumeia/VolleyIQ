@@ -6,19 +6,19 @@ import { who } from './AttackSection';
 import { eff3, judge, pct, ratio, sample, StatFigure } from './ui';
 
 /**
- * Kinds of set by where the set went (its second tap), as seen from behind our baseline
- * with the setter right of the middle: along the net from zone 4 (left) to zone 2
- * (right), or to the back row (blue left, white middle / pipe, red right).
+ * Where a set went (its second tap), as seen from behind our baseline with the setter
+ * right of the middle: along the net from zone 4 (left) to zone 2 (right), or to the
+ * back row (left, middle = pipe, right).
  */
 export const SET_KINDS = [
-  { key: 'outside', label: 'Outside (4 / 5)', color: '#16a34a', front: true, from: 0, to: 1.5 },
-  { key: 'shoot', label: 'Shoot / 32', color: '#2563eb', front: true, from: 1.5, to: 3.5 },
-  { key: 'quick', label: 'Quick (1 / 31)', color: '#db2777', front: true, from: 3.5, to: 6.3 },
-  { key: 'behind', label: 'Behind (A / slide)', color: '#a16207', front: true, from: 6.3, to: 7.8 },
-  { key: 'right', label: 'Right side (9)', color: '#ea580c', front: true, from: 7.8, to: 9.01 },
-  { key: 'blue', label: 'Back row left (blue)', color: '#1d6fb8', front: false, from: 0, to: 3 },
-  { key: 'white', label: 'Pipe (white)', color: '#9ca3af', front: false, from: 3, to: 6 },
-  { key: 'red', label: 'Back row right (red)', color: '#dc2626', front: false, from: 6, to: 9.01 },
+  { key: 'outside', label: 'Left, to the antenna', color: '#16a34a', front: true, from: 0, to: 1.5 },
+  { key: 'shoot', label: 'Left, inside the antenna', color: '#2563eb', front: true, from: 1.5, to: 3.5 },
+  { key: 'quick', label: 'Middle, in front of the setter', color: '#db2777', front: true, from: 3.5, to: 6.3 },
+  { key: 'behind', label: 'Behind the setter', color: '#a16207', front: true, from: 6.3, to: 7.8 },
+  { key: 'right', label: 'Right, to the antenna', color: '#ea580c', front: true, from: 7.8, to: 9.01 },
+  { key: 'blue', label: 'Back row, left', color: '#1d6fb8', front: false, from: 0, to: 3 },
+  { key: 'white', label: 'Back row, middle (pipe)', color: '#9ca3af', front: false, from: 3, to: 6 },
+  { key: 'red', label: 'Back row, right', color: '#dc2626', front: false, from: 6, to: 9.01 },
 ] as const;
 export type SetKind = (typeof SET_KINDS)[number]['key'];
 
@@ -77,7 +77,7 @@ export function SetterView({ players, events, only }: { players: Player[]; event
     <figure className="chart setter-view">
       <figcaption>
         <div className="chart-title"><b>Set chart{ids.length === 1 || only != null ? ` · ${who(players.find((p) => p.id === setter)!)}` : ''}</b></div>
-        <span className="chart-sub">The setter's sets from the side, by where they went: the thicker the arc, the more often. Seen from behind our baseline, zone 4 left. {total} sets with a spot.</span>
+        <span className="chart-sub">Where the setter's sets went, seen from behind our baseline (zone 4 on the left, zone 2 on the right): the thicker the arc, the more often. {total} sets with a spot.</span>
       </figcaption>
       {ids.length > 1 && only == null && (
         <div className="chips tight">
@@ -117,9 +117,9 @@ export function SetterView({ players, events, only }: { players: Player[]; event
         <text x={X(sx)} y={NET + 13} className="sv-setter-label">setter</text>
       </svg>
       <div className="chart-legend">{rows.map((r) => <span key={r.key}><i style={{ background: r.color }} />{r.label}</span>)}</div>
-      <StatFigure title="By kind of set" subtitle="How often, and how the attack right after it went"
+      <StatFigure title="Where the sets went" subtitle="How often the setter set to each spot, and how the attack right after it went (K% = kills, Eff = kills minus errors per attack)"
         rows={rows} rowKey={(r) => r.key}
-        first={{ h: 'Set', cell: (r) => r.label }}
+        first={{ h: 'Set to', cell: (r) => r.label }}
         columns={[
           { h: 'Sets', cell: (r) => r.list.length },
           { h: 'Share', cell: (r) => pct(ratio(r.list.length, total)) },
