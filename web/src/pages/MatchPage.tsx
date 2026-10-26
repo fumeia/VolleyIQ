@@ -16,8 +16,9 @@ import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
 import { MatchSheetScan } from '../components/MatchSheetScan';
 import { lineupsFromSheet } from '../lib/sheetFlow';
+import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
-import { api, ApiError, type Match, type MatchBundle, type Player, type VEvent } from '../lib/api';
+import { api, ApiError, type Match, type MatchBundle, type MatchVersion, type Player, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
@@ -397,7 +398,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 <button className="btn-ghost small" onClick={() => { setReel(null); player.current?.pause(); }}>Stop</button>
               </div>
             )}
-            {tab === 'events' && <SheetBox match={match} players={players} onSaved={setMatch} />}
+            {tab === 'events' && (
+              <div className="row wrap">
+                <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
+                <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
+              </div>
+            )}
             {tab === 'events' && (
               <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} onSetMany={moveEventsToSet} filterable
                 onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
@@ -569,30 +575,129 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
  * per rotation, serve turns) is kept with the match, and its starting six fill in
  * line-ups for sets that have none yet.
  */
-function SheetBox({ match, players, onSaved }: { match: Match; players: Player[]; onSaved: (m: Match) => void }) {
-  const [open, setOpen] = useState(false);
+function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
+  match: Match; players: Player[]; events: VEvent[]; onSaved: (m: Match) => void; onSeek: (t: number) => void; onEdit: (e: VEvent) => void;
+}) {
+  const [open, setOpen] = useState<'scan' | 'check' | null>(null);
   const flow = match.sheet;
+  const checks = useMemo(() => (open === 'check' && flow ? checkAgainstSheet(events, flow) : []), [open, flow, events]);
+  // The other team letter fitting the tags much better = ours was picked wrong when attaching.
+  const swapped = useMemo(() => {
+    if (open !== 'check' || !flow) return false;
+    const n = (l: ReturnType<typeof checkAgainstSheet>) => l.reduce((a, c) => a + c.diffs.length + Math.abs(c.tagged.us - c.sheet.us) + Math.abs(c.tagged.them - c.sheet.them), 0);
+    return n(checkAgainstSheet(events, { ...flow, ourTeam: flow.ourTeam === 'A' ? 'B' : 'A' })) * 2 < n(checks);
+  }, [open, flow, events, checks]);
   if (!open) {
     return (
-      <button className="btn-ghost small" onClick={() => setOpen(true)}>
-        📸 Match sheet{flow ? `: flow of ${flow.flow.length} set${flow.flow.length === 1 ? '' : 's'} kept` : ' (read the match flow)'}
-      </button>
+      <>
+        <button className="btn-ghost small" onClick={() => setOpen('scan')}>
+          📸 Match sheet{flow ? `: ${flow.flow.length} set${flow.flow.length === 1 ? '' : 's'} kept` : ' (read the match flow)'}
+        </button>
+        {flow && <button className="btn-ghost small" onClick={() => setOpen('check')}>✓ Check tags against the sheet</button>}
+      </>
     );
   }
+  const sc = (s: { us: number; them: number }) => `${s.us}:${s.them}`;
+  const jump = (e: VEvent | null) => e && e.t != null && (
+    <button className="btn-ghost small" onClick={() => onSeek(e.t!)}>▶ {fmtTime(e.t)}</button>
+  );
   return (
-    <div className="card">
-      <div className="row between"><b>Match sheet</b><button className="btn-ghost small" onClick={() => setOpen(false)}>Close</button></div>
-      {flow && (
-        <p className="small muted">
-          Kept: {flow.flow.length} set{flow.flow.length === 1 ? '' : 's'} (we are team {flow.ourTeam}).{' '}
-          <button className="link" onClick={async () => onSaved(await api.updateMatch(match.id, { sheet: null }))}>Remove</button>
-        </p>
+    <div className="card wide">
+      <div className="row between"><b>{open === 'check' ? 'Tags vs. match sheet' : 'Match sheet'}</b><button className="btn-ghost small" onClick={() => setOpen(null)}>Close</button></div>
+      {open === 'check' && (
+        checks.length === 0 ? <p className="small muted">No set has both tags and a match sheet entry yet.</p> : (
+          <div className="sheet-check">
+            <p className="small muted">Scores are ours:theirs. Each tagged point is matched to the sheet by who won it (and who served); what is left over is listed here.</p>
+            {swapped && flow && (
+              <p className="small tone-bad">The tags fit much better if we are team {flow.ourTeam === 'A' ? 'B' : 'A'} on the sheet.{' '}
+                <button className="btn small" onClick={async () => onSaved(await api.updateMatch(match.id, { sheet: { ...flow, ourTeam: flow.ourTeam === 'A' ? 'B' : 'A' } }))}>Switch to team {flow.ourTeam === 'A' ? 'B' : 'A'}</button>
+              </p>
+            )}
+            {checks.map((c) => (
+              <div key={c.set} className="sheet-check-set">
+                <b>Set {c.set}</b> · tags {sc(c.tagged)} · sheet {sc(c.sheet)}{' '}
+                {!c.sheetOk ? <span className="muted small">(the sheet's rounds for this set did not add up, so only the totals are compared)</span>
+                  : c.diffs.length === 0 ? <span className="tone-good">✓ every point matches</span>
+                  : <span className="tone-bad">{c.diffs.length} difference{c.diffs.length === 1 ? '' : 's'}</span>}
+                {c.diffs.length > 8 && <p className="small muted">This many differences usually means the tags and the sheet do not belong to the same set (set number or team switched). The first 8:</p>}
+                <ul>
+                  {c.diffs.slice(0, 8).map((d, k) => (
+                    <li key={k}>
+                      {d.kind === 'extra' && <>Point for {d.tagged.winner === 'us' ? 'us' : 'them'} tagged that is not on the sheet (sheet at {sc(d.sheetScore)}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
+                      {d.kind === 'missing' && <>Point for {d.sheet.winner === 'us' ? 'us' : 'them'} at {sc(d.sheetScore)} on the sheet is not tagged{d.after ? <>, after the rally at {jump(d.after.end)}</> : ' (start of the set)'}</>}
+                      {d.kind === 'wrong' && <>Tagged for {d.tagged.winner === 'us' ? 'us' : 'them'}, the sheet gives it to {d.sheet.winner === 'us' ? 'us' : 'them'} (at {sc(d.sheetScore)}) {jump(d.tagged.end)}<button className="btn-ghost small" onClick={() => onEdit(d.tagged.end)}>Edit tag</button></>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )
       )}
-      <MatchSheetScan onTeamCreated={() => {}} onAttach={async (f, liberoNo) => {
-        const lineups = { ...lineupsFromSheet(f, players, liberoNo), ...(match.lineups ?? {}) };
-        onSaved(await api.updateMatch(match.id, { sheet: f, ...(Object.keys(lineups).length ? { lineups } : {}) }));
-        setOpen(false);
-      }} />
+      {open === 'scan' && (
+        <>
+          {flow && (
+            <p className="small muted">
+              Kept: {flow.flow.length} set{flow.flow.length === 1 ? '' : 's'} (we are team {flow.ourTeam}).{' '}
+              <button className="link" onClick={async () => onSaved(await api.updateMatch(match.id, { sheet: null }))}>Remove</button>
+            </p>
+          )}
+          <MatchSheetScan onTeamCreated={() => {}} onAttach={async (f, liberoNo) => {
+            const lineups = { ...lineupsFromSheet(f, players, liberoNo), ...(match.lineups ?? {}) };
+            onSaved(await api.updateMatch(match.id, { sheet: f, ...(Object.keys(lineups).length ? { lineups } : {}) }));
+            setOpen(null);
+          }} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Saved versions of this match (on the server, so the app and the website see the same
+ * list): save one as a checkpoint, go back to one later. Restoring first saves the
+ * current state as its own version, so a restore can be undone too.
+ */
+function VersionsBox({ match, pending, onRestored }: { match: Match; pending: number; onRestored: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<MatchVersion[] | null>(null);
+  const [label, setLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { if (open) api.versions(match.id).then(setList).catch((e) => setError(String(e.message ?? e))); }, [open, match.id]);
+  if (!open) return <button className="btn-ghost small" onClick={() => setOpen(true)}>💾 Versions</button>;
+  const run = async (f: () => Promise<void>) => {
+    setBusy(true); setError('');
+    try { await f(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+  };
+  const when = (s: string) => new Date(`${s.replace(' ', 'T')}Z`).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <div className="card wide">
+      <div className="row between"><b>Saved versions</b><button className="btn-ghost small" onClick={() => setOpen(false)}>Close</button></div>
+      <p className="small muted">A version keeps every tag of this match, the line-ups, the court marking and the match sheet. Going back to one replaces the current tags (they are saved as a version first, so you can return to them).</p>
+      <form className="row" onSubmit={(e) => { e.preventDefault(); run(async () => { setList(await api.saveVersion(match.id, label)); setLabel(''); }); }}>
+        <input className="input grow" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name, e.g. Original tagging" maxLength={80} />
+        <button className="btn btn-primary" disabled={busy}>💾 Save version</button>
+      </form>
+      {error && <p className="error small">{error}</p>}
+      {pending > 0 && <p className="small muted">⏳ {pending} change{pending === 1 ? '' : 's'} still waiting to upload: going back to a version is possible once they are synced.</p>}
+      {list && (list.length === 0 ? <p className="small muted">No saved versions yet.</p> : (
+        <ul className="list">
+          {list.map((v) => (
+            <li key={v.id} className="list-item">
+              <span className="grow"><b>{v.label}</b><small className="muted"> · {when(v.created_at)} · {v.event_count} tags{v.auto ? ' · saved automatically' : ''}</small></span>
+              <button className="btn small" disabled={busy || pending > 0} onClick={() => {
+                if (!confirm(`Go back to "${v.label}"? The current tags are saved as a version first.`)) return;
+                run(async () => { const r = await api.restoreVersion(match.id, v.id); setList(r.versions); await onRestored(); });
+              }}>Go back</button>
+              <button className="btn-ghost small" disabled={busy} onClick={() => {
+                if (!confirm(`Delete the version "${v.label}"?`)) return;
+                run(async () => setList(await api.deleteVersion(match.id, v.id)));
+              }}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      ))}
     </div>
   );
 }

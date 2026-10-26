@@ -117,6 +117,19 @@ const MIGRATIONS = [
   `
   ALTER TABLE matches ADD COLUMN sheet TEXT;
   `,
+  // v12: saved versions of a match's tagging (events, line-ups, court marking, sheet) to go back to
+  `
+  CREATE TABLE match_versions (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    auto INTEGER NOT NULL DEFAULT 0,
+    event_count INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX match_versions_match ON match_versions(match_id, id);
+  `,
 ];
 
 function migrate(db) {

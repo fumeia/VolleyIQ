@@ -467,4 +467,59 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     });
     return { inserted: save() };
   });
+
+  // ---------- saved versions of a match ----------
+  // A version keeps everything tagged for the match; restoring one replaces the tags with
+  // it, after saving the current state as a version of its own (so a restore can be undone).
+  const VERSION_COLS = ['player_id', 'jersey', 'action', 'value', 'zone', 'x', 'y', 'fx', 'fy', 'rally', 'poss', 't', 'set_no', 'source', 'status', 'confidence', 'hint', 'client_id'];
+  const MAX_VERSIONS = 30;
+  const listVersions = (matchId) => db.prepare('SELECT id, label, auto, event_count, created_at FROM match_versions WHERE match_id = ? ORDER BY id DESC').all(matchId);
+  function saveVersion(match, label, auto) {
+    const events = q.events.all(match.id).map((e) => Object.fromEntries(VERSION_COLS.map((k) => [k, e[k]])));
+    const data = JSON.stringify({ events, lineups: match.lineups ?? null, calibration: match.calibration ?? null, sheet: match.sheet ?? null });
+    const r = db.prepare('INSERT INTO match_versions (match_id, label, auto, event_count, data) VALUES (?, ?, ?, ?, ?)')
+      .run(match.id, label, auto ? 1 : 0, events.length, data);
+    // Keep the newest; automatic ones go first when there are too many.
+    const extra = db.prepare('SELECT id FROM match_versions WHERE match_id = ? ORDER BY auto DESC, id ASC').all(match.id);
+    for (const v of extra.slice(0, Math.max(0, extra.length - MAX_VERSIONS))) db.prepare('DELETE FROM match_versions WHERE id = ?').run(v.id);
+    return r.lastInsertRowid;
+  }
+
+  app.get('/api/matches/:id/versions', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    return listVersions(match.id);
+  });
+
+  app.post('/api/matches/:id/versions', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const label = String(req.body?.label ?? '').trim().slice(0, 80) || `Saved ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+    saveVersion(match, label, false);
+    return listVersions(match.id);
+  });
+
+  app.post('/api/matches/:id/versions/:vid/restore', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const v = db.prepare('SELECT * FROM match_versions WHERE id = ? AND match_id = ?').get(req.params.vid, match.id);
+    if (!v) return bad(reply, 'Version not found', 404);
+    const data = JSON.parse(v.data);
+    const playerOk = new Set(db.prepare('SELECT id FROM players').all().map((p) => p.id));
+    db.transaction(() => {
+      saveVersion(match, `Before restoring "${v.label}"`, true);
+      db.prepare('DELETE FROM events WHERE match_id = ?').run(match.id);
+      for (const e of data.events ?? []) {
+        const row = Object.fromEntries(VERSION_COLS.map((k) => [k, e[k] ?? null]));
+        q.insertEvent.run({ ...row, player_id: playerOk.has(row.player_id) ? row.player_id : null, source: row.source ?? 'manual', status: row.status ?? 'confirmed', match_id: match.id });
+      }
+      db.prepare('UPDATE matches SET lineups = ?, calibration = ?, sheet = ? WHERE id = ?').run(data.lineups, data.calibration, data.sheet, match.id);
+    })();
+    return { ...matchBundle(q.match.get(match.id)), versions: listVersions(match.id) };
+  });
+
+  app.delete('/api/matches/:id/versions/:vid', coach, async (req) => {
+    db.prepare('DELETE FROM match_versions WHERE id = ? AND match_id = ?').run(req.params.vid, req.params.id);
+    return listVersions(Number(req.params.id));
+  });
 }

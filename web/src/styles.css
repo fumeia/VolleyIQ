@@ -697,3 +697,7 @@ button.court-zone:active { background: #2a2f3a; }
 .ai-btn { border-color: var(--accent) !important; }
 .ai-summary { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); margin-top: 6px; }
 .set-chip.bad { border-color: var(--bad-ink); color: var(--bad-ink); }
+.card.wide { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.sheet-check { display: flex; flex-direction: column; gap: 10px; }
+.sheet-check-set ul { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.sheet-check-set li .btn-ghost { margin-left: 4px; }

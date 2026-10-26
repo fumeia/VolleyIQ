@@ -214,3 +214,23 @@ test('match sheet flow is stored cleaned with the match', async () => {
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { sheet: { ourTeam: 'C' } } })).statusCode, 400);
   await app.close();
 });
+
+test('saved versions: restore brings the tags back and keeps the state before it', async () => {
+  const app = await setup();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  const add = (action) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action, t: 1, set_no: 1 } });
+  await add('ace'); await add('kill');
+  const list = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/versions`, payload: { label: 'Original' } })).json();
+  assert.equal(list[0].label, 'Original');
+  assert.equal(list[0].event_count, 2);
+  // Changes after saving: one more tag, one removed.
+  await add('serve_error');
+  const evs = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  await app.inject({ method: 'DELETE', url: `/api/events/${evs.find((e) => e.action === 'ace').id}` });
+  const back = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/versions/${list[0].id}/restore` })).json();
+  assert.deepEqual(back.events.map((e) => e.action).sort(), ['ace', 'kill']);
+  assert.equal(back.versions[0].label, 'Before restoring "Original"');
+  assert.equal(back.versions[0].event_count, 2);
+  assert.equal(back.versions[0].auto, 1);
+  await app.close();
+});

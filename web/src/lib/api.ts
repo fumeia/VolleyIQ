@@ -24,6 +24,8 @@ export interface VEvent {
 }
 /** The AI check's answer for one touch (i = its place in the request, from 1). */
 export interface AiTouch { i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; confidence: number }
+/** A saved state of a match's tagging; auto = saved by the app before a restore. */
+export interface MatchVersion { id: number; label: string; auto: number; event_count: number; created_at: string }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
 /** Summary fields read off a photo of an official match sheet (best-effort). */
@@ -123,6 +125,10 @@ export const api = {
   match: (id: number) => req<MatchBundle>('GET', `/api/matches/${id}`),
   createMatch: (m: Partial<Match>) => req<Match>('POST', '/api/matches', m),
   updateMatch: (id: number, m: Partial<Match>) => req<Match>('PATCH', `/api/matches/${id}`, m),
+  versions: (id: number) => req<MatchVersion[]>('GET', `/api/matches/${id}/versions`),
+  saveVersion: (id: number, label: string) => req<MatchVersion[]>('POST', `/api/matches/${id}/versions`, { label }),
+  restoreVersion: (id: number, vid: number) => req<MatchBundle & { versions: MatchVersion[] }>('POST', `/api/matches/${id}/versions/${vid}/restore`, {}),
+  deleteVersion: (id: number, vid: number) => req<MatchVersion[]>('DELETE', `/api/matches/${id}/versions/${vid}`),
   deleteMatch: (id: number) => req('DELETE', `/api/matches/${id}`),
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
   shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`),

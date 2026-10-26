@@ -65,10 +65,8 @@ export function replaySet(s: SheetSet, final: { a: number; b: number }): { point
   const points: SheetPoint[] = [];
   let server: Side = s.firstServe;
   let mismatch = false;
-  const done = () => {
-    const [hi, lo] = score.A >= score.B ? [score.A, score.B] : [score.B, score.A];
-    return hi >= (s.set === 5 ? 15 : 25) && hi - lo >= 2;
-  };
+  // Played until the final score in the result box (or past it, when a cell was misread).
+  const done = () => (score.A >= target.A && score.B >= target.B) || score.A > target.A || score.B > target.B;
   while (!done() && points.length < 120) {
     const end = ends[server][turn[server]];
     // No cell for this turn: the set ended in it, so the server keeps scoring up to the final score.
