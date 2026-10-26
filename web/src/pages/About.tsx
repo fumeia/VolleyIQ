@@ -110,7 +110,7 @@ export function AboutPage() {
                     {progress != null ? `Downloading… ${progress == null ? '' : `${Math.round(progress * 100)}%`}` : '⬇ Download and install'}
                   </button>
                   {progress != null && <div className="progress"><div style={{ width: `${Math.round((progress ?? 0) * 100)}%` }} /></div>}
-                  <p className="small muted">Android asks you to confirm the install. Your matches and login stay as they are.</p>
+                  <p className="small muted">{progress != null ? 'Downloads in the background with a notification, so you can switch to other apps; tap the notification to install when it is done. ' : ''}Android asks you to confirm the install. Your matches and login stay as they are.</p>
                 </>
               ) : (
                 <a className="btn btn-primary" href={`/api/app/apk/${latest.assetId}`}>⬇ Download the Android app ({latest.version})</a>

@@ -29,13 +29,17 @@ interface VolleyIQPlugin {
     segments?: Segment[] | null;
   }): Promise<{ id: string; uploadId: string }>;
   analysisStatus(o: { matchId: number }): Promise<{ analysis: WorkState | null; upload: WorkState | null }>;
+  /** The AI check of every rally as a background job ([job]: JSON, see AiCheckWorker.kt). */
+  aiCheckAll(o: { matchId: number; job: string }): Promise<{ id: string }>;
+  aiCheckStatus(o: { matchId: number }): Promise<{ work: WorkState | null }>;
+  cancelAiCheck(o: { matchId: number }): Promise<void>;
   cancelAnalysis(o: { matchId: number }): Promise<void>;
   deleteVideo(o: { uri: string }): Promise<void>;
   requestNotifications(): Promise<{ granted: boolean }>;
   /** Android's print dialog for the page as it is now (offers Save as PDF). */
   print(o: { name: string }): Promise<void>;
   appInfo(): Promise<{ version: string; build: number; android: string; device: string; canInstall: boolean }>;
-  /** Downloads the APK at [url] (with the login token) and opens Android's installer. */
+  /** Downloads the APK at [url] (with the login token) as a background job, then opens Android's installer. */
   installUpdate(o: { url: string; token: string | null }): Promise<void>;
   addListener(event: 'updateProgress', cb: (p: { done: number; total: number }) => void): Promise<{ remove: () => void }>;
 }

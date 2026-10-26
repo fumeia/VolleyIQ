@@ -11,7 +11,6 @@ import android.print.PrintAttributes
 import android.print.PrintManager
 import android.provider.OpenableColumns
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import androidx.activity.result.ActivityResult
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -31,12 +30,12 @@ import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.annotation.PermissionCallback
+import com.volleyiq.app.work.AiCheckWorker
 import com.volleyiq.app.work.AnalysisWorker
 import com.volleyiq.app.work.ImportWorker
+import com.volleyiq.app.work.UpdateWorker
 import com.volleyiq.app.work.UploadWorker
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -171,6 +170,36 @@ class VolleyIQPlugin : Plugin() {
         call.resolve(JSObject().put("work", info?.let(::toJs)))
     }
 
+    /** The AI check of every rally in the background ([job]: JSON, see AiCheckWorker). */
+    @PluginMethod
+    fun aiCheckAll(call: PluginCall) {
+        val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
+        val job = call.getString("job") ?: return call.reject("job required")
+        val file = File(context.filesDir, "aicheck-$matchId.json").apply { writeText(job) }
+        val request = OneTimeWorkRequestBuilder<AiCheckWorker>()
+            .setInputData(workDataOf(AiCheckWorker.KEY_JOB to file.absolutePath))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .addTag("aicheck-$matchId")
+            .build()
+        work.enqueueUniqueWork("aicheck-$matchId", ExistingWorkPolicy.REPLACE, request)
+        call.resolve(JSObject().put("id", request.id.toString()))
+    }
+
+    @PluginMethod
+    fun aiCheckStatus(call: PluginCall) {
+        val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
+        val info = work.getWorkInfosForUniqueWork("aicheck-$matchId").get().firstOrNull()
+        call.resolve(JSObject().put("work", info?.let(::toJs)))
+    }
+
+    @PluginMethod
+    fun cancelAiCheck(call: PluginCall) {
+        val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
+        work.cancelUniqueWork("aicheck-$matchId")
+        call.resolve()
+    }
+
     @PluginMethod
     fun cancelAnalysis(call: PluginCall) {
         val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
@@ -268,44 +297,39 @@ class VolleyIQPlugin : Plugin() {
             activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")))
             return call.reject("Allow VolleyIQ to install apps, then tap Update again", "NEEDS_PERMISSION")
         }
+        // A background job (goes on in other apps, with a progress notification); this call
+        // follows it while the app is open and opens the installer when it is done.
+        val request = OneTimeWorkRequestBuilder<UpdateWorker>()
+            .setInputData(workDataOf(UpdateWorker.KEY_URL to url, UpdateWorker.KEY_TOKEN to token))
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .addTag("update")
+            .build()
+        // Already downloading (e.g. the About page was reopened): follow that download.
+        val running = work.getWorkInfosForUniqueWork("app-update").get().firstOrNull { !it.state.isFinished }
+        val id = running?.id ?: request.id.also { work.enqueueUniqueWork("app-update", ExistingWorkPolicy.REPLACE, request) }
         Thread {
             try {
-                val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-                dir.listFiles()?.forEach { it.delete() }
-                val file = File(dir, "VolleyIQ-update.apk")
-                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15_000
-                    readTimeout = 60_000
-                    if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
-                }
-                if (conn.responseCode != 200) throw IllegalStateException("Server answered ${conn.responseCode}")
-                val total = conn.contentLengthLong
-                var done = 0L
-                var lastPct = -1
-                conn.inputStream.use { input ->
-                    file.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            done += n
-                            val pct = if (total > 0) (done * 100 / total).toInt() else -1
-                            if (pct != lastPct) {
-                                lastPct = pct
-                                notifyListeners("updateProgress", JSObject().apply { put("done", done); put("total", total) })
+                while (true) {
+                    Thread.sleep(500)
+                    val info = work.getWorkInfoById(id).get() ?: continue
+                    when (info.state) {
+                        WorkInfo.State.SUCCEEDED -> {
+                            val file = UpdateWorker.apkFile(context)
+                            activity.runOnUiThread { activity.startActivity(UpdateWorker.installIntent(context, file)) }
+                            return@Thread call.resolve()
+                        }
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED ->
+                            return@Thread call.reject(info.outputData.getString(AnalysisWorker.KEY_ERROR) ?: "Download failed")
+                        else -> {
+                            val p = info.progress
+                            if (p.keyValueMap.containsKey(UpdateWorker.KEY_DONE)) {
+                                notifyListeners("updateProgress", JSObject().apply {
+                                    put("done", p.getLong(UpdateWorker.KEY_DONE, 0)); put("total", p.getLong(UpdateWorker.KEY_TOTAL, -1))
+                                })
                             }
                         }
                     }
                 }
-                if (total > 0 && done != total) throw IllegalStateException("Download incomplete, try again")
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                val install = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                activity.runOnUiThread { activity.startActivity(install) }
-                call.resolve()
             } catch (e: Exception) {
                 call.reject(e.message ?: "Download failed")
             }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Background jobs**
+- App updates (About → Download and install) download as a background job with a notification: progress, MB and about how long is left. It goes on in other apps; tap the notification to install when it is done.
+- "AI check all rallies" runs as a background job in the app too, with a progress notification (rally N of M, about how long is left); it no longer stops when you switch apps.
+
 **Measuring the auto-detection**
 - Every detection run is kept on the server as it came from the phone (the last 10 per match, with its settings).
 - Auto → "How well did the detection do?": against the touches you saved for the match, the share of your touches it found (per skill), how many it reported for the other team or as extras, timing, how often the action and the shirt number were right, the most common action mix-ups, and how reliable heard / quiet / gap detections and each confidence level were.

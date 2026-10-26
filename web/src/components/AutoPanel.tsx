@@ -48,7 +48,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
   // Set when the detection finished and every rally should get the AI check first.
   const [aiRun, setAiRun] = useState<{ done: () => void } | null>(null);
   const report = <DetectionReportCard match={match} players={players} confirmed={confirmed} />;
-  const aiCard = <AiCard match={match} players={players} suggested={suggested} fileUrl={fileUrl} reload={reload} autoRun={aiRun} />;
+  const aiCard = <AiCard match={match} players={players} suggested={suggested} fileUrl={fileUrl} localUri={video?.uri ?? null} reload={reload} autoRun={aiRun} />;
 
   const running = !!status && (isActive(status.analysis) || isActive(status.upload));
 
@@ -64,7 +64,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         const first = handled.current === null;
         handled.current = s.upload.id;
         if (first) return;
-        if (aiPrefs.afterDetect() && fileUrl()) reload().then(() => setAiRun({ done: () => { setAiRun(null); done.current(); } }));
+        if (aiPrefs.afterDetect() && (fileUrl() || video)) reload().then(() => setAiRun({ done: () => { setAiRun(null); done.current(); } }));
         else done.current();
       }
     };

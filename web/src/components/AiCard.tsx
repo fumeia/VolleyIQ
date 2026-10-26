@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type AiBudget, type AiField, type AiStats, type Match, type Player, type VEvent } from '../lib/api';
+import { api, serverBase, type AiBudget, type AiField, type AiStats, type Match, type Player, type VEvent } from '../lib/api';
+import { ourHalfAt } from '../lib/calibration';
+import { isApp, Native, type WorkState } from '../lib/native';
 import { aiPrefs, checkAll, estimate, money, touchesToCheck } from '../lib/aiCheck';
 import { TRUST_AFTER, trustFor } from '../lib/aiTrust';
 import { groupRallies } from '../lib/rallyReview';
@@ -11,6 +13,8 @@ interface Props {
   suggested: VEvent[];
   /** The video file in the player (the AI check reads its frames), or null. */
   fileUrl: () => string | null;
+  /** In the Android app: the video on the phone; the check then runs as a background job. */
+  localUri?: string | null;
   reload: () => Promise<unknown>;
   /** Asked to check every rally (after the detection, when that option is on); done() when finished. */
   autoRun?: { done: () => void } | null;
@@ -28,7 +32,7 @@ const FIELDS: { field: AiField; label: string }[] = [
  * The AI check before a run: what it does (and how well it has done so far), the
  * options, the credit left and whether checking every rally fits in it.
  */
-export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: Props) {
+export function AiCard({ match, players, suggested, fileUrl, localUri, reload, autoRun }: Props) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [budget, setBudget] = useState<AiBudget | null>(null);
   const [stats, setStats] = useState<{ fields: AiStats; examples: number } | null>(null);
@@ -36,6 +40,31 @@ export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: 
   const [examples, setExamples] = useState(aiPrefs.examples);
   const [run, setRun] = useState<{ done: number; total: number; note?: string } | null>(null);
   const stop = useRef(false);
+  // The background job in the app (goes on when you switch apps), followed while this is open.
+  const native = isApp() && !!localUri;
+  const [job, setJob] = useState<WorkState | null>(null);
+  const after = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!native) return;
+    let live = true, was: string | null = null;
+    const tick = async () => {
+      const w = (await Native.aiCheckStatus({ matchId: match.id }).catch(() => null))?.work ?? null;
+      if (!live) return;
+      setJob(w);
+      // Finished while we watched: show the answers and go on.
+      if (w && was && ['enqueued', 'running'].includes(was) && ['succeeded', 'failed', 'cancelled'].includes(w.state)) {
+        await reload();
+        api.aiBudget().then(setBudget).catch(() => {});
+        after.current?.();
+        after.current = null;
+      }
+      was = w?.state ?? null;
+    };
+    tick();
+    const t = window.setInterval(tick, 1500);
+    return () => { live = false; clearInterval(t); };
+  }, [native, match.id]);
+  const jobRunning = !!job && ['enqueued', 'running', 'blocked'].includes(job.state);
 
   useEffect(() => {
     api.touchCheckEnabled().then((x) => {
@@ -53,6 +82,23 @@ export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: 
   const url = fileUrl();
 
   async function checkEverything(then?: () => void) {
+    if (native) {
+      await Native.requestNotifications().catch(() => {});
+      after.current = then ?? null;
+      await Native.aiCheckAll({
+        matchId: match.id,
+        job: JSON.stringify({
+          matchId: match.id, apiBase: serverBase(), token: api.token(), uri: localUri, examples,
+          roster: players.filter((p) => p.active && p.number != null).map((p) => ({ number: p.number, role: p.role })),
+          rallies: todo.map((r) => {
+            const half = match.calibration ? ourHalfAt(match.calibration, r.start) : null;
+            return { ourSide: half === 'near' || half === 'far' ? half : null, touches: r.events.filter((e) => e.t != null).slice(0, 16).map((e) => ({ id: e.id, t: e.t })) };
+          }),
+        }),
+      });
+      setJob({ id: '', state: 'enqueued', progress: 0, message: 'Starting…' });
+      return;
+    }
     const u = fileUrl();
     if (!u || run) return;
     stop.current = false;
@@ -72,7 +118,7 @@ export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: 
   useEffect(() => {
     if (!autoRun || started.current === autoRun || !enabled) return;
     started.current = autoRun;
-    if (!fileUrl() || !todo.length) { autoRun.done(); return; }
+    if ((!native && !fileUrl()) || !todo.length) { autoRun.done(); return; }
     checkEverything(autoRun.done);
   }, [autoRun, enabled, suggested]);
 
@@ -138,7 +184,15 @@ export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: 
         </div>
       )}
 
-      {run ? (
+      {native && job && (jobRunning || job.state === 'failed') ? (
+        <div className="job">
+          <div className="progress"><div style={{ width: `${Math.round(Math.max(0.02, job.progress) * 100)}%` }} /></div>
+          <span className="small">{job.state === 'failed' ? `Stopped: ${job.error ?? 'failed'}` : job.message ?? 'AI check…'}</span>
+          {jobRunning ? <button className="btn-ghost small" onClick={() => Native.cancelAiCheck({ matchId: match.id })}>Stop</button>
+            : <button className="btn-ghost small" onClick={() => setJob(null)}>OK</button>}
+          {jobRunning && <span className="small muted">Runs in the background: you can leave the app.</span>}
+        </div>
+      ) : run ? (
         <div className="job">
           <div className="progress"><div style={{ width: `${Math.round((run.total ? run.done / run.total : 0) * 100)}%` }} /></div>
           <span className="small">{run.note ? `Stopped: ${run.note}` : `AI check: rally ${run.done} of ${run.total}`}</span>
@@ -146,9 +200,9 @@ export function AiCard({ match, players, suggested, fileUrl, reload, autoRun }: 
             : <button className="btn-ghost small" onClick={() => { stop.current = true; }}>Stop</button>}
         </div>
       ) : todo.length > 0 && (
-        <button className="btn wide ai-run-all" disabled={!url} onClick={() => checkEverything()}>
+        <button className="btn wide ai-run-all" disabled={!url && !native} onClick={() => checkEverything()}>
           ✨ AI check {todo.length === 1 ? 'the rally' : `all ${todo.length} rallies`} now
-          {!url && <small className="muted"> (load the video file first)</small>}
+          {!url && !native && <small className="muted"> (load the video file first)</small>}
         </button>
       )}
     </div>

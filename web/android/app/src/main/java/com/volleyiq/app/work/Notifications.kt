@@ -23,6 +23,9 @@ object Notifications {
     }
 
     fun build(context: Context, title: String, text: String, progress: Double?, ongoing: Boolean = true) =
+        builder(context, title, text, progress, ongoing).build()
+
+    fun builder(context: Context, title: String, text: String, progress: Double?, ongoing: Boolean = true): NotificationCompat.Builder =
         NotificationCompat.Builder(context.also(::ensureChannel), CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -36,7 +39,6 @@ object Notifications {
                 ),
             )
             .apply { if (progress != null) setProgress(1000, (progress * 1000).toInt(), false) }
-            .build()
 
     fun foreground(context: Context, id: Int, title: String, text: String, progress: Double?): ForegroundInfo {
         val n = build(context, title, text, progress)
