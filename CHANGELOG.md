@@ -3,7 +3,7 @@
 ## Unreleased
 
 **Set chart**
-- Setting (team stats, and the Setting chart on a setter's page): the setter's sets from the side, like a set-call chart: an arc per place the sets went (left to the antenna or inside it, middle in front of the setter, behind the setter, right, and the back row: left, pipe, alpha; shoot sets drawn straight, quicks flat) as thick as it is frequent, with share, kill % and efficiency of the attack after it. Only sets by players with the setter role.
+- Setting (team stats, and the Setting chart on a setter's page): the setter's sets from the side, like a set-call chart: an arc per place the sets went (left to the antenna or inside it, middle in front of the setter, behind the setter, right, and the back row: left, pipe, alpha; shoot sets drawn straight, quicks flat), drawn in 3D on our half with the court, the 3 m line and a shadow on the floor for each set, so front-row and back-row sets are easy to tell apart as thick as it is frequent, with share, kill % and efficiency of the attack after it. Only sets by players with the setter role.
 
 **Blocks without a touch**
 - New action "Block, no touch" (Block → No touch): a blocker who jumped while their attack went past, with where it was hit from and where it went.

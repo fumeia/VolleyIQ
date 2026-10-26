@@ -890,9 +890,9 @@ button.court-zone:active { background: #2a2f3a; }
 
 /* Set chart (side view) */
 .setter-svg { width: 100%; max-height: 360px; margin: 4px 0; }
-.sv-net { fill: rgba(255,255,255,.05); stroke: rgba(255,255,255,.5); stroke-width: .3; }
-.sv-mesh { stroke: rgba(255,255,255,.18); stroke-width: .2; }
-.sv-tape { stroke: #f3f4f6; stroke-width: 1.2; }
+.sv-net { fill: rgba(110,110,110,.16); stroke: #8a8f98; stroke-width: .3; }
+.sv-mesh { stroke: rgba(110,110,110,.55); stroke-width: .15; }
+.sv-tape { stroke: #6b7280; stroke-width: 1; }
 .sv-line { stroke: rgba(255,255,255,.35); stroke-width: .3; }
 .sv-antenna { stroke: #ef4444; stroke-width: .8; stroke-dasharray: 1.2 .8; }
 .sv-zone { fill: var(--muted); font-size: 2.6px; text-anchor: middle; font-weight: 700; }
@@ -903,3 +903,13 @@ button.court-zone:active { background: #2a2f3a; }
 .setter-view .chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .sec-setting { --sec: #22c55e; }
 .sv-setter-pole { stroke: var(--muted); stroke-width: .3; stroke-dasharray: .8 .6; }
+.sv-floor { fill: #3b2a1a; }
+.sv-back-l { fill: rgba(29,111,184,.22); } .sv-back-m { fill: rgba(229,231,235,.10); } .sv-back-r { fill: rgba(220,38,38,.18); }
+.sv-lines { fill: none; stroke: #f3f4f6; stroke-width: .45; }
+.sv-attack-line { fill: none; stroke: #f3f4f6; stroke-width: .4; }
+.sv-zone-line { fill: none; stroke: rgba(255,255,255,.22); stroke-width: .2; stroke-dasharray: 1 .8; }
+.sv-tag { fill: rgba(255,255,255,.6); font-size: 2.2px; }
+.sv-shadow { fill: none; stroke-width: .5; stroke-dasharray: 1 .8; opacity: .55; }
+.sv-drop { stroke-width: .3; stroke-dasharray: .6 .5; opacity: .8; }
+.paper .sv-floor { fill: #f3ead9; }
+.sv-setter-label.left { text-anchor: start; fill: var(--text); }

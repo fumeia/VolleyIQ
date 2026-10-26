@@ -59,69 +59,88 @@ export function SetterView({ players, events, only }: { players: Player[]; event
   const xs = sets.map((e) => e.fx).filter((v): v is number => v != null).sort((a, b) => a - b);
   const sx = xs.length ? Math.max(4, Math.min(8, xs[Math.floor(xs.length / 2)])) : 6;
 
-  // Drawing: 10 units per metre, net from x = 5 to 95 at y = 52; back-row bands below it.
-  const X = (m: number) => 5 + m * 10, NET = 52, FLOOR = 72;
-  const max = Math.max(...rows.map((r) => r.list.length));
-  const arc = (r: (typeof rows)[number]) => {
-    // Lands where these sets went on average (the middle of their spots).
-    const dx = r.list.map((e) => e.x!).sort((a, b) => a - b);
-    const mid = dx[Math.floor(dx.length / 2)];
-    const tx = X(mid), fx = X(sx);
-    // A shoot is played fast and flat: a straight line, hit a little higher than it was set.
-    if (r.key === 'shoot') {
-      const ty = NET - 7;
-      return { d: `M ${fx} ${NET - 4} L ${tx} ${ty}`, tx, ty, top: ty };
-    }
-    const ty = r.front ? NET - 4 : FLOOR + 4;
-    const far = Math.abs(mid - sx);
-    // Quicks stay low and flat; the high sets to the antennas arc higher the further they go.
-    const h = r.key === 'quick' ? 3 + far * 1.2 : r.front ? 10 + far * 3.4 : 20 + far * 2;
-    const cy = Math.min(NET - 4, ty) - h;
-    return { d: `M ${fx} ${NET - 4} Q ${(fx + tx) / 2} ${cy * 2 - (NET - 4 + ty) / 2} ${tx} ${ty}`, tx, ty, top: cy };
+  // Where the setter sets from on the floor (depth too): the middle of the "played from" spots.
+  const ys = sets.map((e) => e.fy).filter((v): v is number => v != null).sort((a, b) => a - b);
+  const sy = ys.length ? Math.max(6.5, Math.min(9, ys[Math.floor(ys.length / 2)])) : 8.3;
+
+  // Our half in perspective, seen from behind our baseline: court metres (x across, y from our
+  // baseline to the net at 9, z up) -> picture. The net is further away, so narrower.
+  const P = (x: number, y: number, z = 0) => {
+    const d = (9 - y) / 9; // 0 at the net, 1 at our baseline
+    const k = 5.6 + 4.2 * d; // picture units per metre at this depth
+    return { x: 50 + (x - 4.5) * k, y: 44 + d * 46 - z * k };
   };
+  const pt = (x: number, y: number, z = 0) => { const q = P(x, y, z); return `${q.x.toFixed(2)},${q.y.toFixed(2)}`; };
+  const poly = (pts: [number, number, number?][]) => pts.map(([x, y, z]) => pt(x, y, z ?? 0)).join(' ');
+  const max = Math.max(...rows.map((r) => r.list.length));
+  const HAND = 2.4, HIT = 2.9; // metres: where the setter plays the ball, where the hitter meets it
+  const median = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
+  const arc = (r: (typeof rows)[number]) => {
+    // Lands where these sets went (the middle of their spots).
+    const tx = median(r.list.map((e) => e.x!)), ty = median(r.list.map((e) => e.y!));
+    const far = Math.hypot(tx - sx, ty - sy);
+    // Shoot: fast and straight; quick: low and flat; the rest arcs higher the further it goes.
+    const lift = r.key === 'shoot' ? 0 : r.key === 'quick' ? 0.5 + far * 0.15 : r.front ? 1.6 + far * 0.45 : 1 + far * 0.25;
+    const pts: string[] = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      pts.push(pt(sx + (tx - sx) * t, sy + (ty - sy) * t, HAND + (HIT - HAND) * t + 4 * lift * t * (1 - t)));
+    }
+    return { d: `M ${pts.join(' L ')}`, end: P(tx, ty, HIT), floor: P(tx, ty), shadow: `M ${pt(sx, sy)} L ${pt(tx, ty)}` };
+  };
+  const setterAt = P(sx, sy, HAND), setterFloor = P(sx, sy);
 
   return (
     <figure className="chart setter-view">
       <figcaption>
         <div className="chart-title"><b>Set chart{ids.length === 1 || only != null ? ` · ${who(players.find((p) => p.id === setter)!)}` : ''}</b></div>
-        <span className="chart-sub">Where the setter's sets went, seen from behind our baseline (zone 4 on the left, zone 2 on the right): the thicker the arc, the more often. {total} sets with a spot.</span>
+        <span className="chart-sub">Where the setter's sets went, on our half seen from behind our baseline (zone 4 on the left, the net at the back): the thicker the arc, the more often; the shadow on the floor shows where it went, front row or behind the 3 m line. {total} sets with a spot.</span>
       </figcaption>
       {ids.length > 1 && only == null && (
         <div className="chips tight">
           {ids.map((id) => <button key={id} className={`chip ${id === setter ? 'on' : ''}`} onClick={() => setPick(id)}>{who(players.find((p) => p.id === id)!)}</button>)}
         </div>
       )}
-      <svg viewBox="0 12 100 72" className="setter-svg" role="img" aria-label="Sets by kind, seen from the side">
-        {/* Back-row zones on the floor: blue, white, red */}
-        {([[0, '#1d6fb8'], [3, '#e5e7eb'], [6, '#dc2626']] as const).map(([m, c]) => (
-          <rect key={m} x={X(m)} y={FLOOR} width={30} height={8} fill={c} opacity={0.35} />
+      <svg viewBox="0 4 100 90" className="setter-svg" role="img" aria-label="Where the sets went, in a 3D view of our half">
+        {/* Our half: floor, back-row thirds (left, pipe, alpha), lines, zones */}
+        <polygon points={poly([[0, 0], [9, 0], [9, 9], [0, 9]])} className="sv-floor" />
+        {([[0, 'sv-back-l'], [3, 'sv-back-m'], [6, 'sv-back-r']] as const).map(([x0, c]) => (
+          <polygon key={x0} points={poly([[x0, 0], [x0 + 3, 0], [x0 + 3, 6], [x0, 6]])} className={c} />
         ))}
-        <line x1={X(0)} x2={X(9)} y1={FLOOR} y2={FLOOR} className="sv-line" />
-        {/* The net with antennas */}
-        <rect x={X(0)} y={NET} width={90} height={9} className="sv-net" />
-        {Array.from({ length: 17 }, (_, k) => <line key={k} x1={X(0.5 + k * 0.5)} x2={X(0.5 + k * 0.5)} y1={NET} y2={NET + 9} className="sv-mesh" />)}
-        {[3, 6].map((y) => <line key={y} x1={X(0)} x2={X(9)} y1={NET + y} y2={NET + y} className="sv-mesh" />)}
-        <line x1={X(0)} x2={X(9)} y1={NET} y2={NET} className="sv-tape" />
-        <line x1={X(0)} x2={X(0)} y1={NET - 8} y2={NET + 9} className="sv-antenna" />
-        <line x1={X(9)} x2={X(9)} y1={NET - 8} y2={NET + 9} className="sv-antenna" />
-        {[1.5, 4.5, 7.5].map((m, k) => <text key={m} x={X(m)} y={NET + 5.5} className="sv-zone">zone {[4, 3, 2][k]}</text>)}
+        <polygon points={poly([[0, 0], [9, 0], [9, 9], [0, 9]])} className="sv-lines" />
+        <polyline points={poly([[0, 6], [9, 6]])} className="sv-attack-line" />
+        {[3, 6].map((x) => <polyline key={x} points={poly([[x, 0], [x, 9]])} className="sv-zone-line" />)}
+        {[[1.5, 4], [4.5, 3], [7.5, 2]].map(([x, z]) => { const q = P(x, 7.5); return <text key={z} x={q.x} y={q.y + 1} className="sv-zone">{z}</text>; })}
+        {[[1.5, 5], [4.5, 6], [7.5, 1]].map(([x, z]) => { const q = P(x, 3); return <text key={z} x={q.x} y={q.y + 1} className="sv-zone">{z}</text>; })}
+        {(() => { const q = P(0.15, 6); return <text x={q.x} y={q.y - 0.8} className="sv-tag">3 m line</text>; })()}
+        {/* The net and antennas */}
+        <polygon points={poly([[0, 9, 0], [9, 9, 0], [9, 9, 2.43], [0, 9, 2.43]])} className="sv-net" />
+        {Array.from({ length: 17 }, (_, k) => <polyline key={k} points={poly([[0.5 + k * 0.5, 9, 0.9], [0.5 + k * 0.5, 9, 2.43]])} className="sv-mesh" />)}
+        <polyline points={poly([[0, 9, 0.9], [9, 9, 0.9]])} className="sv-mesh" />
+        <polyline points={poly([[0, 9, 2.43], [9, 9, 2.43]])} className="sv-tape" />
+        <polyline points={poly([[0, 9, 0], [0, 9, 3.3]])} className="sv-antenna" />
+        <polyline points={poly([[9, 9, 0], [9, 9, 3.3]])} className="sv-antenna" />
+        {/* Shadows on the floor first, then the sets */}
+        {rows.map((r) => <path key={r.key} d={arc(r).shadow} className="sv-shadow" stroke={r.color} />)}
+        <line x1={setterFloor.x} x2={setterAt.x} y1={setterFloor.y} y2={setterAt.y} className="sv-setter-pole" />
         {rows.map((r) => {
           const a = arc(r);
-          const w = 0.8 + 4.2 * (r.list.length / max);
+          const w = 0.6 + 3.4 * (r.list.length / max);
           return (
             <g key={r.key}>
-              <path d={a.d} fill="none" stroke={r.color} strokeWidth={w} strokeLinecap="round" opacity={0.9}>
+              <line x1={a.end.x} x2={a.floor.x} y1={a.end.y} y2={a.floor.y} stroke={r.color} className="sv-drop" />
+              <ellipse cx={a.floor.x} cy={a.floor.y} rx={1.6} ry={0.7} fill={r.color} opacity={0.7} />
+              <path d={a.d} fill="none" stroke={r.color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" opacity={0.92}>
                 <title>{`${r.label}: ${r.list.length} sets (${pct(ratio(r.list.length, total))})`}</title>
               </path>
-              <circle cx={a.tx} cy={a.ty} r={1.6} fill={r.color} />
-              <text x={a.tx} y={a.ty - 2.8} className="sv-label">{pct(ratio(r.list.length, total))}</text>
+              <circle cx={a.end.x} cy={a.end.y} r={1.3} fill={r.color} />
+              <text x={a.end.x} y={a.end.y - 2.2} className="sv-label">{pct(ratio(r.list.length, total))}</text>
             </g>
           );
         })}
         {/* The setter */}
-        <circle cx={X(sx)} cy={NET - 4} r={2.2} className="sv-setter" />
-        <line x1={X(sx)} x2={X(sx)} y1={NET - 1.8} y2={NET + 10} className="sv-setter-pole" />
-        <text x={X(sx)} y={NET + 13} className="sv-setter-label">setter</text>
+        <circle cx={setterAt.x} cy={setterAt.y} r={1.8} className="sv-setter" />
+        <text x={setterAt.x + 2.6} y={setterAt.y + 0.9} className="sv-setter-label left">setter</text>
       </svg>
       <div className="chart-legend">{rows.map((r) => <span key={r.key}><i style={{ background: r.color }} />{r.label}</span>)}</div>
       <StatFigure title="Where the sets went" subtitle="How often the setter set to each spot, and how the attack right after it went (K% = kills, Eff = kills minus errors per attack)"
