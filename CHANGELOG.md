@@ -5,7 +5,7 @@
 **Blocks without a touch**
 - New action "Block, no touch" (Block → No touch): a blocker who jumped while their attack went past, with where it was hit from and where it went.
 - Fast to tag: after They won → Their attack, the "who touched it last" screen has an optional row with our front row; tap the blockers who were there without a touch. Nothing changes if you skip it.
-- Blocks are placed along the net: the dot starts on the net and is dragged along it, or moved with a slider and arrows that lock in 0.5 m steps (tagging, Review and Replays). A block without a touch: first where the block was at the net, then where the ball went.
+- Blocks are placed along the net: the dot starts on the net and is dragged along it, or moved with a slider and arrows that lock in 0.2 m steps (tagging, Review and Replays). A block without a touch: first where the block was at the net, then where the ball went.
 - "Blocks along the net": every block per metre from zone 4 to zone 2, as points, touches, no touch and errors, to see the holes in the block.
 - Stats: a "No touch" column for the blockers, and charts of where their attacks went past our block (arrows and by zone), for the team (Defence) and on each player's page (Block).
 

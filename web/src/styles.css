@@ -874,7 +874,8 @@ button.court-zone:active { background: #2a2f3a; }
 .net-band { fill: #3b2a1a; stroke: rgba(255,255,255,.12); stroke-width: .03; }
 .net-band.mid { fill: #463220; }
 .net-line { stroke: var(--accent); stroke-width: .12; stroke-dasharray: .3 .15; }
-.net-tick { stroke: rgba(255,255,255,.45); stroke-width: .04; }
+.net-tick { stroke: rgba(255,255,255,.5); stroke-width: .04; }
+.net-tick.minor { stroke: rgba(255,255,255,.25); stroke-width: .025; }
 .net-antenna { stroke: #ef4444; stroke-width: .1; }
 .net-zone { fill: var(--muted); font-size: .5px; text-anchor: middle; font-weight: 700; }
 .net-dot { fill: var(--accent); stroke: #fff; stroke-width: .1; }
