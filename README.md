@@ -101,13 +101,14 @@ variables (see `web/android/app/build.gradle`).
 
 ### Making a release
 
-Update `CHANGELOG.md`, then tag the commit on `main`:
+Update `CHANGELOG.md` on `main`, then either open **Actions → Android app → Run workflow**
+on `main` and enter the version (e.g. `1.1.0`), or push a tag:
 
 ```bash
 git tag v1.1.0 && git push origin v1.1.0
 ```
 
-GitHub Actions builds the APK and publishes the release **VolleyIQ v1.1.0** with it.
+GitHub Actions builds the APK and publishes the release **VolleyIQ v1.1.0** with it (and the tag).
 
 ## Run the server
 

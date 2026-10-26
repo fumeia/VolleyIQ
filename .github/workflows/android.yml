@@ -1,13 +1,19 @@
 name: Android app
 
 # Every push builds a test APK ("VolleyIQ Android (latest build)", a pre-release).
-# A version tag (git tag v1.2.0 && git push origin v1.2.0) builds a stable release.
+# A stable release: Actions > Android app > Run workflow on main with a version (e.g. 1.2.0),
+# or push a tag (git tag v1.2.0 && git push origin v1.2.0). Either makes the release "VolleyIQ v1.2.0".
 on:
   push:
     branches: [main, "claude/**"]
     tags: ["v*"]
     paths: ["web/**", ".github/workflows/android.yml"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Version for a stable release, e.g. 1.2.0 (empty = test build only)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -46,8 +52,11 @@ jobs:
 
       - name: Version
         run: |
-          if [ "${{ github.ref_type }}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v="0.${{ github.run_number }}"; fi
+          if [ "${{ github.ref_type }}" = tag ]; then v="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ inputs.release }}" ]; then v="${{ inputs.release }}"; v="${v#v}"
+          else v="0.${{ github.run_number }}"; fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
+          if [ "${{ github.ref_type }}" = tag ] || [ -n "${{ inputs.release }}" ]; then echo "STABLE=1" >> "$GITHUB_ENV"; fi
 
       - name: Unit tests + APK
         working-directory: web/android
@@ -69,22 +78,24 @@ jobs:
 
       # Stable release for a version tag: …/releases/latest/download/VolleyIQ.apk always points to it.
       - name: Publish release
-        if: github.ref_type == 'tag'
+        if: env.STABLE == '1'
         uses: softprops/action-gh-release@v2
         with:
-          name: VolleyIQ ${{ github.ref_name }}
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: VolleyIQ v${{ env.VERSION }}
           make_latest: true
           files: |
             VolleyIQ.apk
             VolleyIQ-${{ env.VERSION }}.apk
           body: |
             Android app, version ${{ env.VERSION }} (about ${{ env.APK_MB }} MB). On your phone: tap **VolleyIQ.apk** below, open it, and allow installing from your browser if Android asks.
-            The website and server for this version: `git checkout ${{ github.ref_name }}` (see the README to run it).
+            The website and server for this version: `git checkout v${{ env.VERSION }}` (see the README to run it).
             What changed: see CHANGELOG.md.
 
       # A fixed download link for test builds: Releases → "VolleyIQ Android (latest build)".
       - name: Publish latest build
-        if: github.ref_type != 'tag'
+        if: env.STABLE != '1'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
@@ -100,7 +111,7 @@ jobs:
 
       # Keeps the two newest, so a download of the previous build that is still running isn't cut off either.
       - name: Remove older per-build APKs from the release
-        if: github.ref_type != 'tag'
+        if: env.STABLE != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
