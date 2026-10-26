@@ -73,7 +73,7 @@ export function teamTour(team: string): TourStep[] {
       text: (
         <>
           <p>Every tagged touch as a short clip, filtered by player, skill and set, one by one or all in a row.</p>
-          <p>You choose your own copy of the match video; it plays on your device and is not uploaded. Spot a wrong tag? Switch on <b>Suggest corrections</b> and send the fix.</p>
+          <p>You choose your own copy of the match video; it plays on your device and is not uploaded. Spot a wrong tag, or a touch that is missing (like a block without a touch)? Switch on <b>Suggest corrections</b> and send it.</p>
         </>
       ),
     },

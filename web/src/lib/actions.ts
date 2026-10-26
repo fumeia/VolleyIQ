@@ -2,6 +2,8 @@
 export type ActionCode =
   | 'attack_error' | 'serve_error' | 'dig_error' | 'block_error' | 'attack_blocked'
   | 'attack' | 'serve' | 'dig' | 'block_touch'
+  /** Jumped to block, the ball went past without a touch (not a ball contact). */
+  | 'block_miss'
   | 'kill' | 'ace' | 'block_point'
   | 'set' | 'assist' | 'assist_error' | 'set_error'
   | 'receive' | 'freeball'
@@ -41,6 +43,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', court: 'at', toPrompt: 'Where along the net?' },
   { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
+  { code: 'block_miss', label: 'Block, no touch', short: 'Blk none', group: 'actions', key: 'h', court: 'path', fromPrompt: 'Where was their attack hit from?', toPrompt: 'Where did it go past the block?' },
   { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
   { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist', label: 'Bump set', short: 'Bump set', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
@@ -55,7 +58,7 @@ export const ACTIONS: ActionDef[] = [
 export const REVIEW_ACTIONS: ActionCode[] = [
   'serve', 'ace', 'serve_error', 'receive', 'set', 'assist', 'set_error', 'assist_error',
   'attack', 'kill', 'attack_error', 'attack_blocked', 'dig', 'dig_error', 'freeball',
-  'block_touch', 'block_point', 'block_error',
+  'block_touch', 'block_point', 'block_error', 'block_miss',
 ];
 
 /** "Fast" court mode: the court spots that matter most for the stats. */
@@ -72,7 +75,7 @@ export const SKILLS: { label: string; codes: ActionCode[] }[] = [
   { label: 'Pass', codes: ['receive'] },
   { label: 'Set', codes: ['set', 'assist', 'set_error', 'assist_error'] },
   { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
-  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
+  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error', 'block_miss'] },
   { label: 'Defence', codes: ['dig', 'freeball', 'dig_error'] },
 ];
 /** Labels inside a skill row (the row already names the skill). */
@@ -80,7 +83,7 @@ export const SHORT: Partial<Record<ActionCode, string>> = {
   serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
   set: 'Set', assist: 'Bump set', set_error: 'Error', assist_error: 'Bump err',
   attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
-  block_touch: 'Touch', block_point: 'Point', block_error: 'Error',
+  block_touch: 'Touch', block_point: 'Point', block_error: 'Error', block_miss: 'No touch',
   dig: 'Dig', freeball: 'Free ball', dig_error: 'Error',
 };
 

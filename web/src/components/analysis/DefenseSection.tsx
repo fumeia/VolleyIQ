@@ -3,6 +3,7 @@ import type { Player, VEvent } from '../../lib/api';
 import { buildRallies, contactQuality, transitionConversion, transitionPossessions, type Rally } from '../../lib/sequence';
 import { ourZone, targetDistance } from '../../lib/trajectory';
 import { who } from './AttackSection';
+import { BLOCKS, NoTouchBlocks } from './BlockSection';
 import { avg2, diverge, HalfZones, judge, meters, pct, ratio, StatFigure, Swatch, type ZoneValue, sample } from './ui';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -24,7 +25,7 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
   const follow = useMemo(() => followUps(rallies), [rallies]);
   const team = useMemo(() => transitionConversion(rallies), [rallies]);
   const defs = events.filter((e) => DEF.includes(e.action));
-  const blocks = events.filter((e) => ['block_point', 'block_touch', 'block_error'].includes(e.action));
+  const blocks = events.filter((e) => BLOCKS.includes(e.action));
   if (!defs.length && !blocks.length) return <p className="muted small">No digs or blocks tagged yet.</p>;
 
   const diggers = players.map((p) => ({ p, list: defs.filter((e) => e.player_id === p.id) })).filter((r) => r.list.length).sort((a, b) => b.list.length - a.list.length);
@@ -75,19 +76,21 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
         legend={<><Swatch fill={diverge(1, 0.75, 0.25)} label="All kept" /><Swatch fill={diverge(0.75, 0.75, 0.25)} label="75%" /><Swatch fill={diverge(0.4, 0.75, 0.25)} label="Many lost" /></>} />
 
       {blockers.length > 0 && (
-        <StatFigure title="Blockers" subtitle="Block points end the rally; touches slow the ball down for our defence"
+        <StatFigure title="Blockers" subtitle="Block points end the rally; touches slow the ball down for our defence; no touch = jumped, the ball went past"
           rows={blockers} rowKey={(r) => r.p.id}
           first={{ h: 'Player', cell: (r) => who(r.p) }}
           columns={[
             { h: 'Points', cell: (r) => { const n = r.list.filter((e) => e.action === 'block_point').length; return { text: n, tone: n > 0 ? 'good' : null }; } },
             { h: 'Touches', cell: (r) => r.list.filter((e) => e.action === 'block_touch').length },
             { h: 'Errors', title: 'Net touches / blocked out', cell: (r) => { const n = r.list.filter((e) => e.action === 'block_error').length; return { text: n, tone: n > 0 && n >= r.list.filter((e) => e.action === 'block_point').length ? 'bad' : null }; } },
+            { h: 'No touch', title: 'Jumped to block, the ball went past without a touch', cell: (r) => r.list.filter((e) => e.action === 'block_miss').length },
             { h: 'Kill after', title: 'Block touches we turned into a kill', cell: (r) => {
               const fs = r.list.filter((e) => follow.has(e.id)).map((e) => follow.get(e.id)!);
               return fs.length ? pct(ratio(fs.filter((x) => x === 'kill').length, fs.length)) : '–';
             } },
           ]} />
       )}
+      <NoTouchBlocks players={players} events={events} />
     </div>
   );
 }

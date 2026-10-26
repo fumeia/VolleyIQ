@@ -94,7 +94,7 @@ export function candidates(state: RotationState, action: ActionCode, players: Pl
       return { likely: setter, eligible: new Set(onCourt) };
     case 'assist': case 'assist_error': // bump set: someone other than the setter
       return { likely: null, eligible: new Set(onCourt.filter((id) => id !== setter)) };
-    case 'block_touch': case 'block_point': case 'block_error':
+    case 'block_touch': case 'block_point': case 'block_error': case 'block_miss':
       return { likely: null, eligible: new Set(at(FRONT)) };
     case 'attack': case 'kill': case 'attack_error': case 'attack_blocked': {
       // Only attackers (not the setter or libero); a libero in trouble plays a free ball instead.
@@ -124,7 +124,7 @@ export function roleCandidates(action: ActionCode, players: Player[]): { likely:
       const att = byRole(ATTACKER_ROLES);
       return { likely: null, eligible: att.length ? new Set(att) : all };
     }
-    case 'block_touch': case 'block_point': case 'block_error': {
+    case 'block_touch': case 'block_point': case 'block_error': case 'block_miss': {
       const bl = byRole(ATTACKER_ROLES);
       return { likely: null, eligible: bl.length ? new Set(bl) : all };
     }

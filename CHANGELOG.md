@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Blocks without a touch**
+- New action "Block, no touch" (Block → No touch): a blocker who jumped while their attack went past, with where it was hit from and where it went.
+- Fast to tag: after They won → Their attack, the "who touched it last" screen has an optional row with our front row; tap the blockers who were there without a touch. Nothing changes if you skip it.
+- Stats: a "No touch" column for the blockers, and charts of where their attacks went past our block (arrows and by zone), for the team (Defence) and on each player's page (Block).
+
+**Public link: suggest a missing touch**
+- In Replays with Suggest corrections on, "Missing touch? Add one at the current video time" sends a new touch (player, action, spots) to the Edits pile in the app, where "Add it" saves it as a tag.
+
 **Player pages**
 - Charts for the player alone below the numbers, strengths, faults and practice tips: Attack (efficiency by pass and by where it was hit from, shot directions, kill % by zone, shot chart), Serve & pass (zones, depth, pass quality by zone, where the passes went) and Court maps. The same charts on the team pages are unchanged.
 - The "What to practise" switch is also on the team page, and shows for players with few touches too.

@@ -37,7 +37,7 @@ export interface AiTouch {
   ourSide?: 'near' | 'far' | null;
 }
 /** The tag fields a viewer of the public link can correct. */
-export type EditFields = Partial<Pick<VEvent, 'action' | 'value' | 'player_id' | 'x' | 'y' | 'fx' | 'fy'>>;
+export type EditFields = Partial<Pick<VEvent, 'action' | 'value' | 'player_id' | 'x' | 'y' | 'fx' | 'fy' | 't' | 'set_no'>>;
 /** A correction sent from the public link, for the coach to accept or reject. */
 export interface EditSuggestion {
   id: number; match_id: number; match_label: string; event_id: number | null;
@@ -45,6 +45,8 @@ export interface EditSuggestion {
   /** Shirt number of whoever sent it. */
   sender_jersey: number | null;
   status: 'open' | 'accepted' | 'rejected'; created_at: string;
+  /** 'add': a touch that was not tagged ([changes] has all its fields, with t and set_no). */
+  kind: 'edit' | 'add';
   /** The tag as it is now (null when it was deleted since). */
   event: VEvent | null;
 }
@@ -195,7 +197,7 @@ export const api = {
   aiStats: () => req<{ fields: AiStats; examples: number }>('GET', '/api/ai/stats'),
   aiExample: (image: string, label: AiExampleLabel) => req<{ ok: boolean }>('POST', '/api/ai/examples', { image, label }),
   clearAiExamples: () => req<{ deleted: number }>('DELETE', '/api/ai/examples'),
-  sendEdit: (token: string, body: { event_id: number; changes: EditFields; note: string; jersey: number }) => req<{ id: number }>('POST', `/api/share/team/${token}/edits`, body),
+  sendEdit: (token: string, body: { event_id?: number; kind?: 'add'; match_id?: number; t?: number; changes: EditFields; note: string; jersey: number }) => req<{ id: number }>('POST', `/api/share/team/${token}/edits`, body),
   edits: (matchId?: number, status: 'open' | 'accepted' | 'rejected' = 'open') =>
     req<EditSuggestion[]>('GET', `/api/edits?status=${status}${matchId ? `&match_id=${matchId}` : ''}`),
   decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),

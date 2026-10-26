@@ -45,6 +45,8 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const [cur, setCur] = useState<number | null>(null);
   const [playAll, setPlayAll] = useState(false);
   const [editing, setEditing] = useState(false);
+  // A touch that is not tagged, to be suggested at this video time (e.g. a block without a touch).
+  const [adding, setAdding] = useState<{ t: number; sent: boolean } | null>(null);
   const [sent, setSent] = useState<number[]>(() => loadSent(token));
   const player = useRef<PlayerHandle>(null);
   const stopAt = useRef<number | null>(null);
@@ -165,7 +167,23 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         </label>
       </div>
 
-      {editing && current && (
+      {editing && source && !adding && (
+        <button className="btn wide add-touch" onClick={() => {
+          const t = player.current?.time();
+          if (t == null) return;
+          player.current?.pause();
+          setAdding({ t: Math.round(t * 100) / 100, sent: false });
+        }}>＋ Missing touch? Add one at the current video time</button>
+      )}
+      {adding && match && (adding.sent
+        ? <p className="small muted">✓ Sent: a new touch at {fmtTime(adding.t)}. <button className="link" onClick={() => setAdding(null)}>OK</button></p>
+        : <EditBox key={`add-${adding.t}`} token={token} add={{ matchId: match.id, t: adding.t }} onCancel={() => setAdding(null)}
+            event={{ id: -1, match_id: match.id, player_id: null, jersey: null, action: 'block_miss', value: null, zone: null, x: null, y: null, fx: null, fy: null, t: adding.t, set_no: null, source: 'manual', status: 'confirmed', confidence: null }}
+            players={players.filter((p) => p.active)}
+            flip={!!match.calibration && ourHalfAt(match.calibration, adding.t) === 'far'}
+            onSent={() => setAdding({ ...adding, sent: true })} />
+      )}
+      {editing && current && !adding && (
         sent.includes(current.id)
           ? <p className="small muted">✓ You sent a correction for this touch.</p>
           : <EditBox key={current.id} token={token} event={current} players={players.filter((p) => p.active || p.id === current.player_id)}
@@ -190,9 +208,16 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   );
 }
 
-/** "Found a mistake?": the viewer's corrected tag, sent as a suggestion. [flip]: our team plays the far half at that time. */
-function EditBox({ token, event, players, flip, onSent }: { token: string; event: VEvent; players: Player[]; flip: boolean; onSent: () => void }) {
-  const [open, setOpen] = useState(false);
+/**
+ * "Found a mistake?": the viewer's corrected tag, sent as a suggestion. With [add], a touch
+ * that is not tagged at all, at that video time ([event] holds the defaults).
+ * [flip]: our team plays the far half at that time.
+ */
+function EditBox({ token, event, players, flip, onSent, add, onCancel }: {
+  token: string; event: VEvent; players: Player[]; flip: boolean; onSent: () => void;
+  add?: { matchId: number; t: number }; onCancel?: () => void;
+}) {
+  const [open, setOpen] = useState(!!add);
   const [action, setAction] = useState<ActionCode>(event.action);
   const [value, setValue] = useState<number | null>(event.value);
   const [playerId, setPlayerId] = useState<number | null>(event.player_id);
@@ -217,14 +242,17 @@ function EditBox({ token, event, players, flip, onSent }: { token: string; event
     const from = path ? spot.from : null;
     Object.assign(changes, { fx: from?.x ?? null, fy: from?.y ?? null, x: spot.to?.x ?? null, y: spot.to?.y ?? null });
   }
-  const nothing = !Object.keys(changes).length && !note.trim();
+  if (add) Object.assign(changes, { action, value, player_id: playerId });
+  const nothing = add ? playerId == null : !Object.keys(changes).length && !note.trim();
   const shown = spot ?? { from: event.fx != null && event.fy != null ? { x: event.fx, y: event.fy } : null, to: event.x != null && event.y != null ? { x: event.x, y: event.y } : null };
 
   async function send() {
     setState('sending');
     try {
       try { localStorage.setItem('viq:editJersey', String(sender)); } catch { /* private mode */ }
-      await api.sendEdit(token, { event_id: event.id, changes, note: note.trim(), jersey: sender! });
+      await api.sendEdit(token, add
+        ? { kind: 'add', match_id: add.matchId, t: add.t, changes, note: note.trim(), jersey: sender! }
+        : { event_id: event.id, changes, note: note.trim(), jersey: sender! });
       onSent();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send');
@@ -234,7 +262,11 @@ function EditBox({ token, event, players, flip, onSent }: { token: string; event
 
   return (
     <div className="edit-box">
-      <div className="row between"><b>Your correction</b><button className="btn-ghost small" onClick={() => setOpen(false)}>Cancel</button></div>
+      <div className="row between">
+        <b>{add ? `New touch at ${fmtTime(add.t)}` : 'Your correction'}</b>
+        <button className="btn-ghost small" onClick={() => (onCancel ? onCancel() : setOpen(false))}>Cancel</button>
+      </div>
+      {add && <p className="small muted">For a touch that is not in the list, e.g. a block without a touch ("Block → No touch").</p>}
       <span className="field-label">Who played it</span>
       <div className="player-grid">
         {players.map((p) => (
@@ -261,7 +293,7 @@ function EditBox({ token, event, players, flip, onSent }: { token: string; event
               else { setSpot((s) => ({ from: path ? s?.from ?? null : null, to: p })); setStep('from'); }
             }} />
           </div>
-          {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>↺ Keep the tagged spots</button>}
+          {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>{add ? '↺ Clear the spots' : '↺ Keep the tagged spots'}</button>}
         </>
       )}
       <label className="field-label">Your shirt number <small className="muted">(required)</small>
@@ -275,7 +307,7 @@ function EditBox({ token, event, players, flip, onSent }: { token: string; event
         </div>
       ) : (
         <button className="btn btn-primary wide" disabled={nothing || sender == null} onClick={() => setState('confirm')}>
-          {nothing ? 'Change something to send it' : sender == null ? 'Enter your shirt number to send' : 'Send correction…'}
+          {nothing ? (add ? 'Pick who played it' : 'Change something to send it') : sender == null ? 'Enter your shirt number to send' : add ? 'Send new touch…' : 'Send correction…'}
         </button>
       )}
       {state === 'confirm' && <p className="small muted">Your correction is checked in the app before it changes anything.</p>}

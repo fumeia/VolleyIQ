@@ -50,8 +50,31 @@ export function EditsPanel({ edits, players, busy, onWatch, onDecide }: Props) {
   if (!edits.length) return <div className="pad muted">No corrections waiting.</div>;
   return (
     <div className="pad edits-panel">
-      <p className="small muted">Corrections from people watching the replays on the public link. Accept to change the tag, reject to drop it.</p>
+      <p className="small muted">Corrections and missing touches from people watching the replays on the public link. Accept to change or add the tag, reject to drop it.</p>
       {edits.map((s) => {
+        if (s.kind === 'add') {
+          const c = s.changes;
+          return (
+            <div key={s.id} className="edit-card edit-add">
+              <div className="row between">
+                <span><b>＋ New touch at {c.t != null ? fmtTime(c.t) : '?'}</b>{c.set_no ? ` · Set ${c.set_no}` : ''}</span>
+                <span className="small muted">{sender(s)}{ago(s.created_at)}</span>
+              </div>
+              <table className="edit-diff small"><tbody>
+                <tr><td className="muted">Player</td><td><b>{who(c.player_id)}</b></td></tr>
+                <tr><td className="muted">Action</td><td><b>{ACTION_BY_CODE[c.action!]?.label ?? String(c.action)}{c.value != null ? ` ${c.value}` : ''}</b></td></tr>
+                {c.x != null && <tr><td className="muted">Court spot</td><td>{spot(c)}</td></tr>}
+              </tbody></table>
+              {s.note && <p className="small edit-note">“{s.note}”</p>}
+              <div className="row">
+                {c.t != null && <button className="btn-ghost small" onClick={() => onWatch(c.t!)}>▶ Watch</button>}
+                <span className="grow" />
+                <button className="btn small btn-danger" disabled={busy === s.id} onClick={() => onDecide(s, 'reject')}>✕ Reject</button>
+                <button className="btn small btn-primary" disabled={busy === s.id} onClick={() => onDecide(s, 'accept')}>✓ Add it</button>
+              </div>
+            </div>
+          );
+        }
         const warn = changedSince(s, s.event);
         return (
           <div key={s.id} className="edit-card">

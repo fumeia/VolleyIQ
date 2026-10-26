@@ -295,9 +295,6 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.post('/api/share/team/:token/edits', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const ev = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id WHERE e.id = ? AND m.team_id = ? AND e.status = 'confirmed'`)
-      .get(int(req.body?.event_id), team.id);
-    if (!ev) return bad(reply, 'Tag not found', 404);
     const sender = int(req.body?.jersey);
     if (sender == null || sender < 0 || sender > 99) return bad(reply, 'Your shirt number is required (0-99)');
     const hour = Math.floor(Date.now() / 3600e3);
@@ -305,8 +302,32 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (r?.hour === hour && r.n >= 60) return bad(reply, 'Too many suggestions for now; try again later.', 429);
     editRate.set(req.ip, { hour, n: r?.hour === hour ? r.n + 1 : 1 });
     if (db.prepare("SELECT COUNT(*) AS n FROM edit_suggestions WHERE team_id = ? AND status = 'open'").get(team.id).n >= 500) {
-      return bad(reply, 'The coach has too many open suggestions; try again later.', 429);
+      return bad(reply, 'Too many open suggestions; try again later.', 429);
     }
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 60) : '';
+    const save = (kind, matchId, eventId, changes, original) => Number(db.prepare(`INSERT INTO edit_suggestions (team_id, match_id, event_id, changes, original, note, name, sender_jersey, kind)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(team.id, matchId, eventId, JSON.stringify(changes), JSON.stringify(original), note || null, name || null, sender, kind).lastInsertRowid);
+
+    // A touch that is not tagged at all (e.g. a block without a touch), at a video time.
+    if (req.body?.kind === 'add') {
+      const match = db.prepare('SELECT id FROM matches WHERE id = ? AND team_id = ?').get(int(req.body?.match_id), team.id);
+      if (!match) return bad(reply, 'Match not found', 404);
+      const t = num(req.body?.t);
+      if (t == null || t < 0 || t > 6 * 3600) return bad(reply, 'video time required');
+      // The set from the tags nearest in time.
+      const near = db.prepare("SELECT set_no FROM events WHERE match_id = ? AND t IS NOT NULL AND status = 'confirmed' ORDER BY ABS(t - ?) LIMIT 1").get(match.id, t);
+      const raw = req.body?.changes && typeof req.body.changes === 'object' ? req.body.changes : {};
+      const [clean, err] = cleanEvent({ ...Object.fromEntries(EDIT_FIELDS.filter((k) => k in raw).map((k) => [k, raw[k]])), t, set_no: near?.set_no ?? 1 });
+      if (err) return bad(reply, err);
+      if (clean.player_id != null && !db.prepare('SELECT 1 FROM players WHERE id = ? AND team_id = ?').get(clean.player_id, team.id)) return bad(reply, 'Unknown player');
+      const changes = { ...Object.fromEntries(EDIT_FIELDS.map((k) => [k, clean[k]])), t: clean.t, set_no: clean.set_no };
+      return { id: save('add', match.id, null, changes, {}) };
+    }
+
+    const ev = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id WHERE e.id = ? AND m.team_id = ? AND e.status = 'confirmed'`)
+      .get(int(req.body?.event_id), team.id);
+    if (!ev) return bad(reply, 'Tag not found', 404);
     const raw = req.body?.changes && typeof req.body.changes === 'object' ? req.body.changes : {};
     // Checked like a tag: the tag with the changes must still be a valid tag.
     const proposed = Object.fromEntries(EDIT_FIELDS.filter((k) => k in raw).map((k) => [k, raw[k]]));
@@ -314,13 +335,9 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (err) return bad(reply, err);
     if (clean.player_id != null && !db.prepare('SELECT 1 FROM players WHERE id = ? AND team_id = ?').get(clean.player_id, team.id)) return bad(reply, 'Unknown player');
     const changes = Object.fromEntries(EDIT_FIELDS.filter((k) => k in proposed && clean[k] !== ev[k]).map((k) => [k, clean[k]]));
-    const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
-    const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 60) : '';
     if (!Object.keys(changes).length && !note) return bad(reply, 'Nothing changed');
     const original = Object.fromEntries(EDIT_FIELDS.map((k) => [k, ev[k]]));
-    const id = db.prepare('INSERT INTO edit_suggestions (team_id, match_id, event_id, changes, original, note, name, sender_jersey) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(team.id, ev.match_id, ev.id, JSON.stringify(changes), JSON.stringify(original), note || null, name || null, sender).lastInsertRowid;
-    return { id: Number(id) };
+    return { id: save('edit', ev.match_id, ev.id, changes, original) };
   });
 
   const editRow = (s) => ({ ...s, changes: JSON.parse(s.changes), original: JSON.parse(s.original) });
@@ -339,7 +356,15 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const decision = req.params.decision;
     if (!['accept', 'reject'].includes(decision)) return bad(reply, 'accept or reject');
     let event = null;
-    if (decision === 'accept') {
+    if (decision === 'accept' && s.kind === 'add') {
+      const match = q.match.get(s.match_id);
+      const [ev, err] = cleanEvent({ ...JSON.parse(s.changes), status: 'confirmed' });
+      if (err || !match) return bad(reply, err ?? 'Match not found');
+      const p = ev.player_id != null ? q.player.get(ev.player_id) : null;
+      const r = q.insertEvent.run({ ...ev, jersey: p?.number ?? null, source: 'manual', match_id: match.id });
+      event = q.event.get(r.lastInsertRowid);
+      db.prepare('UPDATE edit_suggestions SET event_id = ? WHERE id = ?').run(event.id, s.id);
+    } else if (decision === 'accept') {
       const cur = s.event_id ? q.event.get(s.event_id) : null;
       if (!cur) return bad(reply, 'The tag was deleted since', 409);
       const [ev, err] = cleanEvent({ ...cur, ...JSON.parse(s.changes) });

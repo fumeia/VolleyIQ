@@ -32,7 +32,8 @@ const isTeam = (e: VEvent) => ACTION_BY_CODE[e.action]?.needsPlayer === false;
 const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id;
 
 export function buildRallies(events: VEvent[]): Rally[] {
-  const confirmed = events.filter((e) => e.status === 'confirmed');
+  // A block without a touch is not a ball contact: it takes no place in the rally.
+  const confirmed = events.filter((e) => e.status === 'confirmed' && e.action !== 'block_miss');
   const bySet = new Map<string, VEvent[]>();
   for (const e of confirmed) {
     // Matches are kept apart in a season: rallies never span two matches.

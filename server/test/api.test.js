@@ -328,3 +328,28 @@ test('edit suggestions from the public link: sent, listed, accepted or rejected'
   assert.equal((await app.inject({ url: '/api/edits?status=accepted' })).json().length, 1);
   await app.close();
 });
+
+test('suggesting a touch that is not tagged (e.g. a block without a touch), accepted as a new tag', async () => {
+  const app = await setup();
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'U18' } })).json();
+  const mb = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'Max', number: 5, role: 'MB' } })).json();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'vs Y', team_id: team.id } })).json();
+  await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action: 'dig', t: 100, set_no: 2 } });
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  const send = (body) => app.inject({ method: 'POST', url: `/api/share/team/${token}/edits`, payload: { kind: 'add', jersey: 5, ...body } });
+  assert.equal((await send({ match_id: m.id, changes: { action: 'block_miss', player_id: mb.id } })).statusCode, 400, 'needs a time');
+  assert.equal((await send({ match_id: 999, t: 99, changes: { action: 'block_miss' } })).statusCode, 404);
+  const ok = await send({ match_id: m.id, t: 99.4, changes: { action: 'block_miss', player_id: mb.id, fx: 3, fy: 16, x: 7, y: 4 } });
+  assert.equal(ok.statusCode, 200);
+  const [s] = (await app.inject({ url: '/api/edits' })).json();
+  assert.equal(s.kind, 'add');
+  assert.equal(s.event, null);
+  assert.equal(s.changes.set_no, 2, 'set from the nearest tag');
+  const acc = (await app.inject({ method: 'POST', url: `/api/edits/${s.id}/accept` })).json();
+  assert.equal(acc.event.action, 'block_miss');
+  assert.equal(acc.event.jersey, 5);
+  assert.equal(acc.event.t, 99.4);
+  assert.equal(acc.event.status, 'confirmed');
+  assert.equal((await app.inject({ url: `/api/matches/${m.id}` })).json().events.length, 2);
+  await app.close();
+});

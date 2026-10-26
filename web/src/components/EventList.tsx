@@ -26,7 +26,7 @@ const KINDS: { label: string; codes: string[] }[] = [
   { label: 'Pass', codes: ['receive'] },
   { label: 'Set', codes: ['set', 'assist', 'assist_error', 'set_error'] },
   { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
-  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error'] },
+  { label: 'Block', codes: ['block_touch', 'block_point', 'block_error', 'block_miss'] },
   { label: 'Defence', codes: ['dig', 'dig_error', 'freeball'] },
   { label: 'Team', codes: ['opp_error', 'opp_point'] },
 ];

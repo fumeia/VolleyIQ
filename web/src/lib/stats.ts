@@ -10,6 +10,8 @@ export interface StatLine {
   receptions: number; recAvg: number | null; recPerfectPct: number | null; recErrors: number;
   digs: number; digErrors: number; freeballs: number;
   blockPoints: number; blockTouches: number; blockErrors: number;
+  /** Blocks without a touch (jumped, the ball went past). */
+  blockMisses: number;
   /** assists = real assists (a set whose next touch is our kill, from the rallies); bumpSets = sets by a
    *  non-setter (the 'Bump set' action); assistErrors = bump-set errors. */
   sets: number; assists: number; bumpSets: number; assistErrors: number; setErrors: number;
@@ -46,7 +48,7 @@ export function statLine(events: Ev[]): StatLine {
     aces, serveErrors, serves, acePct: ratio(aces, serves), serveInPct: ratio(serves - serveErrors, serves),
     receptions: recN, recAvg: ratio(recSum, recN), recPerfectPct: ratio(recPerfect, recN), recErrors: recErr,
     digs: n('dig'), digErrors: n('dig_error'), freeballs: n('freeball'),
-    blockPoints, blockTouches: n('block_touch'), blockErrors: n('block_error'),
+    blockPoints, blockTouches: n('block_touch'), blockErrors: n('block_error'), blockMisses: n('block_miss'),
     sets: n('set') + bumpSets + assistErrors + setErrors, assists: 0, bumpSets, assistErrors, setErrors,
     points, errors, plusMinus: points - errors,
   };

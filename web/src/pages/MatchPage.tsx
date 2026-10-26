@@ -223,7 +223,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }
 
   // Tags since the last point of this set = the rally being tagged.
-  const setTags = confirmed.filter((e) => (e.set_no ?? 1) === setNo);
+  const setTags = confirmed.filter((e) => (e.set_no ?? 1) === setNo && e.action !== 'block_miss');
   const lastPoint = setTags.map((e) => !!scoreOf(e)).lastIndexOf(true);
   const rallyTags = setTags.slice(lastPoint + 1);
   const lastTag = rallyTags[rallyTags.length - 1] ?? null;
@@ -250,6 +250,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       return flash(`Lost: ${actionLabel({ action: 'attack_blocked', value: null })}`, () => update(lastTag, before));
     }
     const spot = r.at ? { fx: r.at.x, fy: r.at.y, zone: zoneOf(r.at) } : {};
+    // Blockers who jumped without touching it: where the ball went past them (just before the rally's end).
+    for (const id of r.noTouch ?? []) {
+      commit({ action: 'block_miss', player_id: id, t: time == null ? null : Math.max(0, time - 0.3), ...(r.at ? { x: r.at.x, y: r.at.y } : {}) });
+    }
     if (r.playerId != null && r.kind === 'attack') return commit({ action: 'dig_error', player_id: r.playerId, t: time, ...spot });
     if (r.kind === 'ace' && lastTag?.action === 'receive') {
       // The pass is already tagged: it becomes a 0, and their ace is added after it.

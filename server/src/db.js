@@ -213,6 +213,10 @@ const MIGRATIONS = [
   (db) => {
     if (!db.prepare('PRAGMA table_info(edit_suggestions)').all().some((c) => c.name === 'sender_jersey')) db.exec('ALTER TABLE edit_suggestions ADD COLUMN sender_jersey INTEGER');
   },
+  // v17: suggestions can also add a touch that was not tagged ('add', at a video time; event_id is set once accepted).
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(edit_suggestions)').all().some((c) => c.name === 'kind')) db.exec("ALTER TABLE edit_suggestions ADD COLUMN kind TEXT NOT NULL DEFAULT 'edit'");
+  },
 ];
 
 function migrate(db) {

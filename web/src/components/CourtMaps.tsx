@@ -17,6 +17,7 @@ const HEAT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'digs', label: 'Digs', actions: ['dig', 'dig_error'] },
   { id: 'freeballs', label: 'Free balls', actions: ['freeball'] },
   { id: 'blocks', label: 'Our blocks', actions: ['block_point', 'block_touch', 'block_error'] },
+  { id: 'nontouch', label: 'Blocks, no touch', actions: ['block_miss'] },
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
@@ -28,6 +29,7 @@ const PLOT_MODES: { id: string; label: string; actions: ActionCode[] }[] = [
   { id: 'freeballs', label: 'Free balls', actions: ['freeball'] },
   { id: 'digs', label: 'Digs', actions: ['dig', 'dig_error'] },
   { id: 'blocks', label: 'Our blocks', actions: ['block_point', 'block_touch', 'block_error'] },
+  { id: 'nontouch', label: 'Blocks, no touch', actions: ['block_miss'] },
   { id: 'blocked', label: 'Got blocked', actions: ['attack_blocked'] },
 ];
 
@@ -36,7 +38,7 @@ const GOOD = SERIES.aqua, PLAY = SERIES.blue, BAD = SERIES.orange;
 const OUTCOME_COLOR: Partial<Record<ActionCode, string>> = {
   kill: GOOD, ace: GOOD, attack: PLAY, serve: PLAY, attack_error: BAD, serve_error: BAD,
   set: PLAY, assist: PLAY, assist_error: BAD, set_error: BAD, freeball: PLAY,
-  dig: PLAY, dig_error: BAD, block_point: GOOD, block_touch: PLAY, block_error: BAD, attack_blocked: BAD,
+  dig: PLAY, dig_error: BAD, block_miss: PLAY, block_point: GOOD, block_touch: PLAY, block_error: BAD, attack_blocked: BAD,
 };
 const GRADE_COLOR = RAMP;
 const LEGEND: Record<string, [string, string][]> = {
@@ -46,6 +48,7 @@ const LEGEND: Record<string, [string, string][]> = {
   digs: [[PLAY, 'Dig'], [BAD, 'Error']],
   blocks: [[GOOD, 'Block point'], [PLAY, 'Touch'], [BAD, 'Error']],
   blocked: [[BAD, 'Blocked']],
+  nontouch: [[PLAY, 'Their attack past our block']],
   sets: [[PLAY, 'Set / bump set'], [BAD, 'Error']],
   freeballs: [[PLAY, 'Free ball']],
 };
