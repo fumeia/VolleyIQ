@@ -209,6 +209,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX IF NOT EXISTS edit_suggestions_match ON edit_suggestions(match_id, status);
   `,
+  // v16: the shirt number of whoever sent a correction (required, to know who uses it).
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(edit_suggestions)').all().some((c) => c.name === 'sender_jersey')) db.exec('ALTER TABLE edit_suggestions ADD COLUMN sender_jersey INTEGER');
+  },
 ];
 
 function migrate(db) {

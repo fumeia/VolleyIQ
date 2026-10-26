@@ -4,7 +4,7 @@
 
 **Public link: Replays**
 - A Replays tab plays every tagged touch of a match as a short clip, filtered by skill, player, set and points / errors, one at a time or all in a row. Viewers choose their own copy of the match video; it plays on their device and is never uploaded (a YouTube match plays from YouTube).
-- With "Suggest corrections" on, a viewer who spots a wrong tag can send a correction (player, action, grade, court spot, a note). It shows up in the app under the match's ✎ Edits tab (and as a badge in the match list), where you accept it (the tag changes) or reject it.
+- With "Suggest corrections" on, a viewer who spots a wrong tag can send a correction (player, action, grade, court spot, an optional note); their shirt number is required. The court is drawn as the camera sees it, following the side switches of your court marking. It shows up in the app under the match's ✎ Edits tab (and as a badge in the match list), where you accept it (the tag changes) or reject it.
 
 **Review**
 - Swipe a touch chip up to remove it; removed touches stay as a small ↺ chip to bring them back.

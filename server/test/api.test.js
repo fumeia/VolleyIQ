@@ -300,18 +300,20 @@ test('edit suggestions from the public link: sent, listed, accepted or rejected'
   assert.deepEqual(shared.matches[0].video, { type: 'youtube', id: 'abcdefghijk' });
 
   const send = (body) => app.inject({ method: 'POST', url: `/api/share/team/${token}/edits`, payload: body });
-  assert.equal((await send({ event_id: e.id, changes: { action: 'kill' }, note: 'it landed in', name: 'Bo' })).statusCode, 200);
+  assert.equal((await send({ event_id: e.id, changes: { action: 'kill' }, note: 'it landed in' })).statusCode, 400, 'shirt number required');
+  assert.equal((await send({ event_id: e.id, changes: { action: 'kill' }, note: 'it landed in', jersey: 9 })).statusCode, 200);
   assert.equal((await send({ event_id: e.id, changes: { action: 'nope' } })).statusCode, 400);
   assert.equal((await send({ event_id: e.id, changes: { player_id: stranger.id } })).statusCode, 400);
-  assert.equal((await send({ event_id: e.id, changes: { action: 'attack' } })).statusCode, 400, 'nothing changed');
+  assert.equal((await send({ event_id: e.id, changes: { action: 'attack' }, jersey: 9 })).statusCode, 400, 'nothing changed');
   assert.equal((await app.inject({ method: 'POST', url: '/api/share/team/wrong/edits', payload: { event_id: e.id, changes: { action: 'kill' } } })).statusCode, 404);
-  assert.equal((await send({ event_id: e.id, changes: { player_id: b.id, x: 3, y: 15 } })).statusCode, 200);
+  assert.equal((await send({ event_id: e.id, changes: { player_id: b.id, x: 3, y: 15 }, jersey: 4 })).statusCode, 200);
 
   assert.equal((await app.inject({ url: '/api/matches' })).json()[0].open_edits, 2);
   const list = (await app.inject({ url: `/api/edits?match_id=${m.id}` })).json();
   assert.equal(list.length, 2);
   const [move, kill] = list;
   assert.deepEqual(kill.changes, { action: 'kill' });
+  assert.equal(kill.sender_jersey, 9);
   assert.equal(kill.original.action, 'attack');
   assert.equal(kill.event.action, 'attack');
 

@@ -275,11 +275,12 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     return { share_token: token };
   });
 
-  // Public season report: confirmed tags only; no tokens or calibration data leak out.
+  // Public season report: confirmed tags only; no tokens leak out.
   app.get('/api/share/team/:token', async (req, reply) => {
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, video_type, video_ref FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+    // The court marking goes along so the Replays tab draws the court the way the camera sees it.
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, video_type, video_ref FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
       // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
       .map(({ video_type, video_ref, ...m }) => ({ ...m, video: video_type === 'youtube' && video_ref ? { type: 'youtube', id: video_ref } : video_ref ? { type: 'file', name: video_ref } : null }));
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
@@ -297,6 +298,8 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const ev = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id WHERE e.id = ? AND m.team_id = ? AND e.status = 'confirmed'`)
       .get(int(req.body?.event_id), team.id);
     if (!ev) return bad(reply, 'Tag not found', 404);
+    const sender = int(req.body?.jersey);
+    if (sender == null || sender < 0 || sender > 99) return bad(reply, 'Your shirt number is required (0-99)');
     const hour = Math.floor(Date.now() / 3600e3);
     const r = editRate.get(req.ip);
     if (r?.hour === hour && r.n >= 60) return bad(reply, 'Too many suggestions for now; try again later.', 429);
@@ -315,8 +318,8 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 60) : '';
     if (!Object.keys(changes).length && !note) return bad(reply, 'Nothing changed');
     const original = Object.fromEntries(EDIT_FIELDS.map((k) => [k, ev[k]]));
-    const id = db.prepare('INSERT INTO edit_suggestions (team_id, match_id, event_id, changes, original, note, name) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(team.id, ev.match_id, ev.id, JSON.stringify(changes), JSON.stringify(original), note || null, name || null).lastInsertRowid;
+    const id = db.prepare('INSERT INTO edit_suggestions (team_id, match_id, event_id, changes, original, note, name, sender_jersey) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(team.id, ev.match_id, ev.id, JSON.stringify(changes), JSON.stringify(original), note || null, name || null, sender).lastInsertRowid;
     return { id: Number(id) };
   });
 

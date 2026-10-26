@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, SKILLS, wantsSpots, type ActionCode } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import type { Pt } from '../lib/court';
+import { ourHalfAt } from '../lib/calibration';
 import { ActionPicker } from './ActionPicker';
 import { CourtFull } from './CourtFull';
 import { fmtTime } from './TagPad';
@@ -26,8 +27,8 @@ const loadSent = (token: string): number[] => { try { return JSON.parse(localSto
  * Replays on the public link: every tagged touch of a match as a clip, filtered by
  * skill, player and set. The video is the viewer's own copy, played on their device and
  * never uploaded (or the match's YouTube video). With corrections switched on, a viewer
- * who spots a wrong tag can send the coach a suggestion; it is applied only when the
- * coach accepts it in the app.
+ * who spots a wrong tag can send a correction; it is applied only when it is accepted
+ * in the app.
  */
 export function Replays({ token, matches, players, events, initialMatch }: Props) {
   const withTags = matches.filter((m) => events.some((e) => e.match_id === m.id && e.t != null));
@@ -116,7 +117,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
             <b>📁 Choose your copy of the match video</b>
             <span className="small muted">
-              It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The coach's file is called <b>{video.name}</b>.</> : ''}
+              It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The video file used for tagging is called <b>{video.name}</b>.</> : ''}
             </span>
           </label>
         )}
@@ -159,8 +160,9 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
 
       {editing && current && (
         sent.includes(current.id)
-          ? <p className="small muted">✓ You sent a correction for this touch. The coach will look at it.</p>
+          ? <p className="small muted">✓ You sent a correction for this touch.</p>
           : <EditBox key={current.id} token={token} event={current} players={players.filter((p) => p.active || p.id === current.player_id)}
+              flip={!!match?.calibration && ourHalfAt(match.calibration, current.t!) === 'far'}
               onSent={() => { const s = [...sent, current.id]; setSent(s); try { localStorage.setItem(sentKey(token), JSON.stringify(s)); } catch { /* private mode */ } }} />
       )}
 
@@ -181,8 +183,8 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   );
 }
 
-/** "Found a mistake?": the viewer's corrected tag, sent to the coach as a suggestion. */
-function EditBox({ token, event, players, onSent }: { token: string; event: VEvent; players: Player[]; onSent: () => void }) {
+/** "Found a mistake?": the viewer's corrected tag, sent as a suggestion. [flip]: our team plays the far half at that time. */
+function EditBox({ token, event, players, flip, onSent }: { token: string; event: VEvent; players: Player[]; flip: boolean; onSent: () => void }) {
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<ActionCode>(event.action);
   const [value, setValue] = useState<number | null>(event.value);
@@ -190,7 +192,9 @@ function EditBox({ token, event, players, onSent }: { token: string; event: VEve
   const [spot, setSpot] = useState<{ from: Pt | null; to: Pt | null } | null>(null);
   const [step, setStep] = useState<'from' | 'to'>('from');
   const [note, setNote] = useState('');
-  const [name, setName] = useState(() => { try { return localStorage.getItem('viq:editName') ?? ''; } catch { return ''; } });
+  // Who sends it: their shirt number (required), remembered on this device.
+  const [jersey, setJersey] = useState(() => { try { return localStorage.getItem('viq:editJersey') ?? ''; } catch { return ''; } });
+  const sender = /^\d{1,2}$/.test(jersey.trim()) ? Number(jersey.trim()) : null;
   const [state, setState] = useState<'idle' | 'confirm' | 'sending' | 'error'>('idle');
   const [err, setErr] = useState('');
 
@@ -212,8 +216,8 @@ function EditBox({ token, event, players, onSent }: { token: string; event: VEve
   async function send() {
     setState('sending');
     try {
-      try { localStorage.setItem('viq:editName', name); } catch { /* private mode */ }
-      await api.sendEdit(token, { event_id: event.id, changes, note: note.trim(), name: name.trim() });
+      try { localStorage.setItem('viq:editJersey', String(sender)); } catch { /* private mode */ }
+      await api.sendEdit(token, { event_id: event.id, changes, note: note.trim(), jersey: sender! });
       onSent();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send');
@@ -242,28 +246,32 @@ function EditBox({ token, event, players, onSent }: { token: string; event: VEve
       {wantsSpots(action, 'points', 'all') && (
         <>
           <span className="field-label">
-            Where {path ? (step === 'from' ? 'it was played from (1/2)' : 'it went (2/2)') : 'it was'} <small className="muted">· our side at the bottom · optional</small>
+            Where {path ? (step === 'from' ? 'it was played from (1/2)' : 'it went (2/2)') : 'it was'} <small className="muted">· as the camera sees it · optional</small>
           </span>
           <div className="edit-court">
-            <CourtFull from={shown.from} to={shown.to} label="court" onPick={(p) => {
+            <CourtFull from={shown.from} to={shown.to} flip={flip} label="court" onPick={(p) => {
               if (path && step === 'from') { setSpot({ from: p, to: null }); setStep('to'); }
               else { setSpot((s) => ({ from: path ? s?.from ?? null : null, to: p })); setStep('from'); }
             }} />
           </div>
-          {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>↺ Keep the coach's spots</button>}
+          {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>↺ Keep the tagged spots</button>}
         </>
       )}
-      <textarea className="input" rows={2} maxLength={500} placeholder="Note for the coach (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-      <input className="input" maxLength={60} placeholder="Your name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+      <label className="field-label">Your shirt number <small className="muted">(required)</small>
+        <input className="input edit-jersey" inputMode="numeric" maxLength={2} placeholder="#" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))} />
+      </label>
+      <textarea className="input" rows={2} maxLength={500} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       {state === 'confirm' || state === 'sending' ? (
         <div className="row">
-          <button className="btn btn-primary grow" disabled={state === 'sending'} onClick={send}>{state === 'sending' ? 'Sending…' : '✓ Send to the coach'}</button>
+          <button className="btn btn-primary grow" disabled={state === 'sending'} onClick={send}>{state === 'sending' ? 'Sending…' : '✓ Send'}</button>
           <button className="btn" onClick={() => setState('idle')}>Back</button>
         </div>
       ) : (
-        <button className="btn btn-primary wide" disabled={nothing} onClick={() => setState('confirm')}>Send correction…</button>
+        <button className="btn btn-primary wide" disabled={nothing || sender == null} onClick={() => setState('confirm')}>
+          {nothing ? 'Change something to send it' : sender == null ? 'Enter your shirt number to send' : 'Send correction…'}
+        </button>
       )}
-      {state === 'confirm' && <p className="small muted">The coach sees your correction and decides whether to take it. Nothing changes until then.</p>}
+      {state === 'confirm' && <p className="small muted">Your correction is checked in the app before it changes anything.</p>}
       {state === 'error' && <p className="small error">{err}</p>}
     </div>
   );

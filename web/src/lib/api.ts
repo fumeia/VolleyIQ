@@ -42,6 +42,8 @@ export type EditFields = Partial<Pick<VEvent, 'action' | 'value' | 'player_id' |
 export interface EditSuggestion {
   id: number; match_id: number; match_label: string; event_id: number | null;
   changes: EditFields; original: EditFields; note: string | null; name: string | null;
+  /** Shirt number of whoever sent it. */
+  sender_jersey: number | null;
   status: 'open' | 'accepted' | 'rejected'; created_at: string;
   /** The tag as it is now (null when it was deleted since). */
   event: VEvent | null;
@@ -193,7 +195,7 @@ export const api = {
   aiStats: () => req<{ fields: AiStats; examples: number }>('GET', '/api/ai/stats'),
   aiExample: (image: string, label: AiExampleLabel) => req<{ ok: boolean }>('POST', '/api/ai/examples', { image, label }),
   clearAiExamples: () => req<{ deleted: number }>('DELETE', '/api/ai/examples'),
-  sendEdit: (token: string, body: { event_id: number; changes: EditFields; note: string; name: string }) => req<{ id: number }>('POST', `/api/share/team/${token}/edits`, body),
+  sendEdit: (token: string, body: { event_id: number; changes: EditFields; note: string; jersey: number }) => req<{ id: number }>('POST', `/api/share/team/${token}/edits`, body),
   edits: (matchId?: number, status: 'open' | 'accepted' | 'rejected' = 'open') =>
     req<EditSuggestion[]>('GET', `/api/edits?status=${status}${matchId ? `&match_id=${matchId}` : ''}`),
   decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),

@@ -40,6 +40,13 @@ export function EditsPanel({ edits, players, busy, onWatch, onDecide }: Props) {
     !e ? 'The tag was deleted since.' : (Object.keys(s.original) as (keyof EditFields)[]).some((k) => (e[k] ?? null) !== (s.original[k] ?? null))
       ? 'You changed this tag since it was sent.' : null;
 
+  /** "from #9 Dana, " (the roster name when the number is on it). */
+  const sender = (s: EditSuggestion) => {
+    if (s.sender_jersey == null) return s.name ? `${s.name}, ` : '';
+    const p = players.find((x) => x.number === s.sender_jersey && x.active);
+    return `from #${s.sender_jersey}${p ? ` ${p.name.split(' ')[0]}` : ''}, `;
+  };
+
   if (!edits.length) return <div className="pad muted">No corrections waiting.</div>;
   return (
     <div className="pad edits-panel">
@@ -50,7 +57,7 @@ export function EditsPanel({ edits, players, busy, onWatch, onDecide }: Props) {
           <div key={s.id} className="edit-card">
             <div className="row between">
               <span><b>{s.event?.t != null ? fmtTime(s.event.t) : 'Touch'}</b>{s.event?.set_no ? ` · Set ${s.event.set_no}` : ''} · {who(s.event?.player_id ?? s.original.player_id)} {ACTION_BY_CODE[(s.event ?? s.original).action!]?.short ?? ''}</span>
-              <span className="small muted">{s.name ? `${s.name}, ` : ''}{ago(s.created_at)}</span>
+              <span className="small muted">{sender(s)}{ago(s.created_at)}</span>
             </div>
             {rows(s).length > 0 && (
               <table className="edit-diff small"><tbody>
