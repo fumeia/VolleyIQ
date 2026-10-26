@@ -35,8 +35,8 @@ export function FrameStep({ player, className = '' }: { player: React.RefObject<
   const step = (dir: number) => { const p = player.current; if (!p) return; p.pause(); p.seekBy(dir * FRAME); };
   return (
     <>
-      <button className={className} onClick={() => step(-1)} title="One frame back">◂|</button>
-      <button className={className} onClick={() => step(1)} title="One frame forward">|▸</button>
+      <button className={className} onClick={() => step(-1)} title="One frame back">‹ frame</button>
+      <button className={className} onClick={() => step(1)} title="One frame forward">frame ›</button>
     </>
   );
 }
