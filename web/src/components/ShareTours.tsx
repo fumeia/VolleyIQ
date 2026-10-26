@@ -1,3 +1,4 @@
+import { PassGrades } from './PassGrades';
 import type { TourStep } from './Tour';
 
 /** The guided tours of the public links: the team link, a player's page and a single match. */
@@ -15,6 +16,15 @@ const sections: TourStep = {
     </ul>
   ),
 };
+const passes: TourStep = {
+  title: 'How passes are graded',
+  text: (
+    <>
+      <p>Every pass gets 0 to 3 from where it went, our half seen from behind the baseline:</p>
+      <PassGrades />
+    </>
+  ),
+};
 const tone: TourStep = {
   target: '[data-tour="tone"]',
   title: 'Green ▲ and red ▼',
@@ -28,7 +38,7 @@ export function teamTour(team: string): TourStep[] {
       text: (
         <>
           <p>Everything here comes from the match videos, tagged touch by touch: every serve, pass, set, attack, block and dig, who played it and where the ball went.</p>
-          <p>A quick look at what you can find, in 7 steps.</p>
+          <p>A quick look at what you can find, in 8 steps.</p>
         </>
       ),
     },
@@ -50,6 +60,7 @@ export function teamTour(team: string): TourStep[] {
       text: <>Stats and Trends start with all matches together. Pick a match here to see only that one.</>,
     },
     sections,
+    passes,
     tone,
     {
       target: '[data-tour="tab-players"]',
@@ -100,7 +111,7 @@ export function matchTour(title: string): TourStep[] {
   return [
     {
       title,
-      text: <>The stats of this match, from the video tagged touch by touch. A quick look in 4 steps.</>,
+      text: <>The stats of this match, from the video tagged touch by touch. A quick look in 5 steps.</>,
     },
     {
       target: '[data-tour="tabs"]',
@@ -108,6 +119,7 @@ export function matchTour(title: string): TourStep[] {
       text: <><b>Stats</b> has all the numbers; <b>Report images</b> has a few pictures ready to send in a chat.</>,
     },
     sections,
+    passes,
     {
       title: 'That is the tour',
       text: <>The <b>? Guide</b> button in the corner brings it back any time.</>,

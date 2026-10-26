@@ -817,3 +817,19 @@ button.court-zone:active { background: #2a2f3a; }
 .tour-open { position: fixed; right: 14px; bottom: 14px; z-index: 50; padding: 8px 14px; border-radius: 20px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
 @media print { .tour, .tour-open { display: none !important; } }
+
+/* Pass grade diagram (tour) */
+.pass-grades { margin: 4px 0 0; display: flex; gap: 10px; align-items: center; }
+.pass-grades svg { width: 46%; max-width: 170px; flex: 0 0 auto; }
+.pass-grades figcaption { display: flex; flex-direction: column; gap: 4px; }
+.pg-out { fill: #2a2420; }
+.pg-1 { fill: rgba(245,158,11,.35); }
+.pg-2 { fill: rgba(163,230,53,.45); }
+.pg-3 { fill: rgba(34,197,94,.8); }
+.pg-lines { fill: none; stroke: #f3f4f6; stroke-width: .08; }
+.pg-net { stroke: var(--accent); stroke-width: .16; stroke-dasharray: .35 .2; }
+.pg-label { fill: var(--muted); font-size: .5px; text-anchor: middle; letter-spacing: .1px; }
+.pg-num { fill: #fff; font-size: 1.1px; font-weight: 800; text-anchor: middle; }
+.pg-zero { fill: #ef6b6b; }
+.pass-grades b { display: inline-block; min-width: 1.4em; text-align: center; border-radius: 4px; margin-right: 4px; color: #111; }
+.pg-k3 { background: rgb(34,197,94); } .pg-k2 { background: rgb(163,230,53); } .pg-k1 { background: rgb(245,158,11); } .pg-k0 { background: #ef6b6b; }
