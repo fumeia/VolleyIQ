@@ -90,12 +90,12 @@ export function RotationsSection({ players, events, matches = [] }: { players: P
  */
 function SheetRotations({ sheets, players }: { sheets: MatchSheetFlow[]; players: Player[] }) {
   const st = useMemo(() => sheetStats(sheets, players), [sheets, players]);
-  if (!st.sets) return <p className="muted small">The match sheet's service rounds did not add up to the set scores, so they are not used. Rescan a sharper photo.</p>;
+  if (!st.sets) return null;
   const who = (n: number) => { const p = players.find((x) => x.number === n); return p ? `#${n} ${p.name.split(' ')[0]}` : `#${n}`; };
   return (
     <>
       <h3 className="section-title">From the match sheet</h3>
-      <StatFigure title="Points per rotation (match sheet)" subtitle={`Every point of ${st.sets} set${st.sets === 1 ? '' : 's'}, replayed from the service rounds on the official sheet${st.skipped ? ` (${st.skipped} set${st.skipped === 1 ? '' : 's'} left out: the rounds did not add up)` : ''}. S1 = setter in position I.`}
+      <StatFigure title="Points per rotation (match sheet)" subtitle={`Every point of ${st.sets} set${st.sets === 1 ? '' : 's'}, replayed from the service rounds on the official sheet. S1 = setter in position I.`}
         rows={st.rotations} rowKey={(r) => r.label}
         first={{ h: 'Rotation', cell: (r) => r.label }}
         columns={[
