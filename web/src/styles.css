@@ -694,3 +694,5 @@ button.court-zone:active { background: #2a2f3a; }
 .they-options .btn small { color: var(--muted); font-weight: 400; }
 .they-options .they-error { border-color: var(--bad-ink); }
 .they-sheet .pad-players { flex: 1; align-content: start; }
+.ai-btn { border-color: var(--accent) !important; }
+.ai-summary { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); margin-top: 6px; }

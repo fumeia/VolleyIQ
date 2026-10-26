@@ -11,10 +11,11 @@
  *  - or OPENAI_BASE_URL (+ OPENAI_API_KEY, OPENAI_MODEL)
  *  - or ANTHROPIC_API_KEY (+ VISION_MODEL, default claude-opus-5-5)
  * [task] picks a per-feature model when one is set: SCAN_MODEL for the match-sheet
- * scan (needs image input), SUMMARY_MODEL for the coach summary (text only).
+ * scan (needs image input), SUMMARY_MODEL for the coach summary (text only),
+ * TOUCH_MODEL for the AI check of detected touches (image input; falls back to SCAN_MODEL).
  */
 export function aiConfig(env = {}, task = null) {
-  const own = task === 'scan' ? env.SCAN_MODEL : task === 'summary' ? env.SUMMARY_MODEL : null;
+  const own = task === 'scan' ? env.SCAN_MODEL : task === 'summary' ? env.SUMMARY_MODEL : task === 'touches' ? env.TOUCH_MODEL || env.SCAN_MODEL : null;
   const liteUrl = env.LITELLM_BASE_URL || env.OPENAI_BASE_URL;
   const liteKey = env.LITELLM_API_KEY || env.OPENAI_API_KEY || env.LITELLM_KEY;
   if (liteUrl && liteKey) {

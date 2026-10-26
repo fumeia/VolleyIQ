@@ -13,6 +13,8 @@ export interface PlayerHandle {
   ready(): boolean;
   /** Width / height of the picture (for overlays on the letterboxed video). */
   aspect(): number | null;
+  /** The local video's URL, for reading still frames (null for YouTube). */
+  fileUrl(): string | null;
 }
 
 interface Props {
@@ -96,6 +98,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
       const v = video.current;
       return v && v.videoWidth ? v.videoWidth / v.videoHeight : null;
     },
+    fileUrl: () => (source?.type === 'file' ? source.url : null),
     play: () => (source?.type === 'youtube' ? yt.current?.playVideo?.() : video.current?.play().catch(() => {})),
     pause: () => (source?.type === 'youtube' ? yt.current?.pauseVideo?.() : video.current?.pause()),
     isPlaying: () => {

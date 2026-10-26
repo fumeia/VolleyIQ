@@ -158,6 +158,7 @@ own Docker project and a marked block in the Caddyfile.
 Two features are hidden unless an AI backend is configured in `.env`:
 
 - **Match sheet scan** reads the teams, rosters and set scores off a photo of the score sheet.
+- **AI touch check** (Review, with a video file): three frames per detected touch go to a vision model, which marks noise, sorts ours / theirs and fills in the action and number it is sure about, before you save the rally. At most `AI_DAILY_LIMIT` checks a day.
 - **Coach summary** writes a few plain-language points (English or German) from the computed stats; it only uses the numbers it is given.
 
 Use either an OpenAI-compatible gateway such as LiteLLM (`LITELLM_BASE_URL`,

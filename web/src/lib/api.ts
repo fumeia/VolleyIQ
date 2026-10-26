@@ -21,6 +21,8 @@ export interface VEvent {
   /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
   hint?: 'quiet' | 'gap' | null;
 }
+/** The AI check's answer for one touch (i = its place in the request, from 1). */
+export interface AiTouch { i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; confidence: number }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
 /** Summary fields read off a photo of an official match sheet (best-effort). */
@@ -132,6 +134,9 @@ export const api = {
   scanMatchsheet: (images: { media_type: string; data: string }[]) =>
     req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
   insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
+  touchCheckEnabled: () => req<{ enabled: boolean; model: string | null }>('GET', '/api/ai/touches/enabled'),
+  touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[] }) =>
+    req<{ touches: AiTouch[] }>('POST', '/api/ai/touches', body),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),
   bulkEvents: (matchId: number, op: 'confirm' | 'delete', ids: number[]) =>

@@ -10,6 +10,7 @@ import { registerAuth, registerCors } from './auth.js';
 import { registerRoutes } from './routes.js';
 import { makeVisionScanner } from './vision.js';
 import { makeInsighter } from './insights.js';
+import { makeTouchChecker } from './touches.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,8 @@ export async function buildApp(env = process.env, opts = {}) {
     db,
     vision: opts.vision ?? makeVisionScanner(env),
     insights: opts.insights ?? makeInsighter(env),
+    touches: opts.touches ?? makeTouchChecker(env),
+    aiDailyLimit: Number(env.AI_DAILY_LIMIT) || 400,
   });
 
   app.get('/api/health', async () => ({ ok: true }));

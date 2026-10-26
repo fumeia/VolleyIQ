@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
+import { MAX_TOUCHES } from './touches.js';
 import { cleanImages } from './vision.js';
 
 function bad(reply, msg, code = 400) {
@@ -60,7 +61,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400 }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -385,6 +386,40 @@ export function registerRoutes(app, { db, vision, insights }) {
     } catch (e) {
       req.log?.error({ err: e }, 'insights failed');
       return bad(reply, 'Could not generate the summary. Try again.', 502);
+    }
+  });
+
+  // ---------- AI check of detected touches (optional) ----------
+  // A cap on AI calls per day, so a bug or a stuck button cannot use up the credits.
+  const aiUse = { day: '', n: 0 };
+  const aiAllowed = () => {
+    const day = new Date().toISOString().slice(0, 10);
+    if (aiUse.day !== day) { aiUse.day = day; aiUse.n = 0; }
+    return aiUse.n++ < aiDailyLimit;
+  };
+  app.get('/api/ai/touches/enabled', coach, async () => ({ enabled: !!touches?.enabled, model: touches?.model ?? null }));
+
+  app.post('/api/ai/touches', coach, async (req, reply) => {
+    if (!touches?.enabled) return bad(reply, 'The AI touch check is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
+    const list = Array.isArray(req.body?.images) ? req.body.images : null;
+    if (!list?.length) return bad(reply, 'images required: one per touch');
+    if (list.length > MAX_TOUCHES) return bad(reply, `at most ${MAX_TOUCHES} touches per request`);
+    const images = [];
+    for (const im of list) {
+      if (!im || !['image/jpeg', 'image/png', 'image/webp'].includes(im.media_type) || typeof im.data !== 'string' || im.data.length > 700_000) {
+        return bad(reply, 'each image: jpeg/png/webp, base64, under ~500 KB');
+      }
+      images.push({ media_type: im.media_type, data: im.data });
+    }
+    const ourSide = ['near', 'far'].includes(req.body?.ourSide) ? req.body.ourSide : null;
+    const roster = (Array.isArray(req.body?.roster) ? req.body.roster : []).slice(0, 30)
+      .filter((p) => Number.isInteger(p?.number)).map((p) => ({ number: p.number, role: typeof p.role === 'string' ? p.role.slice(0, 4) : null }));
+    if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
+    try {
+      return { touches: await touches.check(images, { ourSide, roster }) };
+    } catch (e) {
+      req.log?.error({ err: e }, 'touch check failed');
+      return bad(reply, `AI check failed: ${String(e?.message ?? e).slice(0, 200)}`, 502);
     }
   });
 

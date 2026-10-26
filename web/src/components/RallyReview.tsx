@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, wantsSpots, type ActionCode } from '../lib/actions';
 import { ActionPicker } from './ActionPicker';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
+import { touchPictures } from '../lib/frames';
+import { plural } from './analysis/ui';
 import { courtFields, type Pt } from '../lib/court';
 import { alreadySaved, duplicates, groupRallies, guessServing, isOurs, outcome, setAt, type Serving } from '../lib/rallyReview';
 import { pointsOfSet, rotationAfter, suggest } from '../lib/rotation';
@@ -38,6 +40,10 @@ const SPEEDS = [1, 1.5, 2];
 const PRE_ROLL = 2;
 const POST_ROLL = 1.5;
 const STEP_PAUSE_MS = 700;
+/** The AI check's action words, as our action codes. */
+const AI_ACTION: Record<string, ActionCode> = { serve: 'serve', receive: 'receive', set: 'set', attack: 'attack', block: 'block_touch', dig: 'dig', freeball: 'freeball' };
+/** Below this confidence the AI's answer is only shown, not applied. */
+const AI_SURE = 0.6;
 
 const load = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const store = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -70,6 +76,11 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const [busy, setBusy] = useState(false);
   const [help, setHelp] = useState(false);
   const [last, setLast] = useState<{ text: string; undo: () => Promise<void> } | null>(null);
+  // AI check (optional, needs an AI backend on the server and a local video file).
+  const [aiOn, setAiOn] = useState(false);
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [aiNotes, setAiNotes] = useState<Map<number, string>>(new Map());
+  const [aiSummary, setAiSummary] = useState<{ text: string; undo?: () => void } | null>(null);
   const stopAt = useRef<number | null>(null);
   const passed = useRef<Set<number>>(new Set());
   const jumpTo = useRef<number | null>(null);
@@ -101,8 +112,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     setServing(rotation ? (rotation.weServe ? 'us' : 'them') : guessServing(r.events, info));
     setOwner(new Map());
     setSel(null);
+    setAiNotes(new Map());
+    setAiSummary(null);
     playRally();
   }, [r?.key, r?.start]);
+
+  useEffect(() => { api.touchCheckEnabled().then((x) => setAiOn(x.enabled)).catch(() => setAiOn(false)); }, []);
 
   // A touch just added by hand: open it.
   useEffect(() => {
@@ -417,6 +432,66 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
     open(e);
   }
 
+  /**
+   * AI check of this rally: three frames per touch go to the vision model, which says
+   * whether it is a touch, whose, which action and the number. Confident answers are
+   * filled in (nothing is saved until the rally is); every answer shows on its chip.
+   */
+  async function aiCheck() {
+    const url = player.current?.fileUrl();
+    if (!url || aiBusy || !r) return;
+    const list = r.events.filter((e) => e.t != null).slice(0, 16);
+    if (!list.length) return;
+    player.current?.pause();
+    stopAt.current = null;
+    const before = { drafts, removed, owner };
+    try {
+      setAiBusy('Reading frames…');
+      const pics = await touchPictures(url, list.map((e) => e.t!), (k) => `Touch ${k + 1} of ${list.length}`,
+        (d) => setAiBusy(`Reading frames ${d}/${list.length}…`));
+      setAiBusy('Asking the AI…');
+      const half = match.calibration ? ourHalfAt(match.calibration, list[0].t!) : null;
+      const { touches } = await api.touchCheck({
+        images: pics.map((data) => ({ media_type: 'image/jpeg', data })),
+        ourSide: half === 'near' || half === 'far' ? half : null,
+        roster: roster.filter((p) => p.number != null).map((p) => ({ number: p.number!, role: p.role })),
+      });
+      const notes = new Map<number, string>();
+      const drop = new Set(removed), side = new Map(owner);
+      const fill: Record<number, Partial<VEvent>> = {};
+      let dropped = 0, numbers = 0, actions = 0;
+      for (const a of touches) {
+        const e = list[a.i - 1];
+        if (!e) continue;
+        const sure = a.confidence >= AI_SURE;
+        notes.set(e.id, `AI: ${a.contact === 'no' ? 'no touch' : a.action}${a.jersey != null ? ` #${a.jersey}` : ''}${a.team === 'theirs' ? ', theirs' : a.team === 'ours' ? ', ours' : ''} (${Math.round(a.confidence * 100)}%)`);
+        if (a.contact === 'no') { if (sure) { drop.add(e.id); dropped++; } continue; }
+        if (a.team !== 'unsure' && sure) side.set(e.id, a.team === 'ours' ? 'us' : 'them');
+        if (a.team === 'theirs' || !sure) continue;
+        const code = AI_ACTION[a.action];
+        const p = a.jersey != null ? roster.find((x) => x.number === a.jersey) : undefined;
+        if (code && code !== view(e).action) { fill[e.id] = { action: code, value: code === 'receive' ? view(e).value : null }; actions++; }
+        if (p && view(e).player_id == null) { fill[e.id] = { ...fill[e.id], player_id: p.id, jersey: p.number }; numbers++; }
+      }
+      setRemoved(drop);
+      setOwner(side);
+      setDrafts((d) => {
+        const n = { ...d };
+        for (const [id, f] of Object.entries(fill)) n[Number(id)] = { ...n[Number(id)], ...f };
+        return n;
+      });
+      setAiNotes(notes);
+      setAiSummary({
+        text: `AI checked ${touches.length} touches: ${dropped} not a touch, ${plural(actions, 'action')} and ${plural(numbers, 'player')} filled in. Check the chips, then save the rally as usual.`,
+        undo: () => { setDrafts(before.drafts); setRemoved(before.removed); setOwner(before.owner); setAiNotes(new Map()); setAiSummary(null); },
+      });
+    } catch (e) {
+      setAiSummary({ text: e instanceof Error ? e.message : 'AI check failed' });
+    } finally {
+      setAiBusy(null);
+    }
+  }
+
   function togglePlay() {
     const p = player.current;
     if (!p) return;
@@ -476,6 +551,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           <p><b>Tap a touch</b>: player → action → court spots (where it was played from, where it went) → the next touch opens by itself. <b>Next ▸</b> keeps a touch as it is.</p>
           <p><b>Chips</b>: faded = unsure or removed (tap ↺ to bring back), greyed = the other team's touch. Open a greyed one and tap <b>✓ It's our touch</b> (or <b>Theirs</b> on one of ours) to fix a single chip. <b>+</b> adds a touch at the video time, <b>Empty</b> clears the rally, <b>⇥ Join next</b> / <b>✂ Split</b> fix rally boundaries.</p>
           <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>↻touch</b> to replay a short clip instead.</p>
+          <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI, which marks noise as not a touch, sorts ours / theirs and fills in actions and numbers it is sure about. Every chip it looked at gets a ✨; hold or hover it to see the answer. Nothing is saved until you save the rally.</p>
           <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the chips left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
         </div>
@@ -494,15 +570,20 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             return (
               <button key={e.id}
                 className={`touch-chip ${isTheirs(e) ? 'theirs' : ''} ${gone ? 'gone' : ''} ${sel === e.id ? 'sel' : ''} ${playing?.id === e.id ? 'now' : ''} ${!e.hint && (e.confidence ?? 1) < 0.4 ? 'weak' : ''}`}
-                title={gone ? 'Removed: tap to bring it back' : undefined}
+                title={gone ? `Removed: tap to bring it back${aiNotes.get(e.id) ? ` · ${aiNotes.get(e.id)}` : ''}` : aiNotes.get(e.id)}
                 onClick={() => tapChip(e)}>
                 <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
-                <span>{gone ? '↺' : `${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}</span>
+                <span>{gone ? '↺' : `${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}{aiNotes.has(e.id) ? ' ✨' : ''}</span>
               </button>
             );
           })}
         </div>
         {!selected && <div className="rr-tools">
+          {aiOn && player.current?.fileUrl() && (
+            <button className="icon-btn ai-btn" disabled={!!aiBusy} onClick={aiCheck} title="Send three frames per touch to the AI: real touch or not, whose, which action, which number">
+              {aiBusy ?? '✨ AI check'}
+            </button>
+          )}
           <button className="icon-btn" onClick={playRally} title="Replay the rally">↻</button>
           <button className="icon-btn" onClick={cycleSpeed} title="Playback speed">{speed}×</button>
           <button className={`icon-btn ${stepPause ? 'on' : ''}`} title="Pause briefly at each touch while the rally plays"
@@ -520,6 +601,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           <button className="icon-btn" title="Remove all touches of this rally, then add them with +"
             onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }}>Empty</button>
         </div>}
+        {aiSummary && !selected && (
+          <div className="ai-summary small">
+            <span>✨ {aiSummary.text}</span>
+            {aiSummary.undo && <button className="btn-ghost small" onClick={aiSummary.undo}>Undo AI</button>}
+          </div>
+        )}
         {!selected && <div className="rotation-info">
           {rotation
             ? <>Setter in {setterPos || '?'} · {rotation.weServe ? 'we serve' : 'they serve'} · <button className="link" onClick={() => onLineup(r.set)}>line-up</button></>
