@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { GroupedColumns, SERIES } from '../../charts/Charts';
-import type { Player, VEvent } from '../../lib/api';
+import type { Match, Player, VEvent } from '../../lib/api';
+import { sheetStats, type MatchSheetFlow } from '../../lib/sheetFlow';
 import { inferRotations, rotationTable, type RotationRally } from '../../lib/rotationInfer';
 import { ATTACKS, attackContexts, buildRallies, SERVES } from '../../lib/sequence';
 import { eff, errorPct, pointPct, tally } from '../../lib/trajectory';
@@ -14,12 +15,14 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
  * the first-ball attack and our serve went, and who attacked: why a rotation wins
  * or loses its points.
  */
-export function RotationsSection({ players, events }: { players: Player[]; events: VEvent[] }) {
+export function RotationsSection({ players, events, matches = [] }: { players: Player[]; events: VEvent[]; matches?: Match[] }) {
   const rallies = useMemo(() => buildRallies(events), [events]);
   const rot = useMemo(() => inferRotations(rallies, players), [rallies, players]);
   const table = rotationTable(rot);
   const ctx = useMemo(() => attackContexts(rallies), [rallies]);
-  if (table.length < 2) return <p className="muted small">Tag our serves with the server to see the rotations (the serve order gives them).</p>;
+  const sheets = matches.map((m) => m.sheet).filter((x): x is MatchSheetFlow => !!x);
+  const fromSheet = sheets.length ? <SheetRotations sheets={sheets} players={players} /> : null;
+  if (table.length < 2) return <div className="charts">{fromSheet}<p className="muted small">Tag our serves with the server to see the rotations from the tags (the serve order gives them).</p></div>;
 
   const byLabel = new Map<string, RotationRally[]>();
   for (const r of rot) if (r.label) byLabel.set(r.label, [...(byLabel.get(r.label) ?? []), r]);
@@ -45,6 +48,8 @@ export function RotationsSection({ players, events }: { players: Player[]; event
   const named = table.some((t) => t.label.startsWith('S'));
   return (
     <div className="charts">
+      {fromSheet}
+      {fromSheet && <h3 className="section-title">From the tags</h3>}
       <p className="muted small">
         {named
           ? "From the order our players served in (no line-up needed). S1 = setter in position 1 (serving), S2 = setter in position 2, and so on."
@@ -76,5 +81,42 @@ export function RotationsSection({ players, events }: { players: Player[]; event
         ]}
         yTitle="Share" fmt={pct} yDomain={[0, 1]} />
     </div>
+  );
+}
+
+/**
+ * Rotations from the official match sheet: every point of every set whose service
+ * rounds add up, so it covers the whole match even where nothing was tagged.
+ */
+function SheetRotations({ sheets, players }: { sheets: MatchSheetFlow[]; players: Player[] }) {
+  const st = useMemo(() => sheetStats(sheets, players), [sheets, players]);
+  if (!st.sets) return <p className="muted small">The match sheet's service rounds did not add up to the set scores, so they are not used. Rescan a sharper photo.</p>;
+  const who = (n: number) => { const p = players.find((x) => x.number === n); return p ? `#${n} ${p.name.split(' ')[0]}` : `#${n}`; };
+  return (
+    <>
+      <h3 className="section-title">From the match sheet</h3>
+      <StatFigure title="Points per rotation (match sheet)" subtitle={`Every point of ${st.sets} set${st.sets === 1 ? '' : 's'}, replayed from the service rounds on the official sheet${st.skipped ? ` (${st.skipped} set${st.skipped === 1 ? '' : 's'} left out: the rounds did not add up)` : ''}. S1 = setter in position I.`}
+        rows={st.rotations} rowKey={(r) => r.label}
+        first={{ h: 'Rotation', cell: (r) => r.label }}
+        columns={[
+          { h: 'Side-out', cell: (r) => { const v = ratio(r.sideouts, r.received); return { text: pct(v), tone: sample(judge.sideout(v), r.received), title: `${r.sideouts}/${r.received}` }; } },
+          { h: 'Break', cell: (r) => { const v = ratio(r.breaks, r.served); return { text: pct(v), tone: sample(judge.break(v), r.served), title: `${r.breaks}/${r.served}` }; } },
+          { h: 'Won', title: 'Points won in this rotation', cell: (r) => r.sideouts + r.breaks },
+          { h: 'Lost', title: 'Points lost in this rotation', cell: (r) => r.received - r.sideouts + r.served - r.breaks },
+          { h: '+/−', cell: (r) => { const v = r.sideouts + r.breaks - (r.received - r.sideouts + r.served - r.breaks); return { text: v > 0 ? `+${v}` : String(v), tone: judge.plusMinus(v) }; } },
+        ]} />
+      {st.servers.length > 0 && (
+        <StatFigure title="Serve turns (match sheet)" subtitle="Per server: service turns, points served and points won while serving (break points)"
+          rows={st.servers} rowKey={(r) => r.number}
+          first={{ h: 'Server', cell: (r) => who(r.number) }}
+          columns={[
+            { h: 'Turns', cell: (r) => r.turns },
+            { h: 'Served', cell: (r) => r.points },
+            { h: 'Won', cell: (r) => r.won },
+            { h: 'Per turn', title: 'Points won per service turn', cell: (r) => (r.turns ? (r.won / r.turns).toFixed(1) : '–') },
+            { h: 'Break %', cell: (r) => { const v = ratio(r.won, r.points); return { text: pct(v), tone: sample(judge.break(v), r.points) }; } },
+          ]} />
+      )}
+    </>
   );
 }

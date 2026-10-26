@@ -9,7 +9,12 @@ const SYSTEM = `You read official FIVB-style volleyball match sheets (in any lan
 Layout you will see:
 - Two teams, A (top-left, "A") and B. Their names are written at the top next to "Mannschaften/Equipes/Squadra".
 - Header: league ("Liga/Ligue", e.g. "3.L"), match number ("Spiel Nr / Match No"), venue ("Halle/Salle"), date ("Datum/Date"), start time ("Zeit/Heure").
-- Per-set score grids (the big "SATZ/SET 1..5" blocks) are hard to read point by point. DO NOT try to transcribe them.
+- Per-set blocks ("SATZ/SET 1..5"): each has two team halves (left and right; the team letter A or B and its name are in each half's header, and it can change per set). Each half has six columns I II III IV V VI:
+  * row "Startaufstellung / Formation initiale": the starting jersey numbers, one per column (position I..VI);
+  * rows "Spielerauswechslung / Remplacement": a substitute's jersey number entering in that column, and below it ("Spielstand / Résultat") the score at that moment written as own:opponent (e.g. 4:9);
+  * rows "Aufschlagrunde / Tours au service" 1..8: the team's own score when it lost the serve, for each service turn of the player in that column. Write each cell as its number, "X" for a crossed-out cell, or null when empty. A circled number is the set's last score: give it as the number.
+  * "T" boxes: time-outs as own:opponent scores.
+  Read these grids into "flow" (one entry per set played). Copy only what is written; do not compute anything.
 - Final result ("Endresultat / Résultat final / Risultato finale", bottom-right): one row per set with each team's final points, and the sets won ("Gewinner/Vainqueur"). Read the per-set final points and the sets won from here.
 - Team rosters (right side, "Mannschaften"): license no, jersey number and surname/first name per player. The captain is marked "C" (or a circled/underlined number), liberos are listed in a separate "LIBERO (L)" box.
 
@@ -17,6 +22,7 @@ Rules:
 - Only report what you can read with confidence. Use null (or omit list items) for anything illegible; never guess a score or a name.
 - Jersey numbers are integers. Names: keep what is written (e.g. "R. Maier", "S.Kulterer").
 - sets: one object per set actually played, in order, with each team's final points (e.g. 25 and 22).
+- flow: per set, firstServe is the team whose first service cell (row 1, column I) has a score, not an X (the team receiving first has an X there). rounds = the service-round rows top to bottom, each with six cells for columns I..VI.
 - Set the overall confidence to "low" for messy handwriting you are unsure about.`;
 
 const SCHEMA = {
@@ -50,10 +56,43 @@ const SCHEMA = {
       properties: { A: { $ref: '#/$defs/roster' }, B: { $ref: '#/$defs/roster' } },
       required: ['A', 'B'],
     },
+    flow: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          set: { type: 'integer' },
+          firstServe: { type: ['string', 'null'], enum: ['A', 'B', null] },
+          A: { $ref: '#/$defs/half' },
+          B: { $ref: '#/$defs/half' },
+        },
+        required: ['set', 'firstServe', 'A', 'B'],
+      },
+    },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
   required: ['teams', 'date', 'league', 'matchNo', 'winner', 'setsWon', 'sets', 'rosters', 'confidence'],
   $defs: {
+    half: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        start: { type: 'array', items: { type: ['integer', 'null'] }, description: 'starting jersey numbers, columns I..VI' },
+        subs: {
+          type: 'array',
+          items: {
+            type: 'object', additionalProperties: false,
+            properties: { col: { type: 'integer', description: '1..6 = column I..VI' }, in: { type: ['integer', 'null'] }, own: { type: ['integer', 'null'] }, opp: { type: ['integer', 'null'] } },
+            required: ['col', 'in', 'own', 'opp'],
+          },
+        },
+        rounds: { type: 'array', items: { type: 'array', items: { type: ['integer', 'string', 'null'] } }, description: 'service-round rows, six cells each: number, "X" or null' },
+        timeouts: {
+          type: 'array',
+          items: { type: 'object', additionalProperties: false, properties: { own: { type: ['integer', 'null'] }, opp: { type: ['integer', 'null'] } }, required: ['own', 'opp'] },
+        },
+      },
+      required: ['start', 'subs', 'rounds', 'timeouts'],
+    },
     roster: {
       type: 'array',
       items: {
@@ -74,7 +113,7 @@ const SCHEMA = {
 const OK_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 // Shape reminder for OpenAI-compatible backends (LiteLLM) that take no JSON schema.
-const JSON_HINT = 'Return ONLY a JSON object with keys: teams{A,B}, date, time, venue, league, matchNo, winner ("A"|"B"|null), setsWon{A,B}, sets (array of {a,b}), rosters{A:[{number,name,role,captain,libero}], B:[...]}, confidence ("high"|"medium"|"low"). Use null for anything unreadable.';
+const JSON_HINT = 'Return ONLY a JSON object with keys: teams{A,B}, date, time, venue, league, matchNo, winner ("A"|"B"|null), setsWon{A,B}, sets (array of {a,b}), rosters{A:[{number,name,role,captain,libero}], B:[...]}, flow (array per set of {set, firstServe:"A"|"B"|null, A:{start:[6 numbers], subs:[{col,in,own,opp}], rounds:[[6 cells: number, "X" or null], ...], timeouts:[{own,opp}]}, B:{same}}), confidence ("high"|"medium"|"low"). Use null for anything unreadable.';
 
 /**
  * Build a scanner. [scan] is injectable so tests don't call the real API.
@@ -94,7 +133,7 @@ export function makeVisionScanner(env = {}, scan = null) {
         system: SYSTEM,
         text: 'Read this match sheet and return the summary fields. If several photos are given, they are pages of the same match.',
         images,
-        maxTokens: 4000,
+        maxTokens: 8000,
         schema: SCHEMA,
         jsonHint: JSON_HINT,
       });

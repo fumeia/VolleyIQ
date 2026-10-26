@@ -113,6 +113,10 @@ const MIGRATIONS = [
   `
   ALTER TABLE teams ADD COLUMN show_tips INTEGER NOT NULL DEFAULT 0;
   `,
+  // v11: the match flow read off the official match sheet (JSON, see sheet.js)
+  `
+  ALTER TABLE matches ADD COLUMN sheet TEXT;
+  `,
 ];
 
 function migrate(db) {

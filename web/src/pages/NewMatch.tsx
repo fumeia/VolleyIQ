@@ -4,6 +4,7 @@ import { parseYouTubeId } from '../components/VideoPlayer';
 import { api, isApp, type Team } from '../lib/api';
 import { describeLink } from '../lib/native';
 import { MatchSheetScan } from '../components/MatchSheetScan';
+import { lineupsFromSheet, type MatchSheetFlow } from '../lib/sheetFlow';
 
 export function NewMatch() {
   const [params] = useSearchParams();
@@ -16,6 +17,7 @@ export function NewMatch() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [yt, setYt] = useState('');
   const [error, setError] = useState('');
+  const [sheet, setSheet] = useState<{ flow: MatchSheetFlow; liberoNo: number | null } | null>(null);
 
   useEffect(() => {
     api.teams().then((t) => {
@@ -41,6 +43,12 @@ export function NewMatch() {
       video_type: ytId ? 'youtube' : null,
       video_ref: ytId,
     });
+    // The match flow from the scanned sheet, and the starting six per set as line-ups.
+    if (sheet) {
+      const players = teamId === '' ? [] : (await api.team(teamId)).players;
+      const lineups = lineupsFromSheet(sheet.flow, players, sheet.liberoNo);
+      await api.updateMatch(m.id, { sheet: sheet.flow, ...(Object.keys(lineups).length ? { lineups } : {}) }).catch(() => {});
+    }
     // Non-YouTube links (WeTransfer, Drive, …) and, in the app, YouTube too are downloaded to the phone on the next screen.
     if (link && (isApp() || !ytId)) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
     nav(`/m/${m.id}`);
@@ -54,8 +62,9 @@ export function NewMatch() {
         <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>⏱ Live</button>
       </div>
       <MatchSheetScan
-        onPick={({ opponent: op, date: d, label: lb }) => {
+        onPick={({ opponent: op, date: d, label: lb, flow, liberoNo }) => {
           setOpponent(op);
+          setSheet(flow ? { flow, liberoNo } : null);
           if (d) setDate(d);
           if (lb) setLabel(lb);
         }}

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
 import { MAX_TOUCHES } from './touches.js';
+import { cleanSheet } from './sheet.js';
 import { cleanImages } from './vision.js';
 
 function bad(reply, msg, code = 400) {
@@ -87,7 +88,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   const coach = { onRequest: requireCoach };
 
   function withCalibration(m) {
-    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null };
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null };
   }
 
   function matchBundle(match) {
@@ -232,8 +233,14 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
           ...(v.subs?.length ? { subs: v.subs.map((x) => ({ t: x.t, out: x.out, in: x.in })) } : {}),
         }])));
     }
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, m.id);
+    let sheet = m.sheet;
+    if ('sheet' in b) {
+      const clean = b.sheet === null ? null : cleanSheet(b.sheet);
+      if (b.sheet !== null && !clean) return bad(reply, 'sheet: { ourTeam: "A" | "B", sets, flow }');
+      sheet = clean && JSON.stringify(clean);
+    }
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, m.id);
     return withCalibration(q.match.get(m.id));
   });
 
@@ -269,7 +276,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.get('/api/share/team/:token', async (req, reply) => {
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const matches = db.prepare('SELECT id, label, opponent, played_on FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);

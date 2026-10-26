@@ -52,7 +52,7 @@ export function PrintReport({ title, subtitle, players, events, matches, onClose
           <small>VolleyIQ · {new Date().toISOString().slice(0, 10)}</small>
         </header>
         {on('overview') && <PrintPart title="Overview"><OverviewSection players={players} events={confirmed} matches={matches} /></PrintPart>}
-        {on('rotations') && <PrintPart title="Rotations"><RotationsSection players={players} events={confirmed} /></PrintPart>}
+        {on('rotations') && <PrintPart title="Rotations"><RotationsSection players={players} events={confirmed} matches={matches} /></PrintPart>}
         {on('attack') && <PrintPart title="Attack"><AttackSection players={players} events={confirmed} /></PrintPart>}
         {on('servepass') && <PrintPart title="Serve & pass"><ServePassSection players={players} events={confirmed} /></PrintPart>}
         {on('setting') && <PrintPart title="Setting"><SettingSection players={players} events={confirmed} /></PrintPart>}

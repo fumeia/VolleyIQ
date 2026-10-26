@@ -201,3 +201,16 @@ test('clear unreviewed suggestions keeps confirmed touches', async () => {
   assert.deepEqual(left.map((e) => [e.action, e.status]), [['serve', 'confirmed']]);
   await app.close();
 });
+
+test('match sheet flow is stored cleaned with the match', async () => {
+  const app = await setup();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  const sheet = { ourTeam: 'A', sets: [{ a: 25, b: 20 }], flow: [{ set: 1, firstServe: 'A', A: { start: [9, 42, 12, 7, 2, 5], subs: [{ col: 5, in: 8, own: 4, opp: 9 }], rounds: [[0, 1, 2, 'x', 'junk', 99]], timeouts: [] }, B: { start: [], subs: [], rounds: [], timeouts: [] }, evil: '<script>' }] };
+  const r = await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { sheet } });
+  assert.equal(r.statusCode, 200);
+  const got = r.json().sheet;
+  assert.deepEqual(got.flow[0].A.rounds[0], [0, 1, 2, 'X', null, null]);
+  assert.equal(got.flow[0].evil, undefined);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { sheet: { ourTeam: 'C' } } })).statusCode, 400);
+  await app.close();
+});

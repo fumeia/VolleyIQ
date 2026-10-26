@@ -14,8 +14,10 @@ import { VideoClock } from '../components/VideoClock';
 import { actionLabel, scoreOf } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
+import { MatchSheetScan } from '../components/MatchSheetScan';
+import { lineupsFromSheet } from '../lib/sheetFlow';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
-import { api, ApiError, type Match, type MatchBundle, type VEvent } from '../lib/api';
+import { api, ApiError, type Match, type MatchBundle, type Player, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
@@ -395,6 +397,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 <button className="btn-ghost small" onClick={() => { setReel(null); player.current?.pause(); }}>Stop</button>
               </div>
             )}
+            {tab === 'events' && <SheetBox match={match} players={players} onSaved={setMatch} />}
             {tab === 'events' && (
               <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} onSetMany={moveEventsToSet} filterable
                 onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
@@ -557,6 +560,39 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The official match sheet for a match already being tagged: its match flow (points
+ * per rotation, serve turns) is kept with the match, and its starting six fill in
+ * line-ups for sets that have none yet.
+ */
+function SheetBox({ match, players, onSaved }: { match: Match; players: Player[]; onSaved: (m: Match) => void }) {
+  const [open, setOpen] = useState(false);
+  const flow = match.sheet;
+  if (!open) {
+    return (
+      <button className="btn-ghost small" onClick={() => setOpen(true)}>
+        📸 Match sheet{flow ? `: flow of ${flow.flow.length} set${flow.flow.length === 1 ? '' : 's'} kept` : ' (read the match flow)'}
+      </button>
+    );
+  }
+  return (
+    <div className="card">
+      <div className="row between"><b>Match sheet</b><button className="btn-ghost small" onClick={() => setOpen(false)}>Close</button></div>
+      {flow && (
+        <p className="small muted">
+          Kept: {flow.flow.length} set{flow.flow.length === 1 ? '' : 's'} (we are team {flow.ourTeam}).{' '}
+          <button className="link" onClick={async () => onSaved(await api.updateMatch(match.id, { sheet: null }))}>Remove</button>
+        </p>
+      )}
+      <MatchSheetScan onTeamCreated={() => {}} onAttach={async (f, liberoNo) => {
+        const lineups = { ...lineupsFromSheet(f, players, liberoNo), ...(match.lineups ?? {}) };
+        onSaved(await api.updateMatch(match.id, { sheet: f, ...(Object.keys(lineups).length ? { lineups } : {}) }));
+        setOpen(false);
+      }} />
     </div>
   );
 }

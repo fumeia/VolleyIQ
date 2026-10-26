@@ -1,6 +1,7 @@
 import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
+import type { MatchSheetFlow, SheetSet } from './sheetFlow';
 
 export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -8,7 +9,7 @@ export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
-  calibration?: Calibration | null; lineups?: Lineups | null; created_at?: string; event_count?: number; suggested_count?: number;
+  calibration?: Calibration | null; lineups?: Lineups | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
 }
@@ -33,6 +34,8 @@ export interface MatchSheet {
   winner: 'A' | 'B' | null; setsWon: { A: number; B: number } | null;
   sets: { a: number; b: number }[];
   rosters: { A: SheetPlayer[]; B: SheetPlayer[] };
+  /** Per set: starting six, substitutions, service rounds and time-outs of both teams. */
+  flow?: SheetSet[];
   confidence: 'high' | 'medium' | 'low';
 }
 
