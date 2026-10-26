@@ -623,9 +623,10 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   const removedCount = r.events.filter((e) => removed.has(e.id)).length;
 
   const jersey = (p: Player) => (
-    <button key={p.id} className={`jersey-mini role-${p.role} ${sv?.player_id === p.id ? 'is-selected' : ''} ${eligible && !eligible.has(p.id) ? 'dim' : ''}`}
+    <button key={p.id} className={`jersey role-${p.role} ${sv?.player_id === p.id ? 'is-selected' : ''} ${eligible && !eligible.has(p.id) ? 'dim' : ''}`}
       onClick={() => { if (!selected) return; patch(selected, { player_id: p.id, jersey: p.number }); setStep('action'); }}>
-      {p.number ?? '–'}<small>{p.name.split(' ')[0]}</small>
+      <span className="jersey-num">{p.number ?? '–'}</span>
+      <span className="jersey-name">{p.name.split(' ')[0]}</span>
     </button>
   );
 

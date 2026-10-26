@@ -88,7 +88,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
     );
   } else if (tab === 'players') {
     body = (
-      <div className="player-grid">
+      <div className="player-list">
         {active.map(({ p, n }) => (
           <Link key={p.id} to={`${base}/p/${p.id}`} className="card player-link">
             <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
