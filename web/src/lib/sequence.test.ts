@@ -91,3 +91,18 @@ describe('momentum', () => {
     expect(runs[0]).toMatchObject({ side: 'them', length: 4, from: { us: 1, them: 0 }, to: { us: 1, them: 4 } });
   });
 });
+
+describe('how the opponent scored', () => {
+  it('reads the kind from the ending tag', async () => {
+    const { theirPoint, theirPointSpot } = await import('./sequence');
+    expect(theirPoint(ev('dig_error'))).toBe('attack');
+    expect(theirPoint(ev('receive', { value: 0 }))).toBe('ace');
+    expect(theirPoint(ev('attack_blocked'))).toBe('block');
+    expect(theirPoint(ev('serve_error'))).toBe('unforced');
+    expect(theirPoint(ev('opp_point', { player_id: null, value: 1 }))).toBe('attack');
+    expect(theirPoint(ev('opp_point', { player_id: null, value: 3 }))).toBe('ace');
+    expect(theirPoint(ev('opp_point', { player_id: null }))).toBe('unknown');
+    expect(theirPointSpot(ev('dig_error', { fx: 2, fy: 3 }))).toEqual({ x: 2, y: 3 });
+    expect(theirPointSpot(ev('opp_point', { player_id: null, x: 5, y: 1 }))).toEqual({ x: 5, y: 1 });
+  });
+});

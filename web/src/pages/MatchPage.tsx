@@ -13,6 +13,8 @@ import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
 import { actionLabel, scoreOf } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
+import { zoneOf } from '../lib/court';
+import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
 import { api, ApiError, type Match, type MatchBundle, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
@@ -209,13 +211,37 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const lastSetTag = setTags[setTags.length - 1] ?? null;
   const acedJustNow = !lastTag && lastSetTag?.action === 'receive' && lastSetTag.value === 0;
 
-  function settle(won: boolean) {
+  const [theyOpen, setTheyOpen] = useState(false);
+  const lostError = (() => {
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, false);
+    return o.change && lastTag ? `${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}${playerLabel(players, lastTag) ? ` by ${playerLabel(players, lastTag)}` : ''}` : null;
+  })();
+
+  /** "They won", told how: our error (the last tag), or their attack / ace / block with where it landed. */
+  function theyScored(r: TheyScoredResult) {
+    setTheyOpen(false);
+    const t = getTime();
+    const time = t == null ? null : t;
+    if (r.kind === 'error') return settle(false, true);
+    if (r.kind === 'block' && lastTag && (lastTag.action === 'attack' || lastTag.action === 'kill')) {
+      const before = { action: lastTag.action };
+      update(lastTag, { action: 'attack_blocked' });
+      return flash(`Lost: ${actionLabel({ action: 'attack_blocked', value: null })}`, () => update(lastTag, before));
+    }
+    const spot = r.at ? { fx: r.at.x, fy: r.at.y, zone: zoneOf(r.at) } : {};
+    if (r.playerId != null && r.kind === 'attack') return commit({ action: 'dig_error', player_id: r.playerId, t: time, ...spot });
+    if (r.playerId != null && r.kind === 'ace') return commit({ action: 'receive', value: 0, player_id: r.playerId, t: time, ...spot });
+    commit({ action: 'opp_point', value: OPP_POINT_VALUE[r.kind] ?? null, t: time, ...(r.at ? { x: r.at.x, y: r.at.y } : {}) });
+  }
+
+  function settle(won: boolean, asError = false) {
     if (acedJustNow && lastSetTag) {
       if (!won) return flash('Already counted: reception error (0 pass)');
       // We won after all: it was not an ace, so the pass was at least playable.
       update(lastSetTag, { value: 1 });
       return flash('Pass changed to 1 (we won the rally)', () => update(lastSetTag, { value: 0 }));
     }
+    if (!won && !asError) { player.current?.pause(); return setTheyOpen(true); }
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
     if (o.change && lastTag) {
       const before = { action: lastTag.action, value: lastTag.value };
@@ -228,6 +254,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }
   const outcomeLabel = (won: boolean) => {
     if (acedJustNow) return won ? 'pass → 1' : 'already counted';
+    if (!won) return 'how?';
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
     return o.add ? (o.add === 'opp_error' ? 'their error' : 'their point') : actionLabel({ action: o.change!.action, value: o.change!.value ?? null });
   };
@@ -240,7 +267,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       pause={() => player.current?.pause()}
       play={() => player.current?.play()}
       isPlaying={() => !!player.current?.isPlaying()}
-      onCommit={commit}
+      // "+1 Opp. point" asks how they scored, like "They won".
+      onCommit={(e) => (e.action === 'opp_point' && e.value == null ? (player.current?.pause(), setTheyOpen(true)) : commit(e))}
       onCourt={onCourt}
       server={server}
       lastAction={lastTag?.action ?? null}
@@ -338,6 +366,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   </div>
                 )}
                 {pad}
+                {theyOpen && (
+                  <TheyScored errorLabel={lostError} players={players} onCourt={onCourt}
+                    flip={!!match.calibration && ourHalfAt(match.calibration, getTime() ?? 0) === 'far'}
+                    onDone={theyScored} onCancel={() => setTheyOpen(false)} />
+                )}
                 <div className="outcome-bar">
                   <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
                   <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
