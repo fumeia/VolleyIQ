@@ -11,11 +11,14 @@ import { registerRoutes } from './routes.js';
 import { makeVisionScanner } from './vision.js';
 import { makeInsighter } from './insights.js';
 import { makeTouchChecker } from './touches.js';
+import { makeUpdates } from './updates.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // The server only stores tags and serves the web app. Videos stay on the phone
 // (or on YouTube) and analysis runs in the Android app, so this stays tiny.
+const VERSION = JSON.parse(fs.readFileSync(path.join(here, '../package.json'), 'utf8')).version;
+
 export async function buildApp(env = process.env, opts = {}) {
   const dataDir = path.resolve(env.DATA_DIR ?? path.join(here, '../../data'));
   const webDist = path.resolve(env.WEB_DIST ?? path.join(here, '../../web/dist'));
@@ -40,9 +43,10 @@ export async function buildApp(env = process.env, opts = {}) {
     insights: opts.insights ?? makeInsighter(env),
     touches: opts.touches ?? makeTouchChecker(env),
     aiDailyLimit: Number(env.AI_DAILY_LIMIT) || 400,
+    updates: opts.updates ?? makeUpdates(env),
   });
 
-  app.get('/api/health', async () => ({ ok: true }));
+  app.get('/api/health', async () => ({ ok: true, version: VERSION }));
 
   // SPA fallback: unknown non-API paths render the app shell.
   app.setNotFoundHandler((req, reply) => {

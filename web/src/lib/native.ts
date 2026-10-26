@@ -34,6 +34,10 @@ interface VolleyIQPlugin {
   requestNotifications(): Promise<{ granted: boolean }>;
   /** Android's print dialog for the page as it is now (offers Save as PDF). */
   print(o: { name: string }): Promise<void>;
+  appInfo(): Promise<{ version: string; build: number; android: string; device: string; canInstall: boolean }>;
+  /** Downloads the APK at [url] (with the login token) and opens Android's installer. */
+  installUpdate(o: { url: string; token: string | null }): Promise<void>;
+  addListener(event: 'updateProgress', cb: (p: { done: number; total: number }) => void): Promise<{ remove: () => void }>;
 }
 
 export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');

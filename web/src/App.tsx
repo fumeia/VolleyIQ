@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './lib/api';
+import { AboutPage } from './pages/About';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { MatchPage } from './pages/MatchPage';
@@ -15,6 +16,7 @@ const NAV = [
   { to: '/teams', label: 'Teams', icon: '👥' },
   { to: '/new', label: 'Tag', icon: '＋' },
   { to: '/reports', label: 'Stats', icon: '📊' },
+  { to: '/about', label: 'About', icon: 'ⓘ' },
 ];
 
 export function App() {
@@ -65,6 +67,7 @@ export function App() {
           <Route path="/new" element={<NewMatch />} />
           <Route path="/m/:id" element={<MatchPage />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<p className="muted">Page not found.</p>} />
         </Routes>
       </main>

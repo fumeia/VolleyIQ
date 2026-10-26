@@ -10,6 +10,8 @@ import android.os.Build
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.provider.OpenableColumns
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import androidx.activity.result.ActivityResult
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -33,6 +35,8 @@ import com.volleyiq.app.work.AnalysisWorker
 import com.volleyiq.app.work.ImportWorker
 import com.volleyiq.app.work.UploadWorker
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -235,6 +239,77 @@ class VolleyIQPlugin : Plugin() {
             }
         }.getOrDefault(0L)
         return JSObject().put("uri", uri.toString()).put("name", name).put("size", size).put("durationMs", duration)
+    }
+
+    /** The installed app: version name (e.g. 1.0.1 or 1.0.1-dev.86), build number, device. */
+    @PluginMethod
+    fun appInfo(call: PluginCall) {
+        val pm = context.packageManager
+        val info = pm.getPackageInfo(context.packageName, 0)
+        call.resolve(JSObject().apply {
+            put("version", info.versionName ?: "?")
+            put("build", if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong())
+            put("android", Build.VERSION.RELEASE)
+            put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+            put("canInstall", if (Build.VERSION.SDK_INT >= 26) pm.canRequestPackageInstalls() else true)
+        })
+    }
+
+    /**
+     * Downloads a newer APK from the server ([url], with the login [token]) and opens
+     * Android's installer for it. Progress goes out as "updateProgress" events. Without
+     * the "install unknown apps" permission it opens that setting instead.
+     */
+    @PluginMethod
+    fun installUpdate(call: PluginCall) {
+        val url = call.getString("url") ?: return call.reject("url required")
+        val token = call.getString("token")
+        if (Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
+            activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")))
+            return call.reject("Allow VolleyIQ to install apps, then tap Update again", "NEEDS_PERMISSION")
+        }
+        Thread {
+            try {
+                val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
+                val file = File(dir, "VolleyIQ-update.apk")
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15_000
+                    readTimeout = 60_000
+                    if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
+                }
+                if (conn.responseCode != 200) throw IllegalStateException("Server answered ${conn.responseCode}")
+                val total = conn.contentLengthLong
+                var done = 0L
+                var lastPct = -1
+                conn.inputStream.use { input ->
+                    file.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            val pct = if (total > 0) (done * 100 / total).toInt() else -1
+                            if (pct != lastPct) {
+                                lastPct = pct
+                                notifyListeners("updateProgress", JSObject().apply { put("done", done); put("total", total) })
+                            }
+                        }
+                    }
+                }
+                if (total > 0 && done != total) throw IllegalStateException("Download incomplete, try again")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val install = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.runOnUiThread { activity.startActivity(install) }
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject(e.message ?: "Download failed")
+            }
+        }.start()
     }
 
     private fun parse(s: String): Uri = if (s.startsWith("/")) Uri.fromFile(File(s)) else Uri.parse(s)

@@ -40,7 +40,7 @@ export function OverviewSection({ players, events, matches }: { players: Player[
         <Kpi label="Pass avg" value={avg2(team.recAvg)} sub={`${team.receptions} passes`} tone={team.receptions >= 5 ? judge.passAvg(team.recAvg) : null} />
         <Kpi label="Serve eff." value={eff3(eff(sv))} sub={`${plural(sv.points, 'ace')} · ${plural(sv.errors, 'error')}`} tone={sv.n >= 6 ? judge.eff(eff(sv)) : null} />
         <Kpi label="Transition" value={pct(tc.killPct)} sub={`kills from ${tc.n} digs`} tone={tc.n >= 8 ? judge.conversion(tc.killPct) : null} />
-        <Kpi label="+/−" value={team.plusMinus > 0 ? `+${team.plusMinus}` : String(team.plusMinus)} sub={`${team.points} won · ${team.errors} given`} tone={judge.plusMinus(team.plusMinus)} />
+        <Kpi label="+/−" value={team.plusMinus > 0 ? `+${team.plusMinus}` : String(team.plusMinus)} sub={`${team.points} points · ${team.errors} errors`} tone={judge.plusMinus(team.plusMinus)} />
       </div>
 
       {(good.length > 0 || bad.length > 0) && (

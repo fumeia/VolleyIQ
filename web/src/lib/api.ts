@@ -25,6 +25,8 @@ export interface VEvent {
 /** The AI check's answer for one touch (i = its place in the request, from 1). */
 export interface AiTouch { i: number; contact: 'yes' | 'no' | 'unsure'; team: 'ours' | 'theirs' | 'unsure'; action: string; jersey: number | null; confidence: number }
 /** A saved state of a match's tagging; auto = saved by the app before a restore. */
+/** The newest app of a release channel, as the server found it on GitHub. */
+export interface AppRelease { version: string; name: string | null; notes: string; published: string | null; size: number; assetId: number }
 export interface MatchVersion { id: number; label: string; auto: number; event_count: number; created_at: string }
 export interface MatchBundle { match: Match; players: Player[]; events: VEvent[] }
 
@@ -66,6 +68,8 @@ export const serverBase = () => (isApp() ? (store(SERVER_KEY) ?? '').replace(/\/
 export const setServerBase = (url: string) => store(SERVER_KEY, url.trim().replace(/\/+$/, ''));
 export const publicBase = () => serverBase() || location.origin;
 const token = () => store(TOKEN_KEY);
+/** The app's login token, for native downloads from the server (the in-app update). */
+export const authToken = () => token();
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -143,6 +147,9 @@ export const api = {
   scanMatchsheet: (images: { media_type: string; data: string }[]) =>
     req<{ data: MatchSheet }>('POST', '/api/matchsheet/scan', { images }),
   insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
+  health: () => req<{ ok: boolean; version?: string }>('GET', '/api/health'),
+  about: () => req<{ ai: { scan: boolean; summary: boolean; touches: boolean; model: string | null }; updates: { configured: boolean; repo: string | null } }>('GET', '/api/about'),
+  appUpdate: (channel: 'stable' | 'test') => req<{ configured: boolean; channel?: string; latest: AppRelease | null }>('GET', `/api/app/update?channel=${channel}`),
   touchCheckEnabled: () => req<{ enabled: boolean; model: string | null }>('GET', '/api/ai/touches/enabled'),
   touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[] }) =>
     req<{ touches: AiTouch[] }>('POST', '/api/ai/touches', body),

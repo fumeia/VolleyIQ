@@ -23,7 +23,7 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 export function PlayerTiles({ player: p, s }: { player: Player; s: StatLine }) {
   return (
     <div className="pc-tiles">
-      <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} won · ${s.errors} lost`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />
+      <Tile label="+/−" value={s.plusMinus > 0 ? `+${s.plusMinus}` : String(s.plusMinus)} sub={`${s.points} points · ${s.errors} errors`} tone={p.role === 'L' ? null : judge.plusMinus(s.plusMinus)} />
       {s.attempts > 0 && <Tile label="Attack eff" value={eff3(s.attackEff)} sub={`${s.kills}-${s.attackErrors}/${s.attempts}`} tone={sample(judge.eff(s.attackEff), s.attempts, 3)} />}
       {s.receptions > 0 && <Tile label="Pass avg" value={avg2(s.recAvg)} sub={`${s.receptions} passes`} tone={sample(judge.passAvg(s.recAvg), s.receptions)} />}
       {s.serves > 0 && <Tile label="Serve err" value={pct(s.serveErrors / s.serves)} sub={`${s.serveErrors} of ${s.serves}${s.aces ? ` · ${plural(s.aces, 'ace')}` : ''}`} tone={sample(judge.serveErrPct(s.serveErrors / s.serves), s.serves)} />}

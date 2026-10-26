@@ -62,7 +62,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400 }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -521,5 +521,36 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.delete('/api/matches/:id/versions/:vid', coach, async (req) => {
     db.prepare('DELETE FROM match_versions WHERE id = ? AND match_id = ?').run(req.params.vid, req.params.id);
     return listVersions(Number(req.params.id));
+  });
+
+  // ---------- app updates (GitHub releases, through the server) ----------
+  // What the About page shows about this server, and the newest app of a channel.
+  app.get('/api/about', coach, async () => ({
+    ai: { scan: !!vision?.enabled, summary: !!insights?.enabled, touches: !!touches?.enabled, model: touches?.model ?? null },
+    updates: { configured: !!updates?.configured, repo: updates?.repo ?? null },
+  }));
+
+  app.get('/api/app/update', coach, async (req, reply) => {
+    if (!updates?.configured) return { configured: false, latest: null };
+    const channel = req.query?.channel === 'test' ? 'test' : 'stable';
+    try {
+      return { configured: true, channel, latest: await updates.latest(channel) };
+    } catch (e) {
+      return bad(reply, `Could not ask GitHub for updates: ${String(e?.message ?? e).slice(0, 200)}`, 502);
+    }
+  });
+
+  app.get('/api/app/apk/:asset', coach, async (req, reply) => {
+    if (!updates?.configured) return bad(reply, 'Updates are not set up on this server (UPDATE_REPO)', 503);
+    if (!/^\d{1,12}$/.test(req.params.asset)) return bad(reply, 'Unknown file');
+    try {
+      const { stream, size } = await updates.download(req.params.asset);
+      reply.header('Content-Type', 'application/vnd.android.package-archive');
+      reply.header('Content-Disposition', 'attachment; filename="VolleyIQ.apk"');
+      if (size) reply.header('Content-Length', String(size));
+      return reply.send(stream);
+    } catch (e) {
+      return bad(reply, `Download failed: ${String(e?.message ?? e).slice(0, 200)}`, 502);
+    }
   });
 }

@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildApp } from '../src/index.js';
 
-async function setup(extra = {}) {
+async function setup(extra = {}, opts = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-'));
-  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none'), ...extra });
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none'), ...extra }, opts);
   return app;
 }
 
@@ -232,5 +232,30 @@ test('saved versions: restore brings the tags back and keeps the state before it
   assert.equal(back.versions[0].label, 'Before restoring "Original"');
   assert.equal(back.versions[0].event_count, 2);
   assert.equal(back.versions[0].auto, 1);
+  await app.close();
+});
+
+test('app updates: newest stable and test APK from the GitHub releases, streamed through', async () => {
+  const { makeUpdates } = await import('../src/updates.js');
+  const calls = [];
+  const fakeFetch = async (url, opts) => {
+    calls.push({ url, auth: opts.headers.Authorization });
+    if (url.endsWith('/releases/latest')) return { ok: true, status: 200, json: async () => ({ tag_name: 'v1.2.0', name: 'VolleyIQ v1.2.0', body: 'notes', published_at: 'x', assets: [{ id: 5, name: 'VolleyIQ-1.2.0.apk', size: 9 }, { id: 6, name: 'VolleyIQ.apk', size: 9 }] }) };
+    if (url.endsWith('/tags/android-latest')) return { ok: true, status: 200, json: async () => ({ tag_name: 'android-latest', assets: [{ id: 7, name: 'VolleyIQ-1.2.1-dev.90.apk', size: 9 }, { id: 8, name: 'VolleyIQ-1.2.1-dev.91.apk', size: 9 }, { id: 9, name: 'VolleyIQ.apk', size: 9 }] }) };
+    if (url.endsWith('/assets/6')) return { ok: true, status: 200, headers: new Headers({ 'content-length': '3' }), body: new Blob(['apk']).stream() };
+    return { ok: false, status: 404 };
+  };
+  const updates = makeUpdates({ UPDATE_REPO: 'me/repo', UPDATE_GITHUB_TOKEN: 't' }, fakeFetch);
+  const app = await setup({}, { updates });
+  assert.equal((await app.inject({ url: '/api/health' })).json().version, '1.0.0');
+  const stable = (await app.inject({ url: '/api/app/update' })).json();
+  assert.deepEqual([stable.latest.version, stable.latest.assetId], ['1.2.0', 6]);
+  const test = (await app.inject({ url: '/api/app/update?channel=test' })).json();
+  assert.deepEqual([test.latest.version, test.latest.assetId], ['1.2.1-dev.91', 8]);
+  const apk = await app.inject({ url: '/api/app/apk/6' });
+  assert.equal(apk.statusCode, 200);
+  assert.equal(apk.body, 'apk');
+  assert.equal(calls[0].auth, 'Bearer t');
+  assert.equal((await app.inject({ url: '/api/app/apk/abc' })).statusCode, 400);
   await app.close();
 });

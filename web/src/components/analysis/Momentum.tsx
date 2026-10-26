@@ -1,12 +1,12 @@
 import { actionLabel } from '../../lib/actions';
 import type { Player, VEvent } from '../../lib/api';
-import { buildRallies, isClutch, phaseScoring, SERVES, scoringRuns, withScore, type Rally } from '../../lib/sequence';
+import { buildRallies, isClutch, phaseScoring, SERVES, scoringRuns, theirPoint, withScore, type Rally } from '../../lib/sequence';
 import { scoreBySet, teamLine } from '../../lib/stats';
 import { errorPct, tally } from '../../lib/trajectory';
-import { ERROR_TYPES } from './ErrorsSection';
 import { avg2, eff3, judge, pct, PlayBtn, plural, ratio, StatFigure } from './ui';
 
-const isError = (e: VEvent) => ERROR_TYPES.some((t) => t.test(e));
+/** A lost rally we gave away ourselves (serve, attack out / net, set error), not one they won with an attack, block or ace. */
+const givenAway = (r: Rally) => r.won === false && !!r.end && theirPoint(r.end) === 'unforced';
 
 /** What ended a rally, in words: "Serve error #5", "their winner", "Kill #9". */
 function cause(r: Rally, players: Player[]) {
@@ -39,7 +39,8 @@ export function SetsTable({ events }: { events: VEvent[] }) {
         { h: 'Att. eff', cell: (r) => { const t = teamLine(r.evs); return { text: eff3(t.attackEff), tone: t.attempts >= 5 ? judge.eff(t.attackEff) : null }; } },
         { h: 'Pass', cell: (r) => { const t = teamLine(r.evs); return { text: avg2(t.recAvg), tone: t.receptions >= 5 ? judge.passAvg(t.recAvg) : null }; } },
         { h: 'Srv err', cell: (r) => { const t = tally(r.evs.filter((e) => SERVES.includes(e.action))); return { text: pct(errorPct(t)), tone: t.n >= 5 ? judge.serveErrPct(errorPct(t)) : null }; } },
-        { h: 'Errors', cell: (r) => r.evs.filter(isError).length },
+        { h: 'Given away', title: 'Their points from our own errors: serve, attack out / net, set errors', cell: (r) => buildRallies(r.evs).filter(givenAway).length },
+        { h: 'They earned', title: 'Their points from their attack, block or ace (incl. digs and passes of ours that could not keep it up)', cell: (r) => buildRallies(r.evs).filter((x) => x.won === false && !givenAway(x)).length },
       ]} />
   );
 }
@@ -54,7 +55,7 @@ export function MomentumBlock({ players, rallies }: { players: Player[]; rallies
   const rest = scored.filter((x) => !isClutch(x.before, x.rally.set));
   const sideout = (xs: typeof scored) => { const r = xs.filter((x) => x.rally.weServed === false); return { won: r.filter((x) => x.rally.won).length, n: r.length }; };
   const breakp = (xs: typeof scored) => { const r = xs.filter((x) => x.rally.weServed === true); return { won: r.filter((x) => x.rally.won).length, n: r.length }; };
-  const errRate = (xs: typeof scored) => ratio(xs.filter((x) => x.rally.end && isError(x.rally.end)).length, xs.length);
+  const errRate = (xs: typeof scored) => ratio(xs.filter((x) => givenAway(x.rally)).length, xs.length);
 
   if (!runs.length && clutch.length < 6) return null;
   return (
@@ -67,7 +68,7 @@ export function MomentumBlock({ players, rallies }: { players: Player[]; rallies
           </figcaption>
           <ul className="runs">
             {against.sort((a, b) => b.length - a.length).slice(0, 8).map((r, i) => {
-              const own = r.rallies.filter((x) => x.end && isError(x.end)).length;
+              const own = r.rallies.filter(givenAway).length;
               return (
                 <li key={i}>
                   <b className="tone-bad">{r.length}–0</b> Set {r.set}, {r.from.us}:{r.from.them} → {r.to.us}:{r.to.them}

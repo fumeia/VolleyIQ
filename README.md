@@ -99,6 +99,12 @@ with the same key (`web/android/keystore/sideload.jks`, committed for sideloadin
 Before publishing the app in a store, use a private key via the `ANDROID_KEYSTORE_*`
 variables (see `web/android/app/build.gradle`).
 
+The app's **About** page shows the installed version and can download and install
+a newer one (releases, or test builds if you choose). It gets them through your server:
+set `UPDATE_REPO=owner/repo` in `.env`, and for a private repository also
+`UPDATE_GITHUB_TOKEN` (a fine-grained token with read-only "Contents" access to that
+repository). See `.env.example`.
+
 ### Making a release
 
 Update `CHANGELOG.md` on `main`, then either open **Actions → Android app → Run workflow**
