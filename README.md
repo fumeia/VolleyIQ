@@ -88,17 +88,26 @@ one SQLite file on your server.
 
 ## Install the Android app
 
-Every push builds a signed APK with GitHub Actions and attaches it to the
-**VolleyIQ Android (latest build)** release of this repository.
+On your phone, open **[Releases → latest](../../releases/latest)** of this repository and tap **VolleyIQ.apk**
+(or use `https://github.com/<owner>/<repo>/releases/latest/download/VolleyIQ.apk`).
+Open it, and allow installing apps from your browser if Android asks. In the app,
+enter your server address (e.g. `https://volleyiq.example.com`) and password.
 
-1. On the phone, open the repository's **Releases** page and download **VolleyIQ.apk**.
-2. Open it and allow installing apps from your browser if Android asks.
-3. In the app, enter your server address (e.g. `https://volleyiq.example.com`) and password.
+Every push also builds a test APK, published as the pre-release **VolleyIQ Android
+(latest build)**. Updates install over the old version because every build is signed
+with the same key (`web/android/keystore/sideload.jks`, committed for sideloading).
+Before publishing the app in a store, use a private key via the `ANDROID_KEYSTORE_*`
+variables (see `web/android/app/build.gradle`).
 
-Updates install over the old version because every build is signed with the
-same key (`web/android/keystore/sideload.jks`, committed for sideloading).
-Before publishing the app anywhere, use a private key via the
-`ANDROID_KEYSTORE_*` variables (see `web/android/app/build.gradle`).
+### Making a release
+
+Update `CHANGELOG.md`, then tag the commit on `main`:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+GitHub Actions builds the APK and publishes the release **VolleyIQ v1.1.0** with it.
 
 ## Run the server
 
