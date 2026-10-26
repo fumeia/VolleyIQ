@@ -186,3 +186,23 @@ test('touch check: large rallies go in several requests, and a 413 splits a requ
     assert.deepEqual(sent, [2, 2, 1], 'chunks of 4 + 1 by size, the 4 split once more by the 413');
   } finally { global.fetch = orig; }
 });
+
+test('touch check: an empty or cut-off reply is retried with more room; arrays are accepted', async () => {
+  const { makeTouchChecker } = await import('../src/touches.js');
+  const orig = global.fetch;
+  const asked = [];
+  global.fetch = async (url, o) => {
+    const body = JSON.parse(o.body);
+    asked.push(body.max_tokens);
+    const content = asked.length === 1 ? '' : '[{"i":1,"contact":"yes","team":"ours","action":"set","jersey":4,"position":"front-right","confidence":0.9}]';
+    return { ok: true, status: 200, headers: new Headers(), json: async () => ({ choices: [{ message: { content }, finish_reason: asked.length === 1 ? 'length' : 'stop' }] }) };
+  };
+  try {
+    const c = makeTouchChecker({ LITELLM_BASE_URL: 'https://gw', LITELLM_API_KEY: 'k' });
+    const got = await c.check([{ media_type: 'image/jpeg', data: 'abc' }], { ourSide: 'near', roster: [] });
+    assert.equal(got[0].action, 'set');
+    assert.equal(asked.length, 2);
+    assert.ok(asked[1] > asked[0]);
+  } finally { global.fetch = orig; }
+  assert.throws(() => parseJson('Sorry, I cannot see the ball.'), /no JSON in the model's reply \("Sorry/);
+});

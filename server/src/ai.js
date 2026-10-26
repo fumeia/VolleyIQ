@@ -29,9 +29,13 @@ export function aiConfig(env = {}, task = null) {
 /** Parse the model's reply as JSON, tolerating a ```json fence or surrounding prose. */
 export function parseJson(text) {
   try { return JSON.parse(text); } catch { /* try to find the JSON body */ }
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('no JSON in response');
-  return JSON.parse(m[0]);
+  for (const re of [/\{[\s\S]*\}/, /\[[\s\S]*\]/]) {
+    const m = text.match(re);
+    if (!m) continue;
+    try { return JSON.parse(m[0]); } catch { /* the next shape, or give up */ }
+  }
+  const head = text.replace(/\s+/g, ' ').trim().slice(0, 120);
+  throw new Error(head ? `no JSON in the model's reply ("${head}…")` : 'the model sent an empty reply');
 }
 
 /**
@@ -116,10 +120,12 @@ function pickText(data, res, onUsage) {
   const num = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
   const cost = num(res?.headers?.get?.('x-litellm-response-cost')) ?? num(data?.usage?.cost);
   report(onUsage, { cost, tokensIn: data?.usage?.prompt_tokens ?? null, tokensOut: data?.usage?.completion_tokens ?? null });
-  const msg = data?.choices?.[0]?.message;
-  if (typeof msg?.content === 'string') return msg.content;
-  if (Array.isArray(msg?.content)) return msg.content.map((c) => c.text ?? '').join('');
-  return '';
+  const choice = data?.choices?.[0];
+  const msg = choice?.message;
+  const text = typeof msg?.content === 'string' ? msg.content : Array.isArray(msg?.content) ? msg.content.map((c) => c.text ?? '').join('') : '';
+  // Thinking models can spend the whole token allowance before they answer.
+  if (!text.trim() && choice?.finish_reason === 'length') throw new Error('the model ran out of output tokens before answering');
+  return text;
 }
 
 /**

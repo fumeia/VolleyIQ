@@ -102,8 +102,18 @@ export function makeTouchChecker(env = {}, check = null) {
       : `The rally has ${n} touches in time order; these images are touches ${from + 1} to ${from + images.length}. Answer for these only, with i = the touch number written in each panel.`;
     const text = `${solved}Our team plays on ${side} in this rally.${roster ? ` Our shirt numbers: ${roster}.` : ''} ${which}`;
     const all = [...ex.map((x) => ({ media_type: 'image/jpeg', data: x.image })), ...images];
-    const reply = await aiComplete(cfg, { system: SYSTEM, text, images: all, maxTokens: 300 + 130 * images.length, schema: SCHEMA, jsonHint: JSON_HINT, onUsage: onUsage?.(images.length) });
-    return cleanAnswer(parseJson(reply), from + images.length, from + 1);
+    // Generous output allowance: thinking models (e.g. Gemini Flash) spend tokens before the answer;
+    // only what is used is paid. One retry with even more room when the answer is empty or cut off.
+    const run = (maxTokens) => aiComplete(cfg, { system: SYSTEM, text, images: all, maxTokens, schema: SCHEMA, jsonHint: JSON_HINT, onUsage: onUsage?.(images.length) })
+      .then((reply) => { const d = parseJson(reply); return Array.isArray(d) ? { touches: d } : d; });
+    let data;
+    try {
+      data = await run(Math.min(8000, 2000 + 300 * images.length));
+    } catch (e) {
+      if (tooLarge(e) || !/JSON|empty reply|output tokens|Unexpected|Unterminated/i.test(String(e?.message))) throw e;
+      data = await run(16000);
+    }
+    return cleanAnswer(data, from + images.length, from + 1);
   }
 
   /** Asks for [from, to); a request the gateway refuses as too large is split in half and retried. */
