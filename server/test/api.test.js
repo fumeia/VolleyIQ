@@ -284,3 +284,45 @@ test('migration v13: a 0 pass that ended the rally gets the opponent ace; a resc
   assert.equal(versions[0].label, 'Before the 0-pass scoring change');
   await app.close();
 });
+
+test('edit suggestions from the public link: sent, listed, accepted or rejected', async () => {
+  const app = await setup();
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'U18' } })).json();
+  const a = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'Ana', number: 7, role: 'OH' } })).json();
+  const b = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'Bo', number: 9, role: 'OH' } })).json();
+  const other = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'X' } })).json();
+  const stranger = (await app.inject({ method: 'POST', url: `/api/teams/${other.id}/players`, payload: { name: 'Z', number: 1 } })).json();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'vs Y', team_id: team.id, video_type: 'youtube', video_ref: 'abcdefghijk' } })).json();
+  const e = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action: 'attack', player_id: a.id, t: 30, set_no: 1 } })).json();
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+
+  const shared = (await app.inject({ url: `/api/share/team/${token}` })).json();
+  assert.deepEqual(shared.matches[0].video, { type: 'youtube', id: 'abcdefghijk' });
+
+  const send = (body) => app.inject({ method: 'POST', url: `/api/share/team/${token}/edits`, payload: body });
+  assert.equal((await send({ event_id: e.id, changes: { action: 'kill' }, note: 'it landed in', name: 'Bo' })).statusCode, 200);
+  assert.equal((await send({ event_id: e.id, changes: { action: 'nope' } })).statusCode, 400);
+  assert.equal((await send({ event_id: e.id, changes: { player_id: stranger.id } })).statusCode, 400);
+  assert.equal((await send({ event_id: e.id, changes: { action: 'attack' } })).statusCode, 400, 'nothing changed');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/share/team/wrong/edits', payload: { event_id: e.id, changes: { action: 'kill' } } })).statusCode, 404);
+  assert.equal((await send({ event_id: e.id, changes: { player_id: b.id, x: 3, y: 15 } })).statusCode, 200);
+
+  assert.equal((await app.inject({ url: '/api/matches' })).json()[0].open_edits, 2);
+  const list = (await app.inject({ url: `/api/edits?match_id=${m.id}` })).json();
+  assert.equal(list.length, 2);
+  const [move, kill] = list;
+  assert.deepEqual(kill.changes, { action: 'kill' });
+  assert.equal(kill.original.action, 'attack');
+  assert.equal(kill.event.action, 'attack');
+
+  const acc = (await app.inject({ method: 'POST', url: `/api/edits/${move.id}/accept` })).json();
+  assert.equal(acc.event.player_id, b.id);
+  assert.equal(acc.event.jersey, 9);
+  assert.equal(acc.event.x, 3);
+  assert.equal(acc.event.action, 'attack');
+  assert.equal((await app.inject({ method: 'POST', url: `/api/edits/${kill.id}/reject` })).statusCode, 200);
+  assert.equal((await app.inject({ url: `/api/matches/${m.id}` })).json().events[0].action, 'attack');
+  assert.equal((await app.inject({ url: '/api/edits' })).json().length, 0);
+  assert.equal((await app.inject({ url: '/api/edits?status=accepted' })).json().length, 1);
+  await app.close();
+});

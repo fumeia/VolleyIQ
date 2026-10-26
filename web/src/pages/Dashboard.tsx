@@ -62,6 +62,7 @@ export function Dashboard() {
                 <div className="list-meta">
                   <span>{(m.event_count ?? 0) - (m.suggested_count ?? 0)} saved</span>
                   {!!m.suggested_count && <span className="badge">{m.suggested_count} to review</span>}
+                  {!!m.open_edits && <span className="badge">✎ {m.open_edits} correction{m.open_edits === 1 ? '' : 's'}</span>}
                 </div>
               </Link>
             </li>

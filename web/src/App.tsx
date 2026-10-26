@@ -41,6 +41,8 @@ export function App() {
         <Route path="/s/t/:token/players" element={<TeamSharePage view="players" />} />
         <Route path="/s/t/:token/m/:matchId" element={<TeamSharePage />} />
         <Route path="/s/t/:token/m/:matchId/trends" element={<TeamSharePage view="trends" />} />
+        <Route path="/s/t/:token/replays" element={<TeamSharePage view="replays" />} />
+        <Route path="/s/t/:token/m/:matchId/replays" element={<TeamSharePage view="replays" />} />
         <Route path="/s/t/:token/p/:playerId" element={<TeamSharePage view="players" />} />
         <Route path="/s/:token" element={<SharePage />} />
       </Routes>

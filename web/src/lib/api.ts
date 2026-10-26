@@ -12,6 +12,10 @@ export interface Match {
   calibration?: Calibration | null; lineups?: Lineups | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
+  /** Corrections from viewers of the public link waiting for a decision (matches list). */
+  open_edits?: number;
+  /** Public link only: which video goes with the match (a YouTube id, or the name of the coach's file). */
+  video?: { type: 'youtube'; id: string } | { type: 'file'; name: string } | null;
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
@@ -31,6 +35,16 @@ export interface AiTouch {
   position?: AiPosition; confidence: number;
   /** Which half our team was on when it was asked (needed to turn the position into a player). */
   ourSide?: 'near' | 'far' | null;
+}
+/** The tag fields a viewer of the public link can correct. */
+export type EditFields = Partial<Pick<VEvent, 'action' | 'value' | 'player_id' | 'x' | 'y' | 'fx' | 'fy'>>;
+/** A correction sent from the public link, for the coach to accept or reject. */
+export interface EditSuggestion {
+  id: number; match_id: number; match_label: string; event_id: number | null;
+  changes: EditFields; original: EditFields; note: string | null; name: string | null;
+  status: 'open' | 'accepted' | 'rejected'; created_at: string;
+  /** The tag as it is now (null when it was deleted since). */
+  event: VEvent | null;
 }
 export type AiField = 'contact' | 'team' | 'action' | 'jersey' | 'position';
 /** How often each answered field turned out right, over its recent answers (sure = confidence 0.6+). */
@@ -179,6 +193,10 @@ export const api = {
   aiStats: () => req<{ fields: AiStats; examples: number }>('GET', '/api/ai/stats'),
   aiExample: (image: string, label: AiExampleLabel) => req<{ ok: boolean }>('POST', '/api/ai/examples', { image, label }),
   clearAiExamples: () => req<{ deleted: number }>('DELETE', '/api/ai/examples'),
+  sendEdit: (token: string, body: { event_id: number; changes: EditFields; note: string; name: string }) => req<{ id: number }>('POST', `/api/share/team/${token}/edits`, body),
+  edits: (matchId?: number, status: 'open' | 'accepted' | 'rejected' = 'open') =>
+    req<EditSuggestion[]>('GET', `/api/edits?status=${status}${matchId ? `&match_id=${matchId}` : ''}`),
+  decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),
   aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),

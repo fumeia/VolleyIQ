@@ -190,6 +190,25 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );`);
   },
+  // v15: corrections sent by viewers of the public link (from the Replays tab), for the
+  // coach to accept or reject. [changes] are the new values, [original] what the tag
+  // had when they were sent (to see if it changed since).
+  `
+  CREATE TABLE IF NOT EXISTS edit_suggestions (
+    id INTEGER PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+    event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+    changes TEXT NOT NULL,
+    original TEXT NOT NULL,
+    note TEXT,
+    name TEXT,
+    status TEXT NOT NULL DEFAULT 'open',     -- open | accepted | rejected
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    decided_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS edit_suggestions_match ON edit_suggestions(match_id, status);
+  `,
 ];
 
 function migrate(db) {

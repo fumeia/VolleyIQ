@@ -16,10 +16,11 @@ import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
 import { MatchSheetScan } from '../components/MatchSheetScan';
 import { MoreMenu } from '../components/MoreMenu';
+import { EditsPanel } from '../components/EditsPanel';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
-import { api, ApiError, type Match, type MatchBundle, type MatchVersion, type Player, type VEvent } from '../lib/api';
+import { api, ApiError, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type Player, type VEvent } from '../lib/api';
 import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
@@ -27,7 +28,7 @@ import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
 
-type Tab = 'tag' | 'events' | 'review' | 'ai';
+type Tab = 'tag' | 'events' | 'review' | 'ai' | 'edits';
 
 
 function loadSettings(): TagSettings {
@@ -150,6 +151,23 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       if (ev) remove(ev);
     });
     navigator.vibrate?.(15);
+  }
+
+  // Corrections sent from the public link's Replays tab, waiting for a decision.
+  const [edits, setEdits] = useState<EditSuggestion[]>([]);
+  const [editBusy, setEditBusy] = useState<number | null>(null);
+  useEffect(() => { api.edits(match.id).then(setEdits).catch(() => {}); }, [match.id]);
+  async function decideEdit(s: EditSuggestion, decision: 'accept' | 'reject') {
+    setEditBusy(s.id);
+    try {
+      await api.decideEdit(s.id, decision);
+      setEdits((l) => l.filter((x) => x.id !== s.id));
+      if (decision === 'accept') { await reload(); flash('Correction applied'); }
+    } catch (e) {
+      flash(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setEditBusy(null);
+    }
   }
 
   async function reload() {
@@ -359,6 +377,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             <button className={`tab ${tab === 'events' ? 'on' : ''}`} onClick={() => setTab('events')}>Events <small>{confirmed.length}</small></button>
             {!isLive && <button className={`tab ${tab === 'ai' ? 'on' : ''}`} onClick={() => setTab('ai')}>Auto</button>}
+            {(edits.length > 0 || tab === 'edits') && (
+              <button className={`tab ${tab === 'edits' ? 'on' : ''}`} onClick={() => setTab('edits')} title="Corrections sent from the public link">
+                ✎ Edits {edits.length > 0 && <small className="dot">{edits.length}</small>}
+              </button>
+            )}
           </nav>
 
           <div className="ws-content">
@@ -406,6 +429,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 <button className="btn-ghost small" disabled={reel.i + 1 >= reel.list.length} onClick={() => setReel({ ...reel, i: reel.i + 1 })}>▶</button>
                 <button className="btn-ghost small" onClick={() => { setReel(null); player.current?.pause(); }}>Stop</button>
               </div>
+            )}
+            {tab === 'edits' && (
+              <EditsPanel edits={edits} players={players} busy={editBusy} onDecide={decideEdit}
+                onWatch={(t) => { if (!source) return flash('Load the video first'); player.current?.seek(Math.max(0, t - 3)); player.current?.play(); }} />
             )}
             {tab === 'events' && (
               <div className="row wrap">

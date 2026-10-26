@@ -71,6 +71,11 @@ One **public link** per team (no login) opens the season, every match and
 every player's learning page. It updates as more matches are tagged and can be
 revoked at any time. Tagging, rosters and editing stay behind the login.
 
+Its **Replays** tab plays the tagged touches as clips (by skill, player and set) from the
+viewer's own copy of the video, which stays on their device. Viewers can switch on
+**Suggest corrections** and send a fix for a wrong tag; it waits under the match's
+**✎ Edits** tab in the app until you accept or reject it.
+
 ## How it fits together
 
 ```

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PlayerLearning } from '../components/analysis/PlayerLearning';
 import { roleName } from '../components/analysis/PlayersSection';
 import { StatsView } from '../components/StatsView';
+import { Replays } from '../components/Replays';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
@@ -39,7 +40,7 @@ export function SharePage() {
 }
 
 type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
-type View = 'stats' | 'trends' | 'players';
+type View = 'stats' | 'trends' | 'players' | 'replays';
 
 /**
  * The public team site (no login), under the one shareable team link:
@@ -98,6 +99,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
         ))}
       </div>
     );
+  } else if (tab === 'replays') {
+    body = <Replays token={token!} matches={data.matches} players={data.players} events={data.events} initialMatch={match?.id ?? null} />;
   } else if (tab === 'trends') {
     body = (
       <>
@@ -126,6 +129,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
         <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
         <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
         <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`}>Players</Link>
+        <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`}>Replays</Link>
       </nav>
       {body}
     </div>

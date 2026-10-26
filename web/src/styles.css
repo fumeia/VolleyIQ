@@ -767,3 +767,36 @@ button.court-zone:active { background: #2a2f3a; }
 .ai-estimate { padding: 6px 8px; border-radius: 8px; background: var(--surface-2); }
 .ai-estimate.warn { border: 1px solid rgba(239,107,107,.6); }
 .ai-run-all { border-color: rgba(168,85,247,.6); }
+
+/* Replays on the public link */
+.replays { display: flex; flex-direction: column; gap: 10px; }
+.replay-video { border-radius: 12px; overflow: hidden; background: #000; }
+.replay-video video, .replay-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.replay-pick { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 16 / 9; padding: 16px;
+  text-align: center; color: #fff; background: var(--surface-2); border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; }
+.replay-pick input { display: none; }
+.replay-file { margin: -4px 0 0; }
+.replay-filters { display: flex; flex-direction: column; gap: 8px; }
+.replay-filters .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.replay-filters select { flex: 1; min-width: 140px; }
+.replay-result { flex: 1; min-width: 200px; }
+.replay-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.replay-edit-toggle { margin-left: auto; padding: 0; font-size: 14px; }
+.replay-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.replay-clip { width: 100%; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; grid-template-areas: "time who act" "time meta meta"; gap: 0 8px;
+  align-items: baseline; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.replay-clip .replay-time { grid-area: time; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.replay-clip b { grid-area: who; }
+.replay-clip .replay-act { grid-area: act; font-size: 13px; font-weight: 600; }
+.replay-clip .small { grid-area: meta; }
+.replay-clip.on { border-color: var(--accent); background: rgba(249,115,22,.12); }
+.replay-clip:disabled { opacity: .7; }
+.found-mistake { border-style: dashed; }
+.edit-box { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface); }
+.edit-court { max-width: 360px; width: 100%; margin: 0 auto; }
+/* Corrections pile in the app */
+.edits-panel { display: flex; flex-direction: column; gap: 8px; }
+.edit-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.edit-diff { border-collapse: collapse; }
+.edit-diff td { padding: 2px 8px 2px 0; }
+.edit-note { margin: 0; font-style: italic; }

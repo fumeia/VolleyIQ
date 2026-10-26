@@ -73,7 +73,8 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
                            (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id) AS event_count,
                            (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'suggested') AS suggested_count,
                            (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'confirmed') AS confirmed_count,
-                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'confirmed' AND e.source = 'auto') AS auto_confirmed_count
+                           (SELECT COUNT(*) FROM events e WHERE e.match_id = m.id AND e.status = 'confirmed' AND e.source = 'auto') AS auto_confirmed_count,
+                           (SELECT COUNT(*) FROM edit_suggestions s WHERE s.match_id = m.id AND s.status = 'open') AS open_edits
                          FROM matches m LEFT JOIN teams t ON t.id = m.team_id
                          ORDER BY COALESCE(m.played_on, m.created_at) DESC, m.id DESC`),
     match: db.prepare('SELECT m.*, t.name AS team_name FROM matches m LEFT JOIN teams t ON t.id = m.team_id WHERE m.id = ?'),
@@ -278,11 +279,75 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.get('/api/share/team/:token', async (req, reply) => {
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, video_type, video_ref FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+      // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
+      .map(({ video_type, video_ref, ...m }) => ({ ...m, video: video_type === 'youtube' && video_ref ? { type: 'youtube', id: video_ref } : video_ref ? { type: 'file', name: video_ref } : null }));
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
     return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events };
+  });
+
+  // ---------- corrections from viewers of the public link ----------
+  const EDIT_FIELDS = ['action', 'value', 'player_id', 'x', 'y', 'fx', 'fy'];
+  const editRate = new Map();   // ip -> { hour, n }: at most 60 suggestions an hour per address
+  app.post('/api/share/team/:token/edits', async (req, reply) => {
+    const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
+    if (!team) return bad(reply, 'Not found', 404);
+    const ev = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id WHERE e.id = ? AND m.team_id = ? AND e.status = 'confirmed'`)
+      .get(int(req.body?.event_id), team.id);
+    if (!ev) return bad(reply, 'Tag not found', 404);
+    const hour = Math.floor(Date.now() / 3600e3);
+    const r = editRate.get(req.ip);
+    if (r?.hour === hour && r.n >= 60) return bad(reply, 'Too many suggestions for now; try again later.', 429);
+    editRate.set(req.ip, { hour, n: r?.hour === hour ? r.n + 1 : 1 });
+    if (db.prepare("SELECT COUNT(*) AS n FROM edit_suggestions WHERE team_id = ? AND status = 'open'").get(team.id).n >= 500) {
+      return bad(reply, 'The coach has too many open suggestions; try again later.', 429);
+    }
+    const raw = req.body?.changes && typeof req.body.changes === 'object' ? req.body.changes : {};
+    // Checked like a tag: the tag with the changes must still be a valid tag.
+    const proposed = Object.fromEntries(EDIT_FIELDS.filter((k) => k in raw).map((k) => [k, raw[k]]));
+    const [clean, err] = cleanEvent({ ...ev, ...proposed });
+    if (err) return bad(reply, err);
+    if (clean.player_id != null && !db.prepare('SELECT 1 FROM players WHERE id = ? AND team_id = ?').get(clean.player_id, team.id)) return bad(reply, 'Unknown player');
+    const changes = Object.fromEntries(EDIT_FIELDS.filter((k) => k in proposed && clean[k] !== ev[k]).map((k) => [k, clean[k]]));
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 60) : '';
+    if (!Object.keys(changes).length && !note) return bad(reply, 'Nothing changed');
+    const original = Object.fromEntries(EDIT_FIELDS.map((k) => [k, ev[k]]));
+    const id = db.prepare('INSERT INTO edit_suggestions (team_id, match_id, event_id, changes, original, note, name) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(team.id, ev.match_id, ev.id, JSON.stringify(changes), JSON.stringify(original), note || null, name || null).lastInsertRowid;
+    return { id: Number(id) };
+  });
+
+  const editRow = (s) => ({ ...s, changes: JSON.parse(s.changes), original: JSON.parse(s.original) });
+  app.get('/api/edits', coach, async (req) => {
+    const status = ['open', 'accepted', 'rejected'].includes(req.query.status) ? req.query.status : 'open';
+    const match = int(req.query.match_id);
+    const rows = db.prepare(`SELECT s.*, m.label AS match_label FROM edit_suggestions s JOIN matches m ON m.id = s.match_id
+                             WHERE s.status = ? ${match ? 'AND s.match_id = ?' : ''} ORDER BY s.id DESC LIMIT 500`).all(...(match ? [status, match] : [status]));
+    // With the tag as it is now, to show what would change (and whether it changed since).
+    return rows.map((s) => ({ ...editRow(s), event: s.event_id ? q.event.get(s.event_id) ?? null : null }));
+  });
+
+  app.post('/api/edits/:id/:decision', coach, async (req, reply) => {
+    const s = db.prepare("SELECT * FROM edit_suggestions WHERE id = ? AND status = 'open'").get(req.params.id);
+    if (!s) return bad(reply, 'Not found', 404);
+    const decision = req.params.decision;
+    if (!['accept', 'reject'].includes(decision)) return bad(reply, 'accept or reject');
+    let event = null;
+    if (decision === 'accept') {
+      const cur = s.event_id ? q.event.get(s.event_id) : null;
+      if (!cur) return bad(reply, 'The tag was deleted since', 409);
+      const [ev, err] = cleanEvent({ ...cur, ...JSON.parse(s.changes) });
+      if (err) return bad(reply, err);
+      const p = ev.player_id != null ? q.player.get(ev.player_id) : null;
+      db.prepare('UPDATE events SET player_id = ?, jersey = ?, action = ?, value = ?, x = ?, y = ?, fx = ?, fy = ? WHERE id = ?')
+        .run(ev.player_id, p ? p.number : ev.player_id == null ? cur.jersey : ev.jersey, ev.action, ev.value, ev.x, ev.y, ev.fx, ev.fy, cur.id);
+      event = q.event.get(cur.id);
+    }
+    db.prepare("UPDATE edit_suggestions SET status = ?, decided_at = datetime('now') WHERE id = ?").run(decision === 'accept' ? 'accepted' : 'rejected', s.id);
+    return { ok: true, event };
   });
 
   // Season / multi-match report: all confirmed events for a team.
