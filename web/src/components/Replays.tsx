@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, SKILLS, wantsSpots, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, SKILLS, isNetSpot, wantsSpots, type ActionCode } from '../lib/actions';
 import { api, type Match, type Player, type VEvent } from '../lib/api';
 import type { Pt } from '../lib/court';
 import { ourHalfAt } from '../lib/calibration';
 import { ActionPicker } from './ActionPicker';
 import { CourtFull } from './CourtFull';
+import { NetSpot } from './NetSpot';
 import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
 import { FrameStep, SpeedControl } from './SpeedControl';
@@ -288,10 +289,16 @@ function EditBox({ token, event, players, flip, onSent, add, onCancel }: {
             Where {path ? (step === 'from' ? 'it was played from (1/2)' : 'it went (2/2)') : 'it was'} <small className="muted">· as the camera sees it · optional</small>
           </span>
           <div className="edit-court">
-            <CourtFull from={shown.from} to={shown.to} flip={flip} label="court" onPick={(p) => {
-              if (path && step === 'from') { setSpot({ from: p, to: null }); setStep('to'); }
-              else { setSpot((s) => ({ from: path ? s?.from ?? null : null, to: p })); setStep('from'); }
-            }} />
+            {(() => {
+              const pickSpot = (p: Pt) => {
+                if (path && step === 'from') { setSpot({ from: p, to: null }); setStep('to'); }
+                else { setSpot((s) => ({ from: path ? s?.from ?? null : null, to: p })); setStep('from'); }
+              };
+              // Blocks: a dot on the net to slide along it.
+              return isNetSpot(action, step === 'from' || !path)
+                ? <NetSpot key={`${action}-${step}`} initial={path ? shown.from?.x : shown.to?.x} flip={flip} onPick={pickSpot} label={path ? '✓ Block here, next: where the ball went' : '✓ Block here'} />
+                : <CourtFull from={shown.from} to={shown.to} flip={flip} label="court" onPick={pickSpot} />;
+            })()}
           </div>
           {spot && <button className="btn-ghost small" onClick={() => { setSpot(null); setStep('from'); }}>{add ? '↺ Clear the spots' : '↺ Keep the tagged spots'}</button>}
         </>

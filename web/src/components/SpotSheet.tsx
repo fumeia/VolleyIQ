@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import type { Pt } from '../lib/court';
+import { NetSpot } from './NetSpot';
 import { CourtFull } from './CourtFull';
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onBack?: () => void;
   /** Extra quick buttons (e.g. the pass grades 0-3), above Back / Skip. */
   extra?: ReactNode;
+  /** A spot along the net (blocks): a dot on the net to slide, starting at [initial] (meters from our left antenna). */
+  net?: { initial?: number | null };
 }
 
 /** The area below the video (portrait) or next to it (landscape), so the court can take all of it. */
@@ -44,7 +47,7 @@ export function useBelowVideo() {
  * as player and action are known, and closes after the last tap. The court is drawn as
  * the camera sees it, so a spot is tapped where it is in the video.
  */
-export function SpotSheet({ title, prompt, step, from, to, flip, showTarget, onPick, skipLabel, onSkip, onBack, extra }: Props) {
+export function SpotSheet({ title, prompt, step, from, to, flip, showTarget, onPick, skipLabel, onSkip, onBack, extra, net }: Props) {
   const box = useBelowVideo();
   return (
     <div className="spot-sheet" style={{ top: box.top, left: box.left }}>
@@ -52,7 +55,9 @@ export function SpotSheet({ title, prompt, step, from, to, flip, showTarget, onP
         <span><b>{title}</b> · {prompt}{step ? <small className="muted"> ({step})</small> : null}</span>
       </div>
       <div className="spot-court">
-        <CourtFull from={from} to={to} flip={flip} showTarget={showTarget} label={prompt} onPick={onPick} />
+        {net
+          ? <NetSpot key={prompt} initial={net.initial} flip={flip} onPick={onPick} />
+          : <CourtFull from={from} to={to} flip={flip} showTarget={showTarget} label={prompt} onPick={onPick} />}
       </div>
       {extra}
       <div className="spot-actions">

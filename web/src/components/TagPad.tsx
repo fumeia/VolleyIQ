@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, SHORT, SKILLS, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, SHORT, SKILLS, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { SpotSheet } from './SpotSheet';
@@ -192,6 +192,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           step={steps ? steps.replace(/[() ]/g, '') : undefined}
           from={draft.from}
           flip={!!farAt?.(draft.t)}
+          net={isNetSpot(a.code, first || a.court !== 'path') ? {} : undefined}
           showTarget={a.code === 'receive' && !first}
           onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))}
           skipLabel={first ? 'Skip: not sure where from ▶' : 'Skip: no landing spot ✓'}

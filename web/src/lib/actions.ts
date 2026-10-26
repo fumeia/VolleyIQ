@@ -43,7 +43,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'block_touch', label: 'Block Touch', short: 'Blk Touch', group: 'actions', key: 'f', court: 'at', toPrompt: 'Where along the net?' },
   { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
-  { code: 'block_miss', label: 'Block, no touch', short: 'Blk none', group: 'actions', key: 'h', court: 'path', fromPrompt: 'Where was their attack hit from?', toPrompt: 'Where did it go past the block?' },
+  { code: 'block_miss', label: 'Block, no touch', short: 'Blk none', group: 'actions', key: 'h', court: 'path', fromPrompt: 'Where along the net was the block?', toPrompt: 'Where did the ball go?' },
   { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
   { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist', label: 'Bump set', short: 'Bump set', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
@@ -60,6 +60,14 @@ export const REVIEW_ACTIONS: ActionCode[] = [
   'attack', 'kill', 'attack_error', 'attack_blocked', 'dig', 'dig_error', 'freeball',
   'block_touch', 'block_point', 'block_error', 'block_miss',
 ];
+
+/**
+ * Blocks are placed along the net: the spot of a block (touch, point, error), and the
+ * first spot of a block without a touch (then where the ball went).
+ */
+export function isNetSpot(code: ActionCode, first: boolean): boolean {
+  return ['block_touch', 'block_point', 'block_error'].includes(code) || (code === 'block_miss' && first);
+}
 
 /** "Fast" court mode: the court spots that matter most for the stats. */
 export const KEY_SPOTS: ActionCode[] = ['serve', 'ace', 'serve_error', 'receive', 'attack', 'kill', 'attack_error', 'attack_blocked'];

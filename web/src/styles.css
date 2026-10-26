@@ -867,3 +867,22 @@ button.court-zone:active { background: #2a2f3a; }
 .no-touch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .edit-card.edit-add { border-color: rgba(34,197,94,.5); }
 .add-touch { border-style: dashed; }
+
+/* Spot along the net (blocks) */
+.net-spot { display: flex; flex-direction: column; gap: 8px; padding: 8px 4px; }
+.net-svg { width: 100%; touch-action: none; cursor: ew-resize; user-select: none; }
+.net-band { fill: #3b2a1a; stroke: rgba(255,255,255,.12); stroke-width: .03; }
+.net-band.mid { fill: #463220; }
+.net-line { stroke: var(--accent); stroke-width: .12; stroke-dasharray: .3 .15; }
+.net-tick { stroke: rgba(255,255,255,.45); stroke-width: .04; }
+.net-antenna { stroke: #ef4444; stroke-width: .1; }
+.net-zone { fill: var(--muted); font-size: .5px; text-anchor: middle; font-weight: 700; }
+.net-dot { fill: var(--accent); stroke: #fff; stroke-width: .1; }
+.net-ends { display: flex; justify-content: space-between; margin-top: -6px; }
+.net-controls { display: flex; align-items: center; gap: 8px; }
+.net-controls input[type=range] { flex: 1; accent-color: var(--accent); }
+.net-controls .btn { min-width: 44px; }
+.net-readout { text-align: center; font-weight: 600; }
+.net-chart { width: 100%; max-height: 260px; }
+.net-chart-n { fill: var(--text); font-size: .42px; text-anchor: middle; font-weight: 700; }
+.net-chart-z { fill: var(--muted); font-size: .4px; text-anchor: middle; }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ACTION_BY_CODE, wantsSpots, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, isNetSpot, wantsSpots, type ActionCode } from '../lib/actions';
 import { ActionPicker } from './ActionPicker';
 import { api, type AiBudget, type AiStats, type AiTouch, type Match, type Player, type VEvent } from '../lib/api';
 import { touchPictures } from '../lib/frames';
@@ -801,6 +801,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
               from={from} to={sv.x != null && sv.y != null ? { x: sv.x, y: sv.y } : null}
               flip={!!match.calibration && selected.t != null && ourHalfAt(match.calibration, selected.t) === 'far'}
               showTarget={sv.action === 'receive' && step === 'to'}
+              net={isNetSpot(sv.action, step === 'from' || def.court !== 'path') ? { initial: def.court === 'path' ? from?.x : sv.x } : undefined}
               onPick={(p) => pickSpot(selected, p)}
               skipLabel={step === 'from' ? (from ? 'Keep ⚪ ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep 🟠 ▶' : 'Skip ▶'}
               onSkip={() => (step === 'from' ? setStep('to') : advance(selected))}
