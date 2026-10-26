@@ -28,7 +28,7 @@ describe('rally review', () => {
     expect(outcome({ id: 1, action: 'attack' }, true, true)).toEqual({ change: { id: 1, action: 'kill' } });
     expect(outcome({ id: 1, action: 'attack' }, true, false)).toEqual({ change: { id: 1, action: 'attack_error' } });
     expect(outcome({ id: 2, action: 'serve' }, true, true)).toEqual({ change: { id: 2, action: 'ace' } });
-    expect(outcome({ id: 3, action: 'receive' }, true, false)).toEqual({ change: { id: 3, action: 'receive', value: 0 } });
+    expect(outcome({ id: 3, action: 'receive' }, true, false)).toEqual({ change: { id: 3, action: 'receive', value: 0 }, add: 'opp_point', addValue: 3 });
     expect(outcome({ id: 4, action: 'dig' }, true, true)).toEqual({ add: 'opp_error' });
     expect(outcome({ id: 5, action: 'attack' }, false, false)).toEqual({ add: 'opp_point' });
     expect(outcome(null, true, true)).toEqual({ add: 'opp_error' });

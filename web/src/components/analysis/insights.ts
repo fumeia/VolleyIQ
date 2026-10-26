@@ -74,7 +74,10 @@ export function insightsFor(mine: VEvent[], rallyEvents: VEvent[], scope: 'playe
     const zs = [1, 6, 5, 4, 3, 2].map((z) => ({ z, vs: passes.filter((e) => ourZone(e) === z).map((e) => e.value!) })).filter((x) => x.vs.length >= 3);
     const weak = zs.sort((x, y) => mean(x.vs)! - mean(y.vs)!)[0];
     if (weak && mean(weak.vs)! < 1.6) push(out, 'bad', `Passes taken in zone ${weak.z}: average ${mean(weak.vs)!.toFixed(1)} (${weak.vs.length})`, 2, `pass-zone:${weak.z}`);
-    const aced = passes.filter((e) => e.value === 0).length;
+    // Aced = a 0 pass that ended the rally (their point right after it), not one that was rescued.
+    const ids = new Set(passes.map((e) => e.id));
+    const aced = buildRallies(rallyEvents).filter((r) => r.won === false && r.end?.action === 'opp_point'
+      && r.touches.length > 0 && ids.has(r.touches[r.touches.length - 1].id) && r.touches[r.touches.length - 1].value === 0).length;
     if (aced >= 3) push(out, 'bad', `Aced ${aced} times`, 2, 'aced');
   }
 

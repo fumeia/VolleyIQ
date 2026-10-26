@@ -91,7 +91,8 @@ export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])
  * (pass graded 0 = aced) is the opponent's point too.
  */
 export function scoreOf(e: { action: ActionCode; value?: number | null }): 'us' | 'them' | undefined {
-  if (e.action === 'receive') return e.value === 0 ? 'them' : undefined;
+  // A pass graded 0 is not a point by itself (it can be rescued): their ace is the
+  // "They won" / opponent point tagged after it.
   return ACTION_BY_CODE[e.action]?.score;
 }
 

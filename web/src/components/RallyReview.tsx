@@ -265,8 +265,8 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   };
   const outcomeText = (won: boolean) => {
     const o = outcome(lastTouch ? { id: lastTouch.id, action: view(lastTouch).action } : null, lastIsOurs, won);
-    if (o.add) return o.add === 'opp_error' ? 'their error' : 'their point';
-    const def = ACTION_BY_CODE[o.change!.action];
+    if (!o.change) return o.add === 'opp_error' ? 'their error' : 'their point';
+    const def = ACTION_BY_CODE[o.change.action];
     return `${num(view(lastTouch!))} ${o.change!.value === 0 ? 'Rec 0' : def.short}`;
   };
   const patch = (e: VEvent, p: Partial<VEvent>) => setDrafts((d) => ({ ...d, [e.id]: { ...d[e.id], ...p } }));
@@ -340,7 +340,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         set_no: e.set_no ?? rally.set,
         status: 'confirmed',
       })));
-      const clientId = o.add ? add({ action: o.add, t: rally.end + 0.5, set_no: rally.set }) : null;
+      const clientId = o.add ? add({ action: o.add, value: o.addValue ?? null, t: rally.end + 0.5, set_no: rally.set }) : null;
       if (drop.length) await removeMany(drop);
       navigator.vibrate?.(result ? [20, 40, 20] : 15);
       const text = `rally at ${fmtTime(rally.start)}${result ? (result === 'won' ? ' (won)' : ' (lost)') : ''}`;

@@ -15,6 +15,7 @@ import { actionLabel, scoreOf } from '../lib/actions';
 import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
 import { MatchSheetScan } from '../components/MatchSheetScan';
+import { MoreMenu } from '../components/MoreMenu';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
@@ -209,10 +210,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const lastTag = rallyTags[rallyTags.length - 1] ?? null;
   const server = rotationNow?.weServe ? players.find((p) => p.id === rotationNow.positions[0]) ?? null : null;
 
-  /** "We won" / "They won" for the rally just tagged: the last tag becomes the point or the error. */
-  // A pass graded 0 already gave the opponent the point (aced): don't add a second one.
-  const lastSetTag = setTags[setTags.length - 1] ?? null;
-  const acedJustNow = !lastTag && lastSetTag?.action === 'receive' && lastSetTag.value === 0;
+  /** A pass graded 0 is not a point by itself (it can be rescued): ask whether it was their ace. */
+  const zeroPass = lastTag?.action === 'receive' && lastTag.value === 0 ? lastTag : null;
 
   const [theyOpen, setTheyOpen] = useState(false);
   const lostError = (() => {
@@ -233,33 +232,35 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     }
     const spot = r.at ? { fx: r.at.x, fy: r.at.y, zone: zoneOf(r.at) } : {};
     if (r.playerId != null && r.kind === 'attack') return commit({ action: 'dig_error', player_id: r.playerId, t: time, ...spot });
-    if (r.playerId != null && r.kind === 'ace') return commit({ action: 'receive', value: 0, player_id: r.playerId, t: time, ...spot });
+    if (r.kind === 'ace' && lastTag?.action === 'receive') {
+      // The pass is already tagged: it becomes a 0, and their ace is added after it.
+      if (lastTag.value !== 0) update(lastTag, { value: 0 });
+      return commit({ action: 'opp_point', value: OPP_POINT_VALUE.ace, t: time });
+    }
+    if (r.playerId != null && r.kind === 'ace') {
+      commit({ action: 'receive', value: 0, player_id: r.playerId, t: time, ...spot });
+      return commit({ action: 'opp_point', value: OPP_POINT_VALUE.ace, t: time == null ? null : time + 0.05 });
+    }
     commit({ action: 'opp_point', value: OPP_POINT_VALUE[r.kind] ?? null, t: time, ...(r.at ? { x: r.at.x, y: r.at.y } : {}) });
   }
 
   function settle(won: boolean, asError = false) {
-    if (acedJustNow && lastSetTag) {
-      if (!won) return flash('Already counted: reception error (0 pass)');
-      // We won after all: it was not an ace, so the pass was at least playable.
-      update(lastSetTag, { value: 1 });
-      return flash('Pass changed to 1 (we won the rally)', () => update(lastSetTag, { value: 0 }));
-    }
     if (!won && !asError) { player.current?.pause(); return setTheyOpen(true); }
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
     if (o.change && lastTag) {
       const before = { action: lastTag.action, value: lastTag.value };
       update(lastTag, { action: o.change.action, ...(o.change.value !== undefined ? { value: o.change.value } : {}) });
-      flash(`${won ? 'Point' : 'Lost'}: ${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}`, () => update(lastTag, before));
-    } else if (o.add) {
+      if (!o.add) flash(`${won ? 'Point' : 'Lost'}: ${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}`, () => update(lastTag, before));
+    }
+    if (o.add) {
       const t = getTime();
-      commit({ action: o.add, t: t == null ? null : t });
+      commit({ action: o.add, value: o.addValue ?? null, t: t == null ? null : t });
     }
   }
   const outcomeLabel = (won: boolean) => {
-    if (acedJustNow) return won ? 'pass → 1' : 'already counted';
     if (!won) return 'how?';
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
-    return o.add ? (o.add === 'opp_error' ? 'their error' : 'their point') : actionLabel({ action: o.change!.action, value: o.change!.value ?? null });
+    return o.change ? actionLabel({ action: o.change.action, value: o.change.value ?? null }) : o.add === 'opp_error' ? 'their error' : 'their point';
   };
 
   const pad = (
@@ -294,6 +295,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <span className="score">{score.us}<i>:</i>{score.them}</span>
         </div>
         <button className="btn-ghost" onClick={() => setShowSettings(true)} aria-label="Settings">⚙</button>
+        <MoreMenu />
       </header>
 
       <div className="ws-body">
@@ -369,6 +371,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   </div>
                 )}
                 {pad}
+                {zeroPass && (
+                  <div className="zero-pass small">
+                    <span>Pass 0 by {playerLabel(players, zeroPass) || '?'}: was it their ace?</span>
+                    <button className="btn small btn-lost" onClick={() => { const t = getTime(); commit({ action: 'opp_point', value: OPP_POINT_VALUE.ace, t: t == null ? null : t }); }}>Their ace (point)</button>
+                    <span className="muted">Kept in play? Just tag on.</span>
+                  </div>
+                )}
                 {theyOpen && (
                   <TheyScored errorLabel={lostError} players={players} onCourt={onCourt}
                     flip={!!match.calibration && ourHalfAt(match.calibration, getTime() ?? 0) === 'far'}

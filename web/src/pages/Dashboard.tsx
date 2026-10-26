@@ -15,7 +15,6 @@ export function Dashboard() {
     <div className="page">
       <header className="page-head">
         <h1>Dashboard</h1>
-        <button className="btn-ghost small" onClick={() => api.logout().then(() => location.reload())}>Log out</button>
       </header>
 
       {(() => {

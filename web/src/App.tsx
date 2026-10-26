@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './lib/api';
+import { MoreMenu } from './components/MoreMenu';
 import { AboutPage } from './pages/About';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
@@ -16,7 +17,6 @@ const NAV = [
   { to: '/teams', label: 'Teams', icon: '👥' },
   { to: '/new', label: 'Tag', icon: '＋' },
   { to: '/reports', label: 'Stats', icon: '📊' },
-  { to: '/about', label: 'About', icon: 'ⓘ' },
 ];
 
 export function App() {
@@ -59,6 +59,7 @@ export function App() {
           </NavLink>
         ))}
       </aside>
+      {!isMatch && <MoreMenu className="shell-more" />}
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />

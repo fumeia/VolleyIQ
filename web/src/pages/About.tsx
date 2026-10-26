@@ -143,7 +143,6 @@ export function AboutPage() {
         {about?.updates.repo && <p className="small">Source code: <a href={`https://github.com/${about.updates.repo}`} target="_blank" rel="noreferrer">github.com/{about.updates.repo}</a></p>}
       </section>
 
-      <button className="btn-ghost" onClick={() => api.logout().then(() => location.reload())}>Log out</button>
     </div>
   );
 }

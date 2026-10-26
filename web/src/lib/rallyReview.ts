@@ -67,8 +67,9 @@ const ERROR_OF: Partial<Record<ActionCode, ActionCode>> = {
 export interface Outcome {
   /** Change the last touch to the point/error it was (e.g. attack -> kill). */
   change?: { id: number; action: ActionCode; value?: number | null };
-  /** Or add a team event (the opponent's error or winner). */
+  /** And/or add a team event (the opponent's error or winner), with [addValue] (opp_point: 1 attack, 2 block, 3 ace). */
   add?: ActionCode;
+  addValue?: number;
 }
 
 /**
@@ -84,7 +85,9 @@ export function outcome(last: { id: number; action: ActionCode } | null, lastIsO
   }
   const e = ERROR_OF[last.action];
   if (!e) return { add: 'opp_point' };
-  return { change: { id: last.id, action: e, ...(e === 'receive' ? { value: 0 } : {}) } };
+  // Our last touch a pass: it was their ace (the pass becomes a 0, and their point is added).
+  if (e === 'receive') return { change: { id: last.id, action: 'receive', value: 0 }, add: 'opp_point', addValue: 3 };
+  return { change: { id: last.id, action: e } };
 }
 
 /** Seconds: two suggestions closer than this are the same touch heard twice. */

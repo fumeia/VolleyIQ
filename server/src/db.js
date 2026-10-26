@@ -130,13 +130,43 @@ const MIGRATIONS = [
   );
   CREATE INDEX match_versions_match ON match_versions(match_id, id);
   `,
+  // v13: a 0 pass is no longer a point by itself (some are rescued). Where one ended the
+  // rally (next comes a serve or pass, or the set ends), add the opponent's ace after it,
+  // so old scores stay as tagged; each changed match is saved as a version first.
+  (db) => {
+    const RALLY_START = new Set(['serve', 'ace', 'serve_error', 'receive']);
+    const COLS = ['player_id', 'jersey', 'action', 'value', 'zone', 'x', 'y', 'fx', 'fy', 'rally', 'poss', 't', 'set_no', 'source', 'status', 'confidence', 'hint', 'client_id'];
+    const insert = db.prepare(`INSERT INTO events (match_id, action, value, t, set_no, source, status)
+                               VALUES (?, 'opp_point', 3, ?, ?, 'manual', 'confirmed')`);
+    for (const m of db.prepare('SELECT * FROM matches').all()) {
+      const all = db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id').all(m.id);
+      const confirmed = all.filter((e) => e.status === 'confirmed');
+      const aces = [];
+      confirmed.forEach((e, i) => {
+        if (e.action !== 'receive' || e.value !== 0) return;
+        const next = confirmed.slice(i + 1).find((x) => (x.set_no ?? 1) === (e.set_no ?? 1));
+        if (!next || RALLY_START.has(next.action)) aces.push(e);
+      });
+      if (!aces.length) continue;
+      const data = JSON.stringify({
+        events: all.map((e) => Object.fromEntries(COLS.map((k) => [k, e[k]]))),
+        lineups: m.lineups ? JSON.parse(m.lineups) : null,
+        calibration: m.calibration ? JSON.parse(m.calibration) : null,
+        sheet: m.sheet ? JSON.parse(m.sheet) : null,
+      });
+      db.prepare('INSERT INTO match_versions (match_id, label, auto, event_count, data) VALUES (?, ?, 1, ?, ?)')
+        .run(m.id, 'Before the 0-pass scoring change', all.length, data);
+      for (const e of aces) insert.run(m.id, e.t == null ? null : e.t + 0.05, e.set_no);
+    }
+  },
 ];
 
 function migrate(db) {
   const version = db.pragma('user_version', { simple: true });
   for (let v = version; v < MIGRATIONS.length; v++) {
     db.transaction(() => {
-      db.exec(MIGRATIONS[v]);
+      if (typeof MIGRATIONS[v] === 'function') MIGRATIONS[v](db);
+      else db.exec(MIGRATIONS[v]);
       db.pragma(`user_version = ${v + 1}`);
     })();
   }

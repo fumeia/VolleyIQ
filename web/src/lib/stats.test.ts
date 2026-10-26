@@ -68,9 +68,9 @@ describe('assists', () => {
 });
 
 describe('score with reception errors', () => {
-  it('a 0-pass is the opponent point (aced), other passes are not', async () => {
+  it('a 0-pass is not a point by itself (it can be rescued); their ace is tagged after it', async () => {
     const { scoreBySet } = await import('./stats');
-    const s = scoreBySet([ev('receive', { value: 0 }), ev('receive', { value: 2 }), ev('kill')]);
+    const s = scoreBySet([ev('receive', { value: 0 }), ev('dig'), ev('kill'), ev('receive', { value: 0 }), ev('opp_point', { value: 3 })]);
     expect(s[0]).toMatchObject({ us: 1, them: 1 });
   });
 });

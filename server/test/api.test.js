@@ -259,3 +259,28 @@ test('app updates: newest stable and test APK from the GitHub releases, streamed
   assert.equal((await app.inject({ url: '/api/app/apk/abc' })).statusCode, 400);
   await app.close();
 });
+
+test('migration v13: a 0 pass that ended the rally gets the opponent ace; a rescued one does not', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-'));
+  const env = { NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') };
+  let app = await buildApp(env);
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm' } })).json();
+  const add = (action, t, value = null) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action, t, value, set_no: 1 } });
+  await add('receive', 1, 0);      // aced: next tag starts a new rally
+  await add('receive', 5, 2);
+  await add('receive', 9, 0);      // rescued: the rally goes on
+  await add('dig', 10);
+  await add('kill', 11);
+  await add('receive', 20, 0);     // last tag of the set: aced
+  await app.close();
+  const { default: Database } = await import('better-sqlite3');
+  const raw = new Database(path.join(dir, 'volleyiq.db'));
+  raw.pragma('user_version = 12');
+  raw.close();
+  app = await buildApp(env);
+  const evs = (await app.inject({ url: `/api/matches/${m.id}` })).json().events;
+  assert.deepEqual(evs.filter((e) => e.action === 'opp_point').map((e) => [e.t, e.value]), [[1.05, 3], [20.05, 3]]);
+  const versions = (await app.inject({ url: `/api/matches/${m.id}/versions` })).json();
+  assert.equal(versions[0].label, 'Before the 0-pass scoring change');
+  await app.close();
+});
