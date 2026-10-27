@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Privacy**
+- Teams → "Export for training (numbers only)": the tags of a team for training the auto-detection, with shirt numbers and roles only (no names, team or opponent names, dates, video file names or match sheets).
+
 **Background jobs**
 - App updates (About → Download and install) download as a background job with a notification: progress, MB and about how long is left. It goes on in other apps; tap the notification to install when it is done.
 - "AI check all rallies" runs as a background job in the app too, with a progress notification (rally N of M, about how long is left); it no longer stops when you switch apps.

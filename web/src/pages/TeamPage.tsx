@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
 import { api, type Player, type Team } from '../lib/api';
 import { parseRoster } from '../lib/roster';
+import { anonymousExport } from '../lib/anonymize';
 
 export function TeamPage() {
   const id = Number(useParams().id);
@@ -48,6 +49,15 @@ export function TeamPage() {
             a.click();
             URL.revokeObjectURL(a.href);
           }}>Export data</button>
+          <button className="btn-ghost small" title="For training the auto-detection: shirt numbers and roles only, no names, teams, opponents or dates" onClick={async () => {
+            const data = anonymousExport(await api.teamReport(team.id));
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `volleyiq_training_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }}>Export for training (numbers only)</button>
           <button className="btn-ghost small" onClick={async () => {
             if (!confirm(`Delete team ${team.name}? Matches stay but lose their roster link.`)) return;
             await api.deleteTeam(team.id);
