@@ -56,11 +56,19 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   // A video in the team's storage: a link that expires, fetched when the match is picked.
   // 'failed': the link could not be fetched; the viewer can still choose their own copy.
   const [hosted, setHosted] = useState<Record<number, string>>({});
+  const fetchHosted = (id: number) => api.sharedVideo(token, id).then((r) => setHosted((h) => ({ ...h, [id]: r.url })))
+    .catch(() => setHosted((h) => ({ ...h, [id]: 'failed' })));
   useEffect(() => {
     if (video?.type !== 'hosted' || matchId == null || hosted[matchId]) return;
-    api.sharedVideo(token, matchId).then((r) => setHosted((h) => ({ ...h, [matchId]: r.url })))
-      .catch(() => setHosted((h) => ({ ...h, [matchId]: 'failed' })));
+    fetchHosted(matchId);
   }, [video?.type, matchId]);
+  // The link expires after a few hours (a page left open): on a failed load, fetch a fresh one once.
+  const renewed = useRef<Set<number>>(new Set());
+  function onVideoError() {
+    if (file || video?.type !== 'hosted' || matchId == null || renewed.current.has(matchId)) return;
+    renewed.current.add(matchId);
+    fetchHosted(matchId);
+  }
   const hostedUrl = video?.type === 'hosted' && matchId != null && hosted[matchId] && hosted[matchId] !== 'failed' ? hosted[matchId] : null;
   const hostedLoading = video?.type === 'hosted' && matchId != null && !hosted[matchId];
   // Your own copy, when chosen, wins over the team video (e.g. when that one does not play).
@@ -161,7 +169,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
       </div>
 
       <div className="replay-video" ref={videoBox}>
-        {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} /> : hostedLoading ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
+        {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} onError={onVideoError} /> : hostedLoading ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
             <b>📁 Choose your copy of the match video</b>

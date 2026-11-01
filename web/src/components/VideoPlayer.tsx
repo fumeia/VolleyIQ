@@ -21,6 +21,8 @@ interface Props {
   /** [remote]: streamed from the team's storage (plays like a file, but its frames cannot be read for the AI check). */
   source: { type: 'youtube'; id: string } | { type: 'file'; url: string; remote?: boolean } | null;
   onStateChange?: (playing: boolean) => void;
+  /** The file could not be loaded (e.g. its link expired); the parent can hand in a new one. */
+  onError?: () => void;
 }
 
 
@@ -57,7 +59,15 @@ export function parseYouTubeId(input: string): string | null {
   }
 }
 
-export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer({ source, onStateChange }, ref) {
+export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer({ source, onStateChange, onError }, ref) {
+  // What the video is doing while it is not playing: loading, waiting for data, or failed.
+  const [load, setLoad] = useState<'loading' | 'waiting' | 'slow' | 'error' | null>(null);
+  useEffect(() => {
+    if (load !== 'loading' && load !== 'waiting') return;
+    const t = window.setTimeout(() => setLoad('slow'), 4000);
+    return () => clearTimeout(t);
+  }, [load]);
+  useEffect(() => { setLoad(null); }, [source?.type === 'file' ? source.url : null]);
   const ytHost = useRef<HTMLDivElement>(null);
   const yt = useRef<any>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -172,10 +182,20 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
           preload="auto"
           onPlay={() => onStateChange?.(true)}
           onPause={() => onStateChange?.(false)}
+          onLoadStart={() => setLoad('loading')}
+          onWaiting={() => setLoad('waiting')}
+          onCanPlay={() => setLoad((l) => (l === 'error' ? l : null))}
+          onPlaying={() => setLoad(null)}
+          onError={() => { setLoad('error'); onError?.(); }}
         />
       )}
       <div className="video-touch" onPointerUp={onTap} />
       {flash && <div className="video-flash">{flash}</div>}
+      {source.type === 'file' && load && (load !== 'loading' || source.remote) && (
+        <div className="video-status">
+          {load === 'error' ? 'The video could not be loaded.' : load === 'slow' ? 'Loading video… (slow connection?)' : 'Loading video…'}
+        </div>
+      )}
     </div>
   );
 });

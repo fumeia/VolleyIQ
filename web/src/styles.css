@@ -936,3 +936,6 @@ button.court-zone:active { background: #2a2f3a; }
 .detection-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
 .detection-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 4px; }
 .detection-table td { padding: 4px; border-top: 1px solid var(--line); }
+/* Loading / failed state over a streamed video */
+.video-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 8px 14px; border-radius: 10px;
+  background: rgba(0,0,0,.7); color: #fff; font-size: 14px; pointer-events: none; text-align: center; max-width: 80%; }

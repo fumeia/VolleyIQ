@@ -95,11 +95,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const isLive = match.mode === 'live';
   // The video in the team's storage, streamed when it is not on this device.
   const [cloudUrl, setCloudUrl] = useState<string | null>(null);
+  const [cloudTry, setCloudTry] = useState(0);
   useEffect(() => {
     setCloudUrl(null);
     if (isLive || local || !match.video_key) return;
     api.videoUrl(match.id).then((r) => setCloudUrl(r.url)).catch(() => {});
-  }, [isLive, !!local, match.video_key]);
+  }, [isLive, !!local, match.video_key, cloudTry]);
   const source = useMemo(() => {
     if (isLive) return null;
     if (local) return { type: 'file' as const, url: isApp() ? playableUrl(local.uri) : local.uri };
@@ -335,7 +336,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             {source ? (
               <>
                 <div className="video-wrap">
-                  <VideoPlayer ref={player} source={source} onStateChange={setPlaying} />
+                  <VideoPlayer ref={player} source={source} onStateChange={setPlaying}
+                    onError={() => { if (cloudUrl && cloudTry < 1) setCloudTry((n) => n + 1); }} />
                   <VideoClock player={player} />
                   {calibrating && <CalibrationOverlay session={calib} aspect={player.current?.aspect() ?? 16 / 9} />}
                 </div>
