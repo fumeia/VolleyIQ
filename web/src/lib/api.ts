@@ -31,6 +31,13 @@ export interface CenterGame {
   gender: 'f' | 'm' | 'mixed' | null; hall: string | null; city: string | null; result: string | null; sets: string[];
   videoState: 'confirmed' | 'found' | null; searched?: boolean; sent?: number; match_id?: number | null;
 }
+/** The detector's thresholds, learned from the tagged matches (how the defaults and the best do on them). */
+export interface TuningResult { threshold: number; sustainMax: number; truth: number; found: number; recall: number; noise: number; noisePerMin: number; score: number }
+export interface DetectorTuning {
+  ready: boolean; touches: number; matches: number; off: boolean; baseline: TuningResult; best?: TuningResult;
+  /** What the next run uses. */
+  use: { threshold: number; sustainMax: number };
+}
 /** Today's YouTube quota: units used and left (a search costs 101), and when it starts over. */
 export interface YoutubeUsage { enabled: boolean; used: number; limit: number; left: number; searchesLeft: number; resetsAt: string }
 export interface CenterQuery { region?: string | null; from: string; to: string }
@@ -211,6 +218,8 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  detector: () => req<DetectorTuning>('GET', '/api/detector'),
+  setDetectorOff: (off: boolean) => req<{ ok: boolean }>('PUT', '/api/detector', { off }),
   youtubeUsage: () => req<YoutubeUsage>('GET', '/api/youtube/usage'),
   center: (q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[]; videoSearch: boolean }>('GET', `/api/center?${centerQs(q)}`),
   sharedCenter: (token: string, q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[] }>('GET', `/api/share/team/${token}/center?${centerQs(q)}`),

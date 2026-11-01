@@ -309,6 +309,10 @@ const MIGRATIONS = [
   );`,
   // v25: YouTube API units used per day (Google's day, Pacific time), to show what is left.
   `CREATE TABLE IF NOT EXISTS yt_usage (day TEXT PRIMARY KEY, units INTEGER NOT NULL DEFAULT 0);`,
+  // v26: every sound peak of a detection run (also below its threshold), to learn better thresholds.
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(detection_runs)').all().some((c) => c.name === 'candidates')) db.exec('ALTER TABLE detection_runs ADD COLUMN candidates TEXT');
+  },
 ];
 
 function migrate(db) {

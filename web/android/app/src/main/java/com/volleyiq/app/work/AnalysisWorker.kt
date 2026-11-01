@@ -42,6 +42,9 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val readJerseys = inputData.getBoolean(KEY_JERSEYS, true)
         val detectCuts = inputData.getBoolean(KEY_CUTS, true)
         val sensitivity = inputData.getDouble(KEY_SENSITIVITY, 1.0)
+        // Learned from tagged matches on the server (or the defaults).
+        val threshold = inputData.getDouble(KEY_THRESHOLD, Detection.DEFAULT_THRESHOLD)
+        val sustainMax = inputData.getDouble(KEY_SUSTAIN, Detection.DEFAULT_SUSTAIN)
         val ourHalf = inputData.getString(KEY_OUR_HALF)
         // Calibration: flat [u, v, x, y] per tapped landmark (image position -> court meters).
         val calibration = inputData.getDoubleArray(KEY_POINTS)?.takeIf { it.size >= 16 && it.size % 4 == 0 }
@@ -65,9 +68,11 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 ?: MediaScan.audioFeatures(applicationContext, uri, { report(0.02 + 0.33 * it, "Listening for ball contacts") }, ::isStopped)
                     .also(checkpoints::saveFeatures)
             val whistles = Detection.whistles(feat)
-            val contacts = Detection.contacts(feat, sensitivity, whistles = whistles)
+            val contacts = Detection.contacts(feat, sensitivity, whistles = whistles, threshold = threshold, sustainMax = sustainMax)
             // Faint sounds (mostly far-side touches): only used to fill holes in a rally's rhythm.
-            val quiet = Rallies.quietContacts(contacts, Detection.contacts(feat, sensitivity * Rallies.QUIET_BOOST, whistles = whistles))
+            val quiet = Rallies.quietContacts(contacts, Detection.contacts(feat, sensitivity * Rallies.QUIET_BOOST, whistles = whistles, threshold = threshold, sustainMax = sustainMax))
+            // Every sound peak, also below the threshold: the server learns better thresholds from them.
+            val candidates = Detection.candidates(feat, whistles)
 
             val cuts = if (detectCuts) {
                 val diffs = checkpoints.loadDiffs()?.also { report(0.6, "Edit cuts already found, continuing") }
@@ -152,8 +157,11 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val file = File(applicationContext.filesDir, "suggestions-$matchId.json")
             file.writeText(JSONArray(events.map { JSONObject(it.filterValues { v -> v != null }) }).toString())
             // The run's settings go along with the results, to compare runs on the server.
+            File(file.path + ".candidates.json").writeText(JSONArray(candidates.map { c ->
+                JSONArray().put(Math.round(c[0] * 100) / 100.0).put(Math.round(c[1] * 10) / 10.0).put(Math.round(c[2] * 100) / 100.0)
+            }).toString())
             File(file.path + ".params.json").writeText(JSONObject()
-                .put("sensitivity", sensitivity).put("readJerseys", readJerseys).put("detectCuts", detectCuts)
+                .put("sensitivity", sensitivity).put("threshold", threshold).put("sustainMax", sustainMax).put("readJerseys", readJerseys).put("detectCuts", detectCuts)
                 .put("courtMarked", single != null || segmentsJson != null).put("roster", roster.size).toString())
             Notifications.done(applicationContext, notificationId, "Analysis finished", "${events.size} touches suggested. Open VolleyIQ to review")
             Result.success(workDataOf(KEY_FILE to file.absolutePath, KEY_COUNT to events.size, KEY_RALLIES to rallies.size))
@@ -209,6 +217,8 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_JERSEYS = "readJerseys"
         const val KEY_CUTS = "detectCuts"
         const val KEY_SENSITIVITY = "sensitivity"
+        const val KEY_THRESHOLD = "threshold"
+        const val KEY_SUSTAIN = "sustainMax"
         const val KEY_OUR_HALF = "ourHalf"
         const val KEY_POINTS = "calibrationPoints"
         /** JSON [{from, ourHalf, points}] per stretch of the video; newer than KEY_POINTS/KEY_OUR_HALF, which stay for set 1. */

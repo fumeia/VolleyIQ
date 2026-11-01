@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, serverBase, type Match, type Player, type VEvent } from '../lib/api';
+import { api, serverBase, type DetectorTuning, type Match, type Player, type VEvent } from '../lib/api';
 import { aiPrefs } from '../lib/aiCheck';
 import { AiCard } from './AiCard';
 import { DetectionReportCard } from './DetectionReportCard';
@@ -106,6 +106,8 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         readJerseys,
         detectCuts,
         sensitivity,
+        // The thresholds learned from the tagged matches (the defaults until there are enough).
+        ...((await api.detector().catch(() => null))?.use ?? {}),
         ourHalf: cal?.ourHalf ?? null,
         points: cal ? flatPoints(cal) : null,
         segments: cal ? segments(cal) : null,
@@ -165,6 +167,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       </details>
 
       {aiCard}
+      <LearnedDetector />
       {report}
 
       <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>
@@ -195,4 +198,46 @@ function label(a: WorkState, u: WorkState | null | undefined) {
   if (u.state === 'failed') return `Upload failed: ${u.error ?? ''}`;
   if (u.state === 'succeeded') return `Done · ${u.count ?? 0} touches suggested. Open Review.`;
   return u.state;
+}
+
+/**
+ * What the detection learned from the tagged matches: each run keeps every sound peak, so the
+ * server tries other thresholds against the tags and the next run uses the best ones.
+ */
+function LearnedDetector() {
+  const [d, setD] = useState<DetectorTuning | null>(null);
+  const load = () => api.detector().then(setD).catch(() => {});
+  useEffect(() => { load(); }, []);
+  if (!d) return null;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const better = d.ready && d.best && d.best.score > d.baseline.score;
+  return (
+    <details className="auto-step learned">
+      <summary><b>Learning from your tags</b> <small className="muted">{
+        !d.ready ? `${d.touches} of ${150} tagged touches to start` : d.off ? 'switched off' : better ? `hears ${pct(d.best!.recall)} of touches (was ${pct(d.baseline.recall)})` : 'the standard settings are best so far'
+      }</small></summary>
+      <p className="small muted">
+        Each run keeps every sound it heard, also the faint ones it did not count. VolleyIQ then checks against the touches you tagged
+        which settings would have heard the most of them with the least noise between rallies, and the next run uses those.
+        Tag one or two sets of a match by hand before running the detection on it: each tagged set teaches it more.
+      </p>
+      {!d.ready ? (
+        <p className="small">So far {d.touches} tagged touch{d.touches === 1 ? '' : 'es'} in {d.matches} match{d.matches === 1 ? '' : 'es'} with a run. Learning starts at 150 (about four sets).</p>
+      ) : (
+        <table className="small detection-table">
+          <thead><tr><th /><th>Touches heard</th><th>Noise between rallies</th><th>Settings</th></tr></thead>
+          <tbody>
+            <tr><td>Standard</td><td>{pct(d.baseline.recall)}</td><td>{d.baseline.noisePerMin.toFixed(1)} / min</td><td>{d.baseline.threshold} · {d.baseline.sustainMax}</td></tr>
+            {d.best && <tr><td>Learned</td><td><b>{pct(d.best.recall)}</b></td><td><b>{d.best.noisePerMin.toFixed(1)} / min</b></td><td>{d.best.threshold} · {d.best.sustainMax}</td></tr>}
+          </tbody>
+        </table>
+      )}
+      {d.ready && <p className="small muted">From {d.touches} tagged touches in {d.matches} match{d.matches === 1 ? '' : 'es'}. The sensitivity slider still works on top of it.</p>}
+      {d.ready && better && (
+        <label className="toggle small">
+          <input type="checkbox" checked={!d.off} onChange={async (e) => { await api.setDetectorOff(!e.target.checked); load(); }} /> Use the learned settings
+        </label>
+      )}
+    </details>
+  );
 }

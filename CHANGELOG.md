@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**The detection learns from your tags**
+- Each detection run now keeps every sound peak it heard, also the faint ones it did not count, with how loud and how long each was.
+- The server tries other settings against the touches you tagged (in every match with such a run): which would have heard the most of your touches with the least noise between rallies. Once 150 touches are tagged (about four sets), the next run uses the best ones by itself.
+- Auto → "Learning from your tags": touches heard and noise per minute with the standard and the learned settings, and a switch to go back to the standard ones. The sensitivity slider still works on top.
+- Needs the new Android app (the runs of older versions have no sound peaks to learn from).
+
 **More from the YouTube search**
 - Matches: "Search YouTube for N" searches every played game in the filtered list that has no video and was not searched yet, one after the other (with a stop button), as far as today's quota goes. Found videos show as "possible video" in the list; open a game to check them.
 - Matches: pick the period as a week, any dates (last 7 / 30 days; at most a month without a region) or a region's whole season.

@@ -11,37 +11,71 @@ data class Interval(val start: Double, val end: Double)
 /** Contact / whistle / edit-cut detection (port of worker/volleyiq_worker/audio.py and video.py). */
 object Detection {
 
+    /** How far each moment's sound change stands out from its surroundings (robust z-score). */
+    private fun zScore(flux: FloatArray): FloatArray {
+        val win = (3 * AudioSpec.FPS).toInt() or 1
+        val med = movingMedian(flux, win)
+        val dev = FloatArray(flux.size) { abs(flux[it] - med[it]) }
+        val mad = movingMedian(dev, win)
+        return FloatArray(flux.size) { (flux[it] - med[it]) / max(mad[it], 0.02f * med[it] + 1e-6f) }
+    }
+
+    /** How much of a sound's energy stays after it (impulses fade fast; music, crowd and speech do not). */
+    private fun sustain(flux: FloatArray, p: Int): Float {
+        val a = p + 3
+        val b = min(flux.size, p + 12)
+        if (b <= a || flux[p] <= 0f) return 0f
+        var s = 0f
+        for (i in a until b) s += flux[i]
+        return s / (b - a) / flux[p]
+    }
+
+    private fun peakTime(p: Int) = (p + AudioSpec.NFFT / 2.0 / AudioSpec.HOP) / AudioSpec.FPS
+
+    /**
+     * Ball contacts: sound peaks above [threshold] / [sensitivity] that fade fast enough
+     * ([sustainMax]). Both numbers can be learned from tagged matches (see the server's tuning).
+     */
     fun contacts(
         feat: AudioFeatures,
         sensitivity: Double = 1.0,
         minGap: Double = 0.35,
         whistles: List<Interval> = emptyList(),
+        threshold: Double = DEFAULT_THRESHOLD,
+        sustainMax: Double = DEFAULT_SUSTAIN,
     ): List<Contact> {
         val flux = feat.flux
         if (flux.size < 10) return emptyList()
-        val win = (3 * AudioSpec.FPS).toInt() or 1
-        val med = movingMedian(flux, win)
-        val dev = FloatArray(flux.size) { abs(flux[it] - med[it]) }
-        val mad = movingMedian(dev, win)
-        val z = FloatArray(flux.size) { (flux[it] - med[it]) / max(mad[it], 0.02f * med[it] + 1e-6f) }
-        val thr = 8.0 / sensitivity
+        val z = zScore(flux)
+        val thr = threshold / sensitivity
         val out = ArrayList<Contact>()
         for (p in findPeaks(z, thr.toFloat(), max(1, (minGap * AudioSpec.FPS).toInt()))) {
-            val t = (p + AudioSpec.NFFT / 2.0 / AudioSpec.HOP) / AudioSpec.FPS
+            val t = peakTime(p)
             if (whistles.any { t >= it.start - 0.15 && t <= it.end + 0.15 }) continue
-            // Impulses are short: reject onsets whose energy stays high (music, crowd, speech).
-            val a = p + 3
-            val b = min(flux.size, p + 12)
-            if (b > a) {
-                var s = 0f
-                for (i in a until b) s += flux[i]
-                if (s / (b - a) > 0.6f * flux[p]) continue
-            }
+            if (sustain(flux, p) > sustainMax) continue
             val strength = 1 - exp(-(z[p] - thr) / (2 * thr))
             out += Contact(t, strength.coerceIn(0.05, 1.0))
         }
         return out
     }
+
+    /**
+     * Every sound peak above a low floor, with its score and how long it lasts: [t, z, sustain].
+     * Kept with a run, so other thresholds can be tried afterwards against the tagged touches.
+     */
+    fun candidates(feat: AudioFeatures, whistles: List<Interval>, floor: Float = 3f, minGap: Double = 0.35): List<DoubleArray> {
+        val flux = feat.flux
+        if (flux.size < 10) return emptyList()
+        val z = zScore(flux)
+        return findPeaks(z, floor, max(1, (minGap * AudioSpec.FPS).toInt())).mapNotNull { p ->
+            val t = peakTime(p)
+            if (whistles.any { t >= it.start - 0.15 && t <= it.end + 0.15 }) null
+            else doubleArrayOf(t, z[p].toDouble(), sustain(flux, p).toDouble())
+        }
+    }
+
+    const val DEFAULT_THRESHOLD = 8.0
+    const val DEFAULT_SUSTAIN = 0.6
 
     fun whistles(feat: AudioFeatures, minLen: Double = 0.25): List<Interval> {
         val n = feat.tonality.size

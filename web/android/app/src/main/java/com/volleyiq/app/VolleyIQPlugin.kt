@@ -21,6 +21,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.volleyiq.app.analysis.Detection
 import com.getcapacitor.JSObject
 import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
@@ -126,6 +127,8 @@ class VolleyIQPlugin : Plugin() {
                     AnalysisWorker.KEY_JERSEYS to (call.getBoolean("readJerseys") ?: true),
                     AnalysisWorker.KEY_CUTS to (call.getBoolean("detectCuts") ?: true),
                     AnalysisWorker.KEY_SENSITIVITY to (call.getDouble("sensitivity") ?: 1.0),
+                    AnalysisWorker.KEY_THRESHOLD to (call.getDouble("threshold") ?: Detection.DEFAULT_THRESHOLD),
+                    AnalysisWorker.KEY_SUSTAIN to (call.getDouble("sustainMax") ?: Detection.DEFAULT_SUSTAIN),
                     AnalysisWorker.KEY_OUR_HALF to call.getString("ourHalf"),
                     AnalysisWorker.KEY_POINTS to points,
                     AnalysisWorker.KEY_SEGMENTS to call.getArray("segments")?.toString(),

@@ -5,6 +5,7 @@ import { MAX_EXAMPLES, MAX_TOUCHES, cleanLabel } from './touches.js';
 import { cleanSheet } from './sheet.js';
 import { abortUpload, completeUpload, createUpload, deleteObject, presign } from './s3.js';
 import { cleanImages } from './vision.js';
+import { DEFAULTS as DETECTOR_DEFAULTS, tuneFromDb } from './tuning.js';
 
 function bad(reply, msg, code = 400) {
   return reply.code(code).send({ error: msg });
@@ -658,7 +659,9 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.post('/api/matches/:id/suggestions', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Match not found', 404);
-    const { events = [], replace = true, params = null } = req.body ?? {};
+    const { events = [], replace = true, params = null, candidates = null } = req.body ?? {};
+    // Sound peaks as [t, z, sustain]: only well-formed ones, at most 50,000.
+    const peaks = Array.isArray(candidates) ? candidates.filter((c) => Array.isArray(c) && c.length === 3 && c.every(Number.isFinite)).slice(0, 50000) : null;
     if (!Array.isArray(events) || events.length > 10000) return bad(reply, 'events must be an array (max 10000)');
     // The run as detected (also the touches skipped below as already saved: those are hits).
     const RUN_KEYS = ['t', 'action', 'rally', 'poss', 'jersey', 'confidence', 'hint', 'set_no'];
@@ -667,7 +670,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const save = db.transaction(() => {
       if (runEvents.length) {
         const p = params && typeof params === 'object' ? JSON.stringify(params).slice(0, 2000) : null;
-        db.prepare('INSERT INTO detection_runs (match_id, params, events) VALUES (?, ?, ?)').run(match.id, p, JSON.stringify(runEvents));
+        db.prepare('INSERT INTO detection_runs (match_id, params, events, candidates) VALUES (?, ?, ?, ?)').run(match.id, p, JSON.stringify(runEvents), peaks?.length ? JSON.stringify(peaks) : null);
         db.prepare('DELETE FROM detection_runs WHERE match_id = ? AND id NOT IN (SELECT id FROM detection_runs WHERE match_id = ? ORDER BY id DESC LIMIT 10)').run(match.id, match.id);
       }
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
@@ -810,6 +813,20 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const match = team && db.prepare('SELECT video_key, video_variants FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video', 404);
     return videoLink(match);
+  });
+
+  // ---------- the detector's thresholds, learned from the tagged matches ----------
+  // The app asks before each run; "off" keeps the defaults.
+  app.get('/api/detector', coach, async () => {
+    const r = tuneFromDb(db);
+    const off = db.prepare("SELECT data FROM sv_cache WHERE key = 'detector:off'").get() != null;
+    const use = r.ready && !off && r.best.score > r.baseline.score;
+    return { ...r, off, use: use ? { threshold: r.best.threshold, sustainMax: r.best.sustainMax } : { ...DETECTOR_DEFAULTS } };
+  });
+  app.put('/api/detector', coach, async (req) => {
+    if (req.body?.off) db.prepare("INSERT OR REPLACE INTO sv_cache (key, data) VALUES ('detector:off', '1')").run();
+    else db.prepare("DELETE FROM sv_cache WHERE key = 'detector:off'").run();
+    return { ok: true };
   });
 
   // ---------- detection runs (to measure the auto-detection) ----------
