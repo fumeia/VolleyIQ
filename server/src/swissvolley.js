@@ -225,7 +225,8 @@ const COMMON = new Set(['vbc', 'vc', 'tv', 'stv', 'sv', 'volley', 'volleyball', 
   'juniorinnen', 'junioren', 'les', 'de', 'du', 'la', 'le', 'des', 'et', 'und', 'the', 'nla', 'nlb', 'lna', 'lnb', 'sm']);
 const words = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
 /** The words that identify a team, e.g. "Volley Lugano" → ["lugano"]. */
-export const keyWords = (name) => { const w = words(name); const k = w.filter((x) => !COMMON.has(x) && !/^\d+$/.test(x)); return k.length ? k : w; };
+// Team numbers (H2, D1, U23) are left out too: titles often skip them.
+export const keyWords = (name) => { const w = words(name); const k = w.filter((x) => !COMMON.has(x) && !/^\d+$/.test(x) && !/^[hdu]\d{1,2}$/.test(x)); return k.length ? k : w; };
 
 const isoDuration = (d) => { const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d ?? ''); return m ? (+(m[1] ?? 0)) * 3600 + (+(m[2] ?? 0)) * 60 + (+(m[3] ?? 0)) : 0; };
 

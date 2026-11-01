@@ -17,6 +17,7 @@
 - The public link has the team name in the top bar and its tabs stay at the top while scrolling.
 
 **Match videos in your own storage**
+- Video conversion at night: TRANSCODE_HOURS=23-7 in .env. A conversion still running in the morning is paused, not stopped, and goes on the next night; the match page shows "paused until tonight". 50/60 fps videos are converted to 25/30 fps (about half the work) and the converter may use two cores (still at the lowest priority).
 - A streamed video shows "Loading video… (slow connection?)" while it buffers and a message when it fails, instead of a black picture; an expired link (page left open for hours) is renewed by itself. In Replays you can switch to your own copy any time.
 - With a bucket set up (S3_* in .env, e.g. Hetzner Object Storage), the app uploads a match video straight into it in the background (resumes after a lost connection, progress notification). The match page and the public Replays stream it from there with links that expire, so nobody needs their own copy. Delete it per match. The upload does not pass through the server.
 - The server makes a 720p and a 480p version of each uploaded video (one video at a time, at the lowest CPU priority, about as long as the match on one core). Pick the size under the video: Original, 720p or 480p. It goes on from the same moment, at the same speed. The public Replays start with 720p; "Video not playing?" offers the 480p version. The match page shows how far the conversion is, and can make the versions for videos uploaded before this.

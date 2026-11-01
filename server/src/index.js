@@ -52,6 +52,7 @@ export async function buildApp(env = process.env, opts = {}) {
     aiCurrency: env.AI_CURRENCY || '$',
     storage: opts.storage !== undefined ? opts.storage : s3Config(env),
     storageFetch: opts.storageFetch,
+    transcodeHours: env.TRANSCODE_HOURS?.trim() || null,
   });
 
   // Team schedules from Swiss Volley, other teams' games, videos found on YouTube.

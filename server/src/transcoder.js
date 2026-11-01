@@ -13,33 +13,56 @@ export const QUALITIES = [
   { q: '480', height: 480, crf: 28, maxrate: '1200k', audio: '64k' },
 ];
 
-/** ffmpeg arguments: one decode, both sizes written at once, ready to stream (faststart). */
-export function ffmpegArgs(input, outputs) {
+/**
+ * Whether [date] falls in the hours "22-7" (from 22:00 to 07:00, Swiss time by default).
+ * No hours set: always.
+ */
+export function inHours(spec, date = new Date(), timeZone = 'Europe/Zurich') {
+  const m = /^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*$/.exec(spec ?? '');
+  if (!m) return true;
+  const from = Number(m[1]) % 24, to = Number(m[2]) % 24;
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', hourCycle: 'h23' }).format(date));
+  return from <= to ? hour >= from && hour < to : hour >= from || hour < to;
+}
+
+/** ffmpeg arguments: one decode, both sizes written at once, ready to stream (faststart). [fps]: frame rate cap. */
+export function ffmpegArgs(input, outputs, { fps = null } = {}) {
   // Reconnects when the connection to the bucket drops during a long match.
   const net = /^https?:/.test(input) ? ['-reconnect', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '30'] : [];
   const args = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1', ...net, '-i', input];
   for (const o of outputs) {
-    args.push('-map', '0:v:0', '-map', '0:a:0?', '-vf', `scale=-2:${o.height}`, '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '2', '-crf', String(o.crf),
+    args.push('-map', '0:v:0', '-map', '0:a:0?', '-vf', `scale=-2:${o.height}${fps ? `,fps=${fps}` : ''}`, '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '2', '-crf', String(o.crf),
       '-maxrate', o.maxrate, '-bufsize', o.maxrate.replace(/k$/, '') * 2 + 'k', '-pix_fmt', 'yuv420p',
       '-c:a', 'aac', '-b:a', o.audio, '-movflags', '+faststart', '-y', o.file);
   }
   return args;
 }
 
-/** Length of a video in seconds (ffprobe), for the progress. */
-function duration(input) {
+/** Length (seconds, for the progress) and frame rate of a video (ffprobe). */
+function probe(input) {
   return new Promise((resolve) => {
-    const p = spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', input]);
+    const p = spawn('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration:stream=avg_frame_rate', '-of', 'json', input]);
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
-    p.on('close', () => resolve(Number(out.trim()) || null));
-    p.on('error', () => resolve(null));
+    p.on('close', () => {
+      try {
+        const j = JSON.parse(out);
+        const [a, b] = String(j.streams?.[0]?.avg_frame_rate ?? '0/1').split('/').map(Number);
+        resolve({ duration: Number(j.format?.duration) || null, fps: b ? a / b : null });
+      } catch { resolve({ duration: null, fps: null }); }
+    });
+    p.on('error', () => resolve({ duration: null, fps: null }));
   });
 }
 
 const freeBytes = (dir) => { const s = fs.statfsSync(dir); return s.bavail * s.bsize; };
 
-export async function runOnce(db, cfg, tmpDir, log = console.log) {
+/**
+ * Converts the oldest waiting video. [hours] ("22-7"): only then; at the end of the hours
+ * ffmpeg is paused (not stopped) and goes on where it was when they come round again.
+ */
+export async function runOnce(db, cfg, tmpDir, log = console.log, { hours = null, timeZone = 'Europe/Zurich', checkEveryMs = 60_000 } = {}) {
+  if (!inHours(hours, new Date(), timeZone)) return false;
   const job = db.prepare("SELECT * FROM video_jobs WHERE state = 'queued' ORDER BY id LIMIT 1").get();
   if (!job) return false;
   const setJob = (fields) => db.prepare(`UPDATE video_jobs SET ${Object.keys(fields).map((k) => `${k} = @${k}`).join(', ')}, updated_at = datetime('now') WHERE id = @id`).run({ ...fields, id: job.id });
@@ -50,15 +73,25 @@ export async function runOnce(db, cfg, tmpDir, log = console.log) {
     return true;
   }
   setJob({ state: 'running', progress: 0, error: null });
-  const input = presign(cfg, 'GET', job.source_key, { expires: 12 * 3600 });
+  // Valid for a week (the most S3 allows), so a conversion paused over the day can go on.
+  const input = presign(cfg, 'GET', job.source_key, { expires: 7 * 24 * 3600 });
   const outputs = QUALITIES.map((o) => ({ ...o, file: path.join(tmpDir, `job-${job.id}-${o.q}.mp4`) }));
   try {
-    const total = await duration(input);
-    log(`job ${job.id}: match ${job.match_id}, ${total ? Math.round(total / 60) + ' min' : 'length unknown'}`);
+    const info = await probe(input);
+    const total = info.duration;
+    // 50/60 frames per second (phones, GoPro) are made 25/30 here: half the work. The original keeps every frame.
+    const fps = info.fps && info.fps > 31 ? (Math.abs(info.fps - 50) < 2 ? 25 : 30) : null;
+    log(`job ${job.id}: match ${job.match_id}, ${total ? Math.round(total / 60) + ' min' : 'length unknown'}${info.fps ? `, ${Math.round(info.fps)} fps` : ''}`);
     await new Promise((resolve, reject) => {
       // Lowest priority, so the rest of the server stays responsive.
-      const p = spawn('nice', ['-n', '19', 'ffmpeg', ...ffmpegArgs(input, outputs)]);
-      let err = '', last = 0;
+      const p = spawn('nice', ['-n', '19', 'ffmpeg', ...ffmpegArgs(input, outputs, { fps })]);
+      let err = '', last = 0, paused = false;
+      // Outside the hours: pause ffmpeg where it is, and let it go on when they start again.
+      const watch = hours ? setInterval(() => {
+        const ok = inHours(hours, new Date(), timeZone);
+        if (!ok && !paused) { p.kill('SIGSTOP'); paused = true; setJob({ state: 'paused' }); log(`job ${job.id}: paused until ${hours.split('-')[0]}:00`); }
+        else if (ok && paused) { p.kill('SIGCONT'); paused = false; setJob({ state: 'running' }); log(`job ${job.id}: going on`); }
+      }, checkEveryMs) : null;
       p.stdout.on('data', (d) => {
         const m = String(d).match(/out_time_us=(\d+)/g);
         if (!m || !total) return;
@@ -67,8 +100,8 @@ export async function runOnce(db, cfg, tmpDir, log = console.log) {
         if (progress - last >= 0.01) { last = progress; setJob({ progress }); }
       });
       p.stderr.on('data', (d) => { err = (err + d).slice(-800); });
-      p.on('error', reject);
-      p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${err.trim().split('\n').pop() ?? ''}`))));
+      p.on('error', (e) => { clearInterval(watch); reject(e); });
+      p.on('close', (code) => { clearInterval(watch); return code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${err.trim().split('\n').pop() ?? ''}`)); });
     });
     // Still the same video? (A new upload or a delete while converting makes these useless.)
     const match = db.prepare('SELECT video_key FROM matches WHERE id = ?').get(job.match_id);
@@ -97,10 +130,13 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   const db = openDb(dataDir);
   const tmp = path.join(dataDir, 'transcode-tmp');
   // A job that was running when the service stopped starts over.
-  db.prepare("UPDATE video_jobs SET state = 'queued', progress = 0 WHERE state = 'running'").run();
+  db.prepare("UPDATE video_jobs SET state = 'queued', progress = 0 WHERE state IN ('running', 'paused')").run();
+  const hours = process.env.TRANSCODE_HOURS?.trim() || null;
+  const timeZone = process.env.TRANSCODE_TZ?.trim() || 'Europe/Zurich';
+  if (hours) console.log(`converting only between ${hours.replace('-', ':00 and ')}:00 (${timeZone})`);
   console.log('transcoder ready');
   for (;;) {
-    const worked = await runOnce(db, cfg, tmp).catch((e) => { console.log(e); return false; });
+    const worked = await runOnce(db, cfg, tmp, console.log, { hours, timeZone }).catch((e) => { console.log(e); return false; });
     if (!worked) await new Promise((r) => setTimeout(r, 30_000));
   }
 }

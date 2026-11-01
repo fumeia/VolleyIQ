@@ -20,7 +20,8 @@ services:
     cpus: 0.5
 
   # Makes 720p and 480p versions of uploaded match videos, one at a time, at the lowest CPU
-  # priority. Only runs when video storage (S3_* in .env) is set up; install.sh turns it on.
+  # priority (TRANSCODE_HOURS in .env: only at night). Only runs when video storage (S3_* in
+  # .env) is set up; install.sh turns it on.
   transcoder:
     build:
       context: .
@@ -31,4 +32,4 @@ services:
     volumes:
       - ./data:/data
     mem_limit: 512m
-    cpus: 1.0
+    cpus: 2.0

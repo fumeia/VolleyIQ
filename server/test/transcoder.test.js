@@ -57,3 +57,14 @@ test('transcoder: reads the original from the bucket, uploads 720p and 480p, rec
     server.close();
   }
 });
+
+test('transcoder hours: only at night, across midnight, Swiss time', async () => {
+  const { inHours } = await import('../src/transcoder.js');
+  const at = (iso) => new Date(iso);
+  assert.equal(inHours(null, at('2026-11-01T12:00:00Z')), true, 'no hours: always');
+  assert.equal(inHours('22-7', at('2026-11-01T21:30:00Z')), true, '22:30 in Zurich (winter, UTC+1)');
+  assert.equal(inHours('22-7', at('2026-11-01T20:30:00Z')), false, '21:30 in Zurich');
+  assert.equal(inHours('22-7', at('2026-11-02T05:59:00Z')), true, '06:59');
+  assert.equal(inHours('22-7', at('2026-11-02T06:00:00Z')), false, '07:00');
+  assert.equal(inHours('1-5', at('2026-07-01T00:30:00Z')), true, '02:30 in summer (UTC+2)');
+});

@@ -63,7 +63,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined, transcodeHours = null }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -795,7 +795,7 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
   app.get('/api/matches/:id/video/status', coach, async (req) => {
     const job = db.prepare('SELECT state, progress, error, updated_at FROM video_jobs WHERE match_id = ? ORDER BY id DESC LIMIT 1').get(req.params.id);
     const ahead = job?.state === 'queued' ? db.prepare("SELECT COUNT(*) AS n FROM video_jobs WHERE state IN ('queued', 'running') AND id < (SELECT MAX(id) FROM video_jobs WHERE match_id = ?)").get(req.params.id).n : 0;
-    return { job: job ? { ...job, ahead } : null };
+    return { job: job ? { ...job, ahead } : null, hours: transcodeHours };
   });
   app.post('/api/matches/:id/video/convert', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);

@@ -138,3 +138,9 @@ test('a club calendar: pick which of the club teams it is', async () => {
   assert.deepEqual(games.map((g) => [g.game_id, g.side]), [[3, 'home'], [5, 'away']], 'only the 1L games of that team');
   await app.close();
 });
+
+test('team numbers are not search words', () => {
+  assert.deepEqual(keyWords('Volley Oerlikon H2'), ['oerlikon']);
+  assert.deepEqual(keyWords('OTA VOLLEY H1'), ['ota']);
+  assert.deepEqual(keyWords('Volley Oerlikon DU23'), ['oerlikon', 'du23']);
+});

@@ -802,18 +802,21 @@ function CloudVideoBox({ match, local, onChanged, onConverted }: { match: Match;
 /** The server's 720p and 480p versions of the team video: waiting, in progress, ready or failed. */
 function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; videoKey: string; onDone: () => void }) {
   const [job, setJob] = useState<VideoJob | null | undefined>(undefined);
+  const [hours, setHours] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [poll, setPoll] = useState(0);
   useEffect(() => {
     // Asks again every few seconds only while the server is still at it.
     let live = true, was: string | undefined, t: number | undefined;
     const tick = async () => {
-      const j = (await api.videoStatus(matchId).catch(() => null))?.job;
+      const r = await api.videoStatus(matchId).catch(() => null);
+      const j = r?.job;
       if (!live || j === undefined) return;
       setJob(j);
+      setHours(r?.hours ?? null);
       if (j?.state === 'done' && was && was !== 'done') onDone();
       was = j?.state;
-      if (j && (j.state === 'queued' || j.state === 'running')) t = window.setTimeout(tick, 5000);
+      if (j && (j.state === 'queued' || j.state === 'running' || j.state === 'paused')) t = window.setTimeout(tick, j.state === 'paused' ? 60000 : 5000);
     };
     tick();
     return () => { live = false; clearTimeout(t); };
@@ -830,7 +833,16 @@ function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; vide
         <button className="link" disabled={busy} onClick={convert}>Make 720p and 480p versions</button></span>
     );
   }
-  if (job.state === 'queued') return <span className="small muted">720p and 480p versions: waiting for the server{job.ahead ? ` (${job.ahead} video${job.ahead === 1 ? '' : 's'} first)` : ''}.</span>;
+  const night = hours ? ` The server converts between ${hours.replace('-', ':00 and ')}:00.` : '';
+  if (job.state === 'queued') return <span className="small muted">720p and 480p versions: waiting for the server{job.ahead ? ` (${job.ahead} video${job.ahead === 1 ? '' : 's'} first)` : ''}.{night}</span>;
+  if (job.state === 'paused') {
+    return (
+      <>
+        <div className="progress"><div style={{ width: pct(Math.max(0.02, job.progress)) }} /></div>
+        <span className="small muted">720p and 480p versions: {pct(job.progress)}, paused until tonight.{night}</span>
+      </>
+    );
+  }
   if (job.state === 'running') {
     return (
       <>
