@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Public team page: Overview**
+- The public team link opens on a new Overview tab: the next game, upcoming games and results (with videos), the season record with the last results, the key numbers from the tagged matches, the leaders and the tagged matches. Stats moved to their own tab.
+- A game shows its hall, its video (played on the page) and, once tagged, links to its stats and replays.
+- Visitors can send a video link for a game (with their shirt number). It shows on the page only after the coach has used it: the coach sees sent videos on Home and in the game ("Use" or ✕).
+- The guided tour of the team page now covers the Overview; the Stats tab has its own short tour.
+
 **Schedules from Swiss Volley**
 - Link a team once with its page in the Swiss Volley game center (team page → Schedule from Swiss Volley). Its games and results then show on Home (Upcoming / Results) and on the team page, and update by themselves twice a day.
 - Tap a game: date, time, hall with a map link, result. "Tag this match" opens a new match with team, opponent, date and the game already filled in; a match tagged that day is linked to the game by itself.

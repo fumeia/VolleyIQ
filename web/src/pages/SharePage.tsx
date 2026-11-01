@@ -5,7 +5,8 @@ import { roleName } from '../components/analysis/PlayersSection';
 import { StatsView } from '../components/StatsView';
 import { Replays } from '../components/Replays';
 import { Tour } from '../components/Tour';
-import { matchTour, playerTour, teamTour } from '../components/ShareTours';
+import { matchTour, playerTour, statsTour, teamTour } from '../components/ShareTours';
+import { TeamOverview } from '../components/TeamOverview';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
@@ -48,7 +49,7 @@ export function SharePage() {
 }
 
 type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
-type View = 'stats' | 'trends' | 'players' | 'replays';
+type View = 'overview' | 'stats' | 'trends' | 'players' | 'replays';
 
 /**
  * The public team site (no login), under the one shareable team link:
@@ -76,6 +77,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const player = playerId ? data.players.find((p) => p.id === Number(playerId)) ?? null : null;
   const tab: View = player ? 'players' : view;
   const scope = match ? `${base}/m/${match.id}` : base;
+  const statsLink = match ? scope : `${base}/stats`;
   const events = match ? data.events.filter((e) => e.match_id === match.id) : data.events;
   const active = data.players
     .map((p) => ({ p, n: data.events.filter((e) => e.player_id === p.id).length }))
@@ -128,10 +130,12 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
           : <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />}
       </>
     );
+  } else if (tab === 'overview') {
+    body = <TeamOverview token={token!} base={base} players={data.players} events={data.events} matches={data.matches} />;
   } else {
     body = (
       <>
-        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}` : base))}</div>
+        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}` : `${base}/stats`))}</div>
         <StatsView players={data.players} events={events} matches={match ? [match] : data.matches} />
       </>
     );
@@ -147,7 +151,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
       </header>
       <nav className="public-nav" data-tour="tabs">
         <div className="public-inner tabs">
-          <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
+          <Link to={base} className={`tab ${tab === 'overview' ? 'on' : ''}`}>Overview</Link>
+          <Link to={statsLink} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
           <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
           <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
           <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
@@ -156,8 +161,10 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
       <div className="page share">
         {body}
       </div>
-      {/* Someone opening a player's own link gets that page's tour; everyone else the team's. */}
-      {player ? <Tour key="player" id="player" steps={playerTour(player.name.split(' ')[0])} /> : <Tour key="team" id="team" steps={teamTour(data.team.name)} />}
+      {/* Someone opening a player's own link gets that page's tour; the front page the team's; the stats their own. */}
+      {player ? <Tour key="player" id="player" steps={playerTour(player.name.split(' ')[0])} />
+        : tab === 'overview' ? <Tour key="team" id="team" steps={teamTour(data.team.name)} />
+        : tab === 'stats' ? <Tour key="stats" id="stats" steps={statsTour()} /> : null}
     </div>
   );
 }

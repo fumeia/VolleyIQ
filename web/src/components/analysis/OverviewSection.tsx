@@ -9,7 +9,7 @@ import { insightsFor } from './insights';
 import { MomentumBlock, SetsTable } from './Momentum';
 import { avg2, eff3, judge, pct, plural, ratio, Val, type Tone } from './ui';
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
+export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
   return (
     <div className="kpi">
       <span className="kpi-label">{label}</span>

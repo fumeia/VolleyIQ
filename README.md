@@ -201,6 +201,8 @@ find a video of any of these games.
 
 Video search uses the YouTube Data API: add `YOUTUBE_API_KEY` to `.env` (see `.env.example`).
 Found videos are only suggestions until someone confirms one; a link can also be pasted by hand.
+Confirmed videos show on the public team page (Overview), where visitors can also send a video
+link for a game; it appears there once the coach has used it.
 
 The calendar is a stable public feed. The other teams' games come from the game center's
 own requests, which can change when Swiss Volley updates its website; the server then looks

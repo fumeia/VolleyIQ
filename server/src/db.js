@@ -288,6 +288,19 @@ const MIGRATIONS = [
   (db) => {
     if (!db.prepare('PRAGMA table_info(teams)').all().some((c) => c.name === 'sv_filter')) db.exec('ALTER TABLE teams ADD COLUMN sv_filter TEXT');
   },
+  // v23: videos for a game suggested by visitors of the public team page, until the coach decides.
+  `CREATE TABLE IF NOT EXISTS video_suggestions (
+    id INTEGER PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    game_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT,
+    sender_jersey INTEGER,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'open',      -- open | accepted | rejected
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS video_suggestions_game ON video_suggestions(team_id, game_id, status);`,
 ];
 
 function migrate(db) {

@@ -34,19 +34,20 @@ const tone: TourStep = {
 export function teamTour(team: string): TourStep[] {
   return [
     {
-      title: `${team}: match stats`,
+      title: team,
       text: (
         <>
-          <p>Everything here comes from the match videos, tagged touch by touch: every serve, pass, set, attack, block and dig, who played it and where the ball went.</p>
-          <p>A quick look at what you can find, in 8 steps.</p>
+          <p>The team's games and results, and stats from the match videos, tagged touch by touch: every serve, pass, set, attack, block and dig, who played it and where the ball went.</p>
+          <p>A quick look around, in 6 steps.</p>
         </>
       ),
     },
     {
       target: '[data-tour="tabs"]',
-      title: 'Four views',
+      title: 'Five views',
       text: (
         <ul>
+          <li><b>Overview</b>: games, results and the season at a glance</li>
           <li><b>Stats</b>: the numbers of the season or of one match</li>
           <li><b>Trends</b>: how they develop from match to match</li>
           <li><b>Players</b>: a page for every player</li>
@@ -55,13 +56,10 @@ export function teamTour(team: string): TourStep[] {
       ),
     },
     {
-      target: '[data-tour="match-picker"]',
-      title: 'Season or one match',
-      text: <>Stats and Trends start with all matches together. Pick a match here to see only that one.</>,
+      target: '[data-tour="games"]',
+      title: 'Games and videos',
+      text: <>Upcoming games and results. Tap a game for the hall, its video and, once tagged, its stats. Know a video of a game? Send the link there; it shows once the team has checked it.</>,
     },
-    sections,
-    passes,
-    tone,
     {
       target: '[data-tour="tab-players"]',
       title: 'A page per player',
@@ -73,10 +71,28 @@ export function teamTour(team: string): TourStep[] {
       text: (
         <>
           <p>Every tagged touch as a short clip, filtered by player, skill and set, one by one or all in a row.</p>
-          <p>You choose your own copy of the match video; it plays on your device and is not uploaded. Spot a wrong tag, or a touch that is missing (like a block without a touch)? Switch on <b>Suggest corrections</b> and send it.</p>
+          <p>Spot a wrong tag, or a touch that is missing (like a block without a touch)? Switch on <b>Suggest corrections</b> and send it.</p>
         </>
       ),
     },
+    {
+      title: 'That is the tour',
+      text: <>The <b>? Guide</b> button in the corner brings it back any time. The Stats tab has a short tour of its own.</>,
+    },
+  ];
+}
+
+/** The Stats tab: season or one match, the topics, how passes are graded, green and red. */
+export function statsTour(): TourStep[] {
+  return [
+    {
+      target: '[data-tour="match-picker"]',
+      title: 'Season or one match',
+      text: <>Stats and Trends start with all matches together. Pick a match here to see only that one.</>,
+    },
+    sections,
+    passes,
+    tone,
     {
       title: 'That is the tour',
       text: <>The <b>? Guide</b> button in the corner brings it back any time.</>,

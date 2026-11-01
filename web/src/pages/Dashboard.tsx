@@ -51,7 +51,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <h2 className="section-title">Games</h2>
+      <h2 className="section-title">Games{(() => { const n = sched?.games.reduce((a, g) => a + (g.suggestions?.length ?? 0), 0) ?? 0; return n ? <span className="badge badge-suggest">{n} video{n === 1 ? '' : 's'} sent by visitors</span> : null; })()}</h2>
       {sched && sched.linked > 0 ? (
         <ScheduleTable games={sched.games} showTeam={sched.linked > 1} limit={5} onPick={setGame} />
       ) : teams.length > 0 && sched ? (

@@ -144,3 +144,41 @@ test('team numbers are not search words', () => {
   assert.deepEqual(keyWords('OTA VOLLEY H1'), ['ota']);
   assert.deepEqual(keyWords('Volley Oerlikon DU23'), ['oerlikon', 'du23']);
 });
+
+test('public team page: games, confirmed videos only, and video suggestions from visitors', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-pub-'));
+  const fake = async (url) => {
+    if (url.includes('iCal/schedule/bbbb')) return { ok: true, status: 200, text: async () => ICS };
+    if (url.includes('youtube.com/oembed')) return { ok: true, status: 200, json: async () => ({ title: 'Musterdorf vs Seetal, full game' }) };
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { scheduleFetch: fake, youtubeKey: null });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Damen 1' } })).json();
+  await app.inject({ method: 'PUT', url: `/api/teams/${team.id}/swissvolley`, payload: { link: 'webcal://volleymanager.volleyball.ch/iCal/schedule/bbbb1111bbbb1111bbbb' } });
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+
+  // A found but unconfirmed video stays private.
+  await app.inject({ method: 'PUT', url: '/api/games/5002/video', payload: { state: 'rejected' } });
+  let pub = (await app.inject({ url: `/api/share/team/${token}/schedule` })).json();
+  assert.deepEqual(pub.games.map((g) => [g.game_id, g.video]), [[5001, null], [5002, null]]);
+  assert.equal((await app.inject({ url: '/api/share/team/wrong/schedule' })).statusCode, 404);
+
+  const send = (payload, game = 5001) => app.inject({ method: 'POST', url: `/api/share/team/${token}/games/${game}/video`, payload });
+  assert.equal((await send({ url: 'youtube.com/x', jersey: 7 })).statusCode, 400, 'full link needed');
+  assert.equal((await send({ url: 'https://youtu.be/abc' })).statusCode, 400, 'shirt number needed');
+  assert.equal((await send({ url: 'https://youtu.be/abc', jersey: 7 }, 9999)).statusCode, 404, 'not a game of this team');
+  assert.equal((await send({ url: 'https://youtu.be/abc', jersey: 7, note: 'from the parents' })).statusCode, 200);
+  assert.equal((await send({ url: 'https://youtu.be/abc', jersey: 12 })).statusCode, 200, 'the same link again is fine');
+
+  const coachView = (await app.inject({ url: '/api/schedule' })).json().games.find((g) => g.game_id === 5001);
+  assert.equal(coachView.suggestions.length, 1);
+  const s = coachView.suggestions[0];
+  assert.deepEqual([s.url, s.title, s.sender_jersey, s.note], ['https://youtu.be/abc', 'Musterdorf vs Seetal, full game', 7, 'from the parents']);
+
+  const ok = (await app.inject({ method: 'POST', url: `/api/video-suggestions/${s.id}`, payload: { decision: 'accept' } })).json();
+  assert.equal(ok.video.state, 'confirmed');
+  pub = (await app.inject({ url: `/api/share/team/${token}/schedule` })).json();
+  assert.deepEqual(pub.games[0].video, { state: 'confirmed', url: 'https://youtu.be/abc', title: 'Musterdorf vs Seetal, full game', candidates: [], searched_at: null });
+  assert.equal((await app.inject({ url: '/api/schedule' })).json().games[0].suggestions.length, 0, 'decided');
+  await app.close();
+});

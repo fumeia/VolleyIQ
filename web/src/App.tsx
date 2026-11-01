@@ -38,7 +38,8 @@ export function App() {
   if (isShare) {
     return (
       <Routes>
-        <Route path="/s/t/:token" element={<TeamSharePage />} />
+        <Route path="/s/t/:token" element={<TeamSharePage view="overview" />} />
+        <Route path="/s/t/:token/stats" element={<TeamSharePage />} />
         <Route path="/s/t/:token/trends" element={<TeamSharePage view="trends" />} />
         <Route path="/s/t/:token/players" element={<TeamSharePage view="players" />} />
         <Route path="/s/t/:token/m/:matchId" element={<TeamSharePage />} />

@@ -47,19 +47,19 @@ export function Scout() {
           </nav>
           <div className="table-wrap">
             <table className="stat-table sched-table">
-              <thead><tr><th>Date</th><th>Game</th><th>Sets</th><th aria-label="Video" /></tr></thead>
+              <thead><tr><th>Date</th><th>Game</th><th>Sets</th></tr></thead>
               <tbody>
                 {rows.map((g) => (
                   <Fragment key={g.gameId}>
                     <tr onClick={() => setOpen(open === g.gameId ? null : g.gameId)} className={open === g.gameId ? 'on' : ''}>
                       <td><b>{gameDay(g.start)}</b></td>
                       <td className="sched-game"><span className={g.home === opp ? 'sched-us' : ''}>{g.home}</span><span className="sched-vs"><span className={g.away === opp ? 'sched-us' : ''}>{g.away}</span></span>
-                        {g.sets.length > 0 && <small className="muted">{g.sets.join(', ')}</small>}</td>
+                        {g.sets.length > 0 && <small className="muted">{g.sets.join(', ')}</small>}
+                        {g.video?.state === 'confirmed' && <span className="sched-flags"><span className="badge">video</span></span>}</td>
                       <td>{g.result ? <b className={won(g) ? 'tone-good' : 'tone-bad'}>{g.result}</b> : <span className="muted">{g.start.slice(11, 16)}</span>}</td>
-                      <td className="sched-flags">{g.video?.state === 'confirmed' ? <span className="badge">video</span> : null}</td>
                     </tr>
                     {open === g.gameId && (
-                      <tr className="sched-detail"><td colSpan={4}>
+                      <tr className="sched-detail"><td colSpan={3}>
                         <VideoFinder gameId={g.gameId} game={{ home: g.home, away: g.away, start: g.start }} video={g.video} canSearch={videoSearch}
                           onChange={(v) => setData((d) => d && { ...d, games: d.games.map((x) => (x.gameId === g.gameId ? { ...x, video: v } : x)) })} />
                         {g.video?.state === 'confirmed' && g.video.url && game && (

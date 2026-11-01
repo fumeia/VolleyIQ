@@ -21,7 +21,10 @@ export interface ScheduleGame {
   id: number; team_id: number; team_name: string; game_id: number; starts_at: string; home: string | null; away: string | null;
   side: 'home' | 'away' | null; league: string | null; league_id: number | null; hall: string | null; address: string | null;
   result: string | null; cancelled: boolean; match_id: number | null; video: GameVideo | null;
+  /** Videos suggested by visitors of the public page, waiting for the coach (coach view only). */
+  suggestions?: VideoSuggestion[];
 }
+export interface VideoSuggestion { id: number; url: string; title: string | null; sender_jersey: number | null; note: string | null; created_at: string }
 /** Any game of a league (other teams' games too). */
 export interface LeagueGame { gameId: number; start: string; home: string; away: string; league: string | null; group: string | null; hall: string | null; result: string | null; sets: string[]; video: GameVideo | null }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -198,6 +201,9 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  sharedSchedule: (token: string) => req<{ games: ScheduleGame[] }>('GET', `/api/share/team/${token}/schedule`),
+  suggestVideo: (token: string, gameId: number, s: { url: string; jersey: number; note?: string }) => req<{ ok: boolean }>('POST', `/api/share/team/${token}/games/${gameId}/video`, s),
+  decideVideoSuggestion: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; video: GameVideo | null }>('POST', `/api/video-suggestions/${id}`, { decision }),
   setVideo: (gameId: number, v: { url?: string; title?: string; state?: 'confirmed' | 'rejected' }) => req<GameVideo>('PUT', `/api/games/${gameId}/video`, v),
   updateMatch: (id: number, m: Partial<Match>) => req<Match>('PATCH', `/api/matches/${id}`, m),
   versions: (id: number) => req<MatchVersion[]>('GET', `/api/matches/${id}/versions`),

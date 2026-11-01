@@ -34,16 +34,23 @@ export function ScheduleTable({ games, showTeam = false, limit, onPick }: { game
       {rows.length === 0 ? <p className="muted small sched-empty">{tab === 'next' ? 'No more games scheduled.' : 'No games played yet.'}</p> : (
         <div className="table-wrap">
           <table className="stat-table sched-table">
-            <thead><tr><th>Date</th><th>Game</th><th>{tab === 'next' ? 'Time' : 'Sets'}</th><th aria-label="Tagged" /></tr></thead>
+            <thead><tr><th>Date</th><th>Game</th><th>{tab === 'next' ? 'Time' : 'Sets'}</th></tr></thead>
             <tbody>
               {rows.map((g) => {
                 const o = outcome(g);
                 return (
                   <tr key={g.id} onClick={() => onPick(g)} className={g.cancelled ? 'sched-cancelled' : ''}>
                     <td><b>{gameDay(g.starts_at)}</b>{showTeam && <small className="muted">{g.team_name}</small>}</td>
-                    <td className="sched-game">{name(g, 'home')}<span className="sched-vs">{name(g, 'away')}</span>{g.league && <small className="muted">{g.league}{g.hall ? ` · ${g.hall}` : ''}</small>}</td>
+                    <td className="sched-game">{name(g, 'home')}<span className="sched-vs">{name(g, 'away')}</span>{g.league && <small className="muted">{g.league}{g.hall ? ` · ${g.hall}` : ''}</small>}
+                      {(g.suggestions?.length || g.match_id || g.video?.state === 'confirmed') ? (
+                        <span className="sched-flags">
+                          {g.match_id ? <span className="badge badge-pending" title="Tagged in VolleyIQ">tagged</span> : null}
+                          {g.video?.state === 'confirmed' ? <span className="badge" title="Has a video">video</span> : null}
+                          {g.suggestions?.length ? <span className="badge badge-suggest" title="Videos sent by visitors of the public page">{g.suggestions.length} video{g.suggestions.length === 1 ? '' : 's'} sent</span> : null}
+                        </span>
+                      ) : null}</td>
                     <td>{g.cancelled ? <span className="muted">cancelled</span> : g.result ? <b className={o === 'won' ? 'tone-good' : o === 'lost' ? 'tone-bad' : ''}>{g.result}</b> : gameTime(g.starts_at)}</td>
-                    <td className="sched-flags">{g.match_id ? <span className="badge badge-pending" title="Tagged in VolleyIQ">tagged</span> : g.video?.state === 'confirmed' ? <span className="badge" title="A video was found">video</span> : null}</td>
+
                   </tr>
                 );
               })}
@@ -60,6 +67,13 @@ export function ScheduleTable({ games, showTeam = false, limit, onPick }: { game
 export function GameSheet({ game, videoSearch, onClose, onChanged }: { game: ScheduleGame; videoSearch: boolean; onClose: () => void; onChanged: () => void }) {
   const opponent = (game.side === 'home' ? game.away : game.home) ?? '';
   const [video, setVideo] = useState<GameVideo | null>(game.video);
+  const [sent, setSent] = useState(game.suggestions ?? []);
+  const decide = async (id: number, decision: 'accept' | 'reject') => {
+    const r = await api.decideVideoSuggestion(id, decision);
+    setSent((l) => l.filter((x) => x.id !== id));
+    if (r.video) setVideo(r.video);
+    onChanged();
+  };
   const tagLink = `/new?${new URLSearchParams({
     team: String(game.team_id), opponent, date: game.starts_at.slice(0, 10), schedule: String(game.id),
     label: `${game.home} - ${game.away}`, ...(video?.state === 'confirmed' && video.url ? { video: video.url } : {}),
@@ -81,6 +95,19 @@ export function GameSheet({ game, videoSearch, onClose, onChanged }: { game: Sch
           {game.league_id && <Link className="btn" to={`/scout/${game.id}`}>{opponent}: games this season</Link>}
         </div>
         <h3 className="section-title">Video</h3>
+        {sent.length > 0 && (
+          <div className="video-finder">
+            <p className="small">Sent by visitors of the public page:</p>
+            {sent.map((x) => (
+              <div key={x.id} className="video-pick">
+                <a href={x.url} target="_blank" rel="noreferrer"><b>{x.title || x.url}</b>
+                  <small className="muted">{x.sender_jersey != null ? `#${x.sender_jersey}` : ''}{x.note ? ` · ${x.note}` : ''}{x.title ? ` · ${x.url}` : ''}</small></a>
+                <button className="btn small" onClick={() => decide(x.id, 'accept')}>Use</button>
+                <button className="btn-ghost small" onClick={() => decide(x.id, 'reject')} aria-label="Reject">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
         <VideoFinder gameId={game.game_id} game={{ home: game.home ?? '', away: game.away ?? '', start: game.starts_at }} video={video} canSearch={videoSearch}
           onChange={(v) => { setVideo(v); onChanged(); }} />
       </div>
