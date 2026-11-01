@@ -106,7 +106,7 @@ if [ "$MODE" = uninstall ]; then
 
   backup_db "/root/volleyiq-backup-$STAMP.db"
   if [ -f "$DIR/docker-compose.yml" ]; then
-    compose down --rmi local --remove-orphans || true
+    COMPOSE_PROFILES=video compose down --rmi local --remove-orphans || true
   fi
   if has_caddy && grep -qxF "$BEGIN" "$CADDYFILE"; then
     strip_block > "$CANDIDATE"
@@ -185,14 +185,22 @@ fi
 mkdir -p data
 
 say "Building and starting the container"
-old_image=$(docker images -q "${PROJECT}-app" 2>/dev/null | head -1 || true)
+our_images() { for r in "${PROJECT}-app" "${PROJECT}-transcoder"; do docker images -q "$r" 2>/dev/null || true; done | sort -u; }
+old_images=$(our_images)
+# The video converter only runs when video storage is set up in .env.
+if grep -qE '^S3_BUCKET=.+' .env 2>/dev/null; then
+  export COMPOSE_PROFILES=video
+  echo "Video storage is set up: the video converter (720p / 480p) runs too."
+else
+  compose rm -sf transcoder >/dev/null 2>&1 || true
+fi
 # Build cache is shared by all projects; only clean it if it was empty before (i.e. it is all ours).
 cache_was_empty=0
 docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | grep -qx 'Build Cache 0B' && cache_was_empty=1
 compose up -d --build
-new_image=$(docker images -q "${PROJECT}-app" 2>/dev/null | head -1 || true)
-# Only VolleyIQ's own images: the previous version (if replaced) and its untagged build stages.
-[ -n "$old_image" ] && [ "$old_image" != "$new_image" ] && docker rmi "$old_image" >/dev/null 2>&1 || true
+new_images=$(our_images)
+# Only VolleyIQ's own images: the previous versions (if replaced) and their untagged build stages.
+for img in $old_images; do echo "$new_images" | grep -qx "$img" || docker rmi "$img" >/dev/null 2>&1 || true; done
 docker image prune -f --filter "label=org.volleyiq.build=1" >/dev/null 2>&1 || true
 if [ $cache_was_empty = 1 ]; then docker builder prune -af >/dev/null 2>&1 || true; else echo "Note: Docker build cache was not empty before, so it was left alone."; fi
 

@@ -3,7 +3,9 @@
 # reverse proxy (see README), so no ports 80/443 are taken here.
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: app
     restart: unless-stopped
     env_file: .env
     environment:
@@ -16,3 +18,17 @@ services:
       - ./data:/data
     mem_limit: 192m
     cpus: 0.5
+
+  # Makes 720p and 480p versions of uploaded match videos, one at a time, at the lowest CPU
+  # priority. Only runs when video storage (S3_* in .env) is set up; install.sh turns it on.
+  transcoder:
+    build:
+      context: .
+      target: transcoder
+    profiles: [video]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    mem_limit: 512m
+    cpus: 1.0

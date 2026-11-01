@@ -6,6 +6,8 @@ import { EditSheet } from './EditSheet';
 import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
 import { FrameStep, SpeedControl } from './SpeedControl';
+import { QualityControl } from './QualityControl';
+import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 
 interface Props {
   token: string;
@@ -55,8 +57,8 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const file = matchId != null ? files[matchId] : undefined;
   // A video in the team's storage: a link that expires, fetched when the match is picked.
   // 'failed': the link could not be fetched; the viewer can still choose their own copy.
-  const [hosted, setHosted] = useState<Record<number, string>>({});
-  const fetchHosted = (id: number) => api.sharedVideo(token, id).then((r) => setHosted((h) => ({ ...h, [id]: r.url })))
+  const [hosted, setHosted] = useState<Record<number, VideoLink | 'failed'>>({});
+  const fetchHosted = (id: number) => api.sharedVideo(token, id).then((r) => setHosted((h) => ({ ...h, [id]: r })))
     .catch(() => setHosted((h) => ({ ...h, [id]: 'failed' })));
   useEffect(() => {
     if (video?.type !== 'hosted' || matchId == null || hosted[matchId]) return;
@@ -69,12 +71,16 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
     renewed.current.add(matchId);
     fetchHosted(matchId);
   }
-  const hostedUrl = video?.type === 'hosted' && matchId != null && hosted[matchId] && hosted[matchId] !== 'failed' ? hosted[matchId] : null;
+  // 720p by default here (most watch on a phone); the size picked last on this device wins.
+  const [quality, setQuality] = useState<Quality>(() => loadQuality('team', '720'));
+  const link = video?.type === 'hosted' && matchId != null && hosted[matchId] && hosted[matchId] !== 'failed' ? hosted[matchId] as VideoLink : null;
+  const hostedPick = link ? urlFor(link, quality) : null;
+  const hostedUrl = hostedPick?.url ?? null;
   const hostedLoading = video?.type === 'hosted' && matchId != null && !hosted[matchId];
   // Your own copy, when chosen, wins over the team video (e.g. when that one does not play).
   const source = file ? { type: 'file' as const, url: file.url }
     : video?.type === 'youtube' ? { type: 'youtube' as const, id: video.id }
-    : hostedUrl ? { type: 'file' as const, url: hostedUrl, remote: true }
+    : hostedUrl ? { type: 'file' as const, url: hostedUrl, remote: true, group: `match-${matchId}` }
     : null;
 
   const all = useMemo(() => events.filter((e) => e.match_id === matchId && e.t != null && ACTION_BY_CODE[e.action]?.group !== 'team')
@@ -184,7 +190,9 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         <p className="small muted replay-file">▶ Your copy: {file.name} · <label className="link">change<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label>
           {(video?.type === 'hosted' || video?.type === 'youtube') && <> · <button className="link" onClick={() => setFiles((m) => { const n = { ...m }; delete n[matchId!]; return n; })}>back to the team video</button></>}</p>
       ) : source && (
-        <p className="small muted replay-file">Video not playing? <label className="link">Use your own copy instead<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
+        <p className="small muted replay-file">Video not playing?{' '}
+          {hostedPick && hostedPick.quality !== '480' && available(link).includes('480') && <><button className="link" onClick={() => { setQuality('480'); saveQuality('team', '480'); }}>Try the smaller 480p version</button> or </>}
+          <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? 'use' : 'Use'} your own copy instead<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
       )}
 
       <div className="replay-filters">
@@ -217,6 +225,8 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         <div className="replay-playback">
           <SpeedControl className="btn" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
           {source?.type === 'file' && <FrameStep player={player} className="btn" />}
+          {!file && hostedPick && <QualityControl className="btn" quality={hostedPick.quality} options={available(link)}
+            onPick={(q) => { setQuality(q); saveQuality('team', q); }} />}
         </div>
         <button className="btn-ghost small" onClick={() => setLead((lead + 1) % LEADS.length)}>{LEADS[lead].label} clips</button>
         <label className="toggle replay-edit-toggle">

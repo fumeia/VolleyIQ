@@ -18,8 +18,11 @@ export interface PlayerHandle {
 }
 
 interface Props {
-  /** [remote]: streamed from the team's storage (plays like a file, but its frames cannot be read for the AI check). */
-  source: { type: 'youtube'; id: string } | { type: 'file'; url: string; remote?: boolean } | null;
+  /**
+   * [remote]: streamed from the team's storage (plays like a file, but its frames cannot be read for the AI check).
+   * [group]: a new URL of the same group (another size, a renewed link) continues where the last one was.
+   */
+  source: { type: 'youtube'; id: string } | { type: 'file'; url: string; remote?: boolean; group?: string } | null;
   onStateChange?: (playing: boolean) => void;
   /** The file could not be loaded (e.g. its link expired); the parent can hand in a new one. */
   onError?: () => void;
@@ -68,6 +71,20 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
     return () => clearTimeout(t);
   }, [load]);
   useEffect(() => { setLoad(null); }, [source?.type === 'file' ? source.url : null]);
+  // Where the file was (kept while it plays), to go on from there after a switch within the group.
+  const was = useRef<{ group: string; t: number; playing: boolean; rate: number } | null>(null);
+  const resume = useRef<typeof was.current>(null);
+  const fileGroup = source?.type === 'file' ? source.group : undefined;
+  const fileUrl = source?.type === 'file' ? source.url : null;
+  const lastUrl = useRef(fileUrl);
+  if (lastUrl.current !== fileUrl) {
+    lastUrl.current = fileUrl;
+    resume.current = fileGroup && was.current?.group === fileGroup ? was.current : null;
+  }
+  const remember = () => {
+    const v = video.current;
+    if (v && fileGroup && v.readyState > 0 && !resume.current) was.current = { group: fileGroup, t: v.currentTime, playing: !v.paused, rate: v.playbackRate };
+  };
   const ytHost = useRef<HTMLDivElement>(null);
   const yt = useRef<any>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -180,8 +197,19 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
           src={source.url}
           playsInline
           preload="auto"
-          onPlay={() => onStateChange?.(true)}
-          onPause={() => onStateChange?.(false)}
+          onPlay={() => { onStateChange?.(true); remember(); }}
+          onPause={() => { onStateChange?.(false); remember(); }}
+          onTimeUpdate={remember}
+          onRateChange={remember}
+          onLoadedMetadata={(e) => {
+            const r = resume.current;
+            resume.current = null;
+            if (!r) return;
+            const v = e.currentTarget;
+            v.currentTime = r.t;
+            v.playbackRate = r.rate;
+            if (r.playing) v.play().catch(() => {});
+          }}
           onLoadStart={() => setLoad('loading')}
           onWaiting={() => setLoad('waiting')}
           onCanPlay={() => setLoad((l) => (l === 'error' ? l : null))}

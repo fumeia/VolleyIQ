@@ -235,6 +235,21 @@ const MIGRATIONS = [
     if (!cols.includes('video_key')) db.exec('ALTER TABLE matches ADD COLUMN video_key TEXT');
     if (!cols.includes('video_bytes')) db.exec('ALTER TABLE matches ADD COLUMN video_bytes INTEGER');
   },
+  // v20: smaller versions of the match video (720p, 480p) made on the server, and the queue
+  // of videos waiting to be converted (the transcoder service works through it).
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(matches)').all().some((c) => c.name === 'video_variants')) db.exec('ALTER TABLE matches ADD COLUMN video_variants TEXT');
+    db.exec(`CREATE TABLE IF NOT EXISTS video_jobs (
+      id INTEGER PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      source_key TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'queued',   -- queued | running | done | failed
+      progress REAL NOT NULL DEFAULT 0,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  },
 ];
 
 function migrate(db) {

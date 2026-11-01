@@ -8,6 +8,7 @@ import { buildApp } from '../src/index.js';
 async function setup(extra = {}, opts = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-'));
   const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none'), ...extra }, opts);
+  app.dataDir = dir;
   return app;
 }
 
@@ -403,8 +404,18 @@ test('match video in the bucket: multipart upload signed by the server, links fo
   assert.match(link.url, /X-Amz-Expires=21600/);
   assert.equal((await app.inject({ url: `/api/share/team/wrong/video/${m.id}` })).statusCode, 404);
 
+  const db = (await import('../src/db.js')).openDb(app.dataDir);
+  // The upload queued the conversion; once the converter recorded the sizes, the links carry them.
+  assert.equal((await app.inject({ url: `/api/matches/${m.id}/video/status` })).json().job.state, 'queued');
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${m.id}/video/convert` })).statusCode, 200);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM video_jobs WHERE match_id = ?').get(m.id).n, 1, 'asking again replaces the waiting job');
+  db.prepare('UPDATE matches SET video_variants = ? WHERE id = ?').run(JSON.stringify({ 720: { key: 'x-720.mp4' }, 480: { key: 'x-480.mp4' } }), m.id);
+  const sized = (await app.inject({ url: `/api/share/team/${token}/video/${m.id}` })).json();
+  assert.deepEqual(Object.keys(sized.variants).sort(), ['480', '720']);
+  assert.match(sized.variants['480'], /x-480\.mp4\?X-Amz/);
+
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/matches/${m.id}/video` })).statusCode, 200);
-  assert.equal(calls.at(-1).method, 'DELETE');
+  assert.ok(['abc', 'x-720.mp4', 'x-480.mp4'].slice(1).every((k) => calls.some((c) => c.method === 'DELETE' && c.url.includes(k))), 'the smaller sizes are deleted too');
   assert.equal((await app.inject({ url: `/api/share/team/${token}/video/${m.id}` })).statusCode, 404);
   await app.close();
 });

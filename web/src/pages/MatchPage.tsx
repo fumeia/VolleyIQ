@@ -18,10 +18,12 @@ import { MatchSheetScan } from '../components/MatchSheetScan';
 import { MoreMenu } from '../components/MoreMenu';
 import { EditsPanel } from '../components/EditsPanel';
 import { FrameStep, SpeedControl } from '../components/SpeedControl';
+import { QualityControl } from '../components/QualityControl';
+import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
-import { api, ApiError, serverBase, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type Player, type VEvent } from '../lib/api';
+import { api, ApiError, serverBase, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type VideoJob, type Player, type VEvent } from '../lib/api';
 import { isApp, localVideo, Native, playableUrl, setLocalVideo, type LocalVideo, type WorkState } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
@@ -94,17 +96,21 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   const isLive = match.mode === 'live';
   // The video in the team's storage, streamed when it is not on this device.
-  const [cloudUrl, setCloudUrl] = useState<string | null>(null);
+  const [cloudLink, setCloudLink] = useState<VideoLink | null>(null);
   const [cloudTry, setCloudTry] = useState(0);
+  const [cloudFresh, setCloudFresh] = useState(0);
+  // The size to stream (the original by default here; 720p / 480p once the server made them).
+  const [quality, setQuality] = useState<Quality>(() => loadQuality('coach', 'original'));
   useEffect(() => {
-    setCloudUrl(null);
-    if (isLive || local || !match.video_key) return;
-    api.videoUrl(match.id).then((r) => setCloudUrl(r.url)).catch(() => {});
-  }, [isLive, !!local, match.video_key, cloudTry]);
+    if (isLive || local || !match.video_key) { setCloudLink(null); return; }
+    api.videoUrl(match.id).then(setCloudLink).catch(() => {});
+  }, [isLive, !!local, match.video_key, cloudTry, cloudFresh]);
+  const cloud = cloudLink ? urlFor(cloudLink, quality) : null;
+  const cloudUrl = cloud?.url ?? null;
   const source = useMemo(() => {
     if (isLive) return null;
     if (local) return { type: 'file' as const, url: isApp() ? playableUrl(local.uri) : local.uri };
-    if (cloudUrl) return { type: 'file' as const, url: cloudUrl, remote: true };
+    if (cloudUrl) return { type: 'file' as const, url: cloudUrl, remote: true, group: `match-${match.id}` };
     if (match.video_type === 'youtube' && match.video_ref) return { type: 'youtube' as const, id: match.video_ref };
     return null;
   }, [isLive, local, cloudUrl, match.video_type, match.video_ref]);
@@ -366,6 +372,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <div className="tp-row2">
                     <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
                     {source?.type === 'file' && <FrameStep player={player} />}
+                    {cloud && <QualityControl className="tp-rate" quality={cloud.quality} options={available(cloudLink)}
+                      onPick={(q) => { setQuality(q); saveQuality('coach', q); }} />}
                   </div>
                 </div>
                 )}
@@ -452,7 +460,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <div className="row wrap">
                 <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
                 <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
-                <CloudVideoBox match={match} local={local} onChanged={async () => setMatch((await api.match(match.id)).match)} />
+                <CloudVideoBox match={match} local={local} onChanged={async () => setMatch((await api.match(match.id)).match)}
+                  onConverted={() => setCloudFresh((n) => n + 1)} />
               </div>
             )}
             {tab === 'events' && (
@@ -722,7 +731,7 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
  * The match video in the team's storage: upload it from the phone (in the background,
  * so teammates can watch the replays without their own copy), or delete it.
  */
-function CloudVideoBox({ match, local, onChanged }: { match: Match; local: LocalVideo | null; onChanged: () => Promise<void> }) {
+function CloudVideoBox({ match, local, onChanged, onConverted }: { match: Match; local: LocalVideo | null; onChanged: () => Promise<void>; onConverted: () => void }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [job, setJob] = useState<WorkState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -759,6 +768,7 @@ function CloudVideoBox({ match, local, onChanged }: { match: Match; local: Local
       {match.video_key ? (
         <>
           <span className="small">✓ In your storage{match.video_bytes ? ` · ${gb(match.video_bytes)}` : ''}. The team watches it in Replays without their own copy.</span>
+          <ConversionStatus matchId={match.id} videoKey={match.video_key} onDone={onConverted} />
           <button className="btn-ghost small danger" disabled={busy} onClick={async () => {
             if (!confirm('Delete the video from your storage? Replays then need everyone\'s own copy again.')) return;
             setBusy(true);
@@ -786,6 +796,53 @@ function CloudVideoBox({ match, local, onChanged }: { match: Match; local: Local
       )}
     </div>
   );
+}
+
+/** The server's 720p and 480p versions of the team video: waiting, in progress, ready or failed. */
+function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; videoKey: string; onDone: () => void }) {
+  const [job, setJob] = useState<VideoJob | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [poll, setPoll] = useState(0);
+  useEffect(() => {
+    // Asks again every few seconds only while the server is still at it.
+    let live = true, was: string | undefined, t: number | undefined;
+    const tick = async () => {
+      const j = (await api.videoStatus(matchId).catch(() => null))?.job;
+      if (!live || j === undefined) return;
+      setJob(j);
+      if (j?.state === 'done' && was && was !== 'done') onDone();
+      was = j?.state;
+      if (j && (j.state === 'queued' || j.state === 'running')) t = window.setTimeout(tick, 5000);
+    };
+    tick();
+    return () => { live = false; clearTimeout(t); };
+  }, [matchId, videoKey, poll]);
+  if (job === undefined) return null;
+  const convert = async () => {
+    setBusy(true);
+    try { await api.convertVideo(matchId); setPoll((n) => n + 1); } finally { setBusy(false); }
+  };
+  const pct = (p: number) => `${Math.round(p * 100)}%`;
+  if (!job) {
+    return (
+      <span className="small muted">No smaller versions for a weak connection yet.{' '}
+        <button className="link" disabled={busy} onClick={convert}>Make 720p and 480p versions</button></span>
+    );
+  }
+  if (job.state === 'queued') return <span className="small muted">720p and 480p versions: waiting for the server{job.ahead ? ` (${job.ahead} video${job.ahead === 1 ? '' : 's'} first)` : ''}.</span>;
+  if (job.state === 'running') {
+    return (
+      <>
+        <div className="progress"><div style={{ width: pct(Math.max(0.02, job.progress)) }} /></div>
+        <span className="small muted">Making 720p and 480p versions on the server: {pct(job.progress)}</span>
+      </>
+    );
+  }
+  if (job.state === 'failed') {
+    return <span className="small error">The 720p and 480p versions could not be made: {job.error}{' '}
+      <button className="link" disabled={busy} onClick={convert}>Try again</button></span>;
+  }
+  return <span className="small muted">720p and 480p versions ready: pick the size under the video.</span>;
 }
 
 function VersionsBox({ match, pending, onRestored }: { match: Match; pending: number; onRestored: () => Promise<unknown> }) {

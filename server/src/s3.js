@@ -107,3 +107,28 @@ export async function completeUpload(cfg, key, uploadId, parts, opts = {}) {
 
 export const abortUpload = (cfg, key, uploadId, opts = {}) => request(cfg, 'DELETE', key, { ...opts, query: { uploadId } });
 export const deleteObject = (cfg, key, opts = {}) => request(cfg, 'DELETE', key, opts);
+
+/** Upload a local file in 16 MB parts (from the server itself, e.g. a converted video). */
+export async function uploadFile(cfg, key, path, { fetchFn = fetch, partSize = 16 * 1024 * 1024 } = {}) {
+  const fs = await import('node:fs');
+  const size = fs.statSync(path).size;
+  const uploadId = await createUpload(cfg, key, { fetchFn });
+  const parts = [];
+  const fd = fs.openSync(path, 'r');
+  try {
+    const buf = Buffer.alloc(partSize);
+    for (let n = 1, off = 0; off < size; n++, off += partSize) {
+      const len = fs.readSync(fd, buf, 0, Math.min(partSize, size - off), off);
+      const res = await fetchFn(presign(cfg, 'PUT', key, { query: { partNumber: n, uploadId }, expires: 3600 }), { method: 'PUT', body: buf.subarray(0, len) });
+      if (!res.ok) throw new Error(`storage ${res.status} on part ${n}`);
+      parts.push({ n, etag: res.headers.get('etag') });
+    }
+    await completeUpload(cfg, key, uploadId, parts, { fetchFn });
+  } catch (e) {
+    await abortUpload(cfg, key, uploadId, { fetchFn }).catch(() => {});
+    throw e;
+  } finally {
+    fs.closeSync(fd);
+  }
+  return size;
+}

@@ -2,6 +2,9 @@ import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
 import type { MatchSheetFlow, SheetSet } from './sheetFlow';
+import type { VideoLink } from './videoQuality';
+
+export interface VideoJob { state: 'queued' | 'running' | 'done' | 'failed'; progress: number; error: string | null; updated_at: string; ahead: number }
 
 export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -205,9 +208,12 @@ export const api = {
   decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),
   detectionRuns: (matchId: number) => req<import('./detectionReport').DetectionRun[]>('GET', `/api/matches/${matchId}/runs`),
   videoEnabled: () => req<{ enabled: boolean }>('GET', '/api/video/enabled'),
-  videoUrl: (matchId: number) => req<{ url: string; expiresIn: number }>('GET', `/api/matches/${matchId}/video/url`),
+  videoUrl: (matchId: number) => req<VideoLink>('GET', `/api/matches/${matchId}/video/url`),
+  /** The server's conversion into 720p and 480p (null: never asked for, e.g. uploaded before it existed). */
+  videoStatus: (matchId: number) => req<{ job: VideoJob | null }>('GET', `/api/matches/${matchId}/video/status`),
+  convertVideo: (matchId: number) => req<{ ok: boolean }>('POST', `/api/matches/${matchId}/video/convert`),
   deleteVideo: (matchId: number) => req<{ ok: boolean }>('DELETE', `/api/matches/${matchId}/video`),
-  sharedVideo: (token: string, matchId: number) => req<{ url: string; expiresIn: number }>('GET', `/api/share/team/${token}/video/${matchId}`),
+  sharedVideo: (token: string, matchId: number) => req<VideoLink>('GET', `/api/share/team/${token}/video/${matchId}`),
   aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),

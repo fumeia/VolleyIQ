@@ -179,6 +179,14 @@ The Android app uploads each video straight into the bucket, and viewers stream 
 links that expire; the server only signs requests and stores no video. Check the setup with
 `docker compose exec app node src/s3-check.js` (writes, streams and deletes a tiny test file).
 
+With a bucket set up, `install.sh` also starts the `transcoder` service: it reads each new
+video from the bucket and puts a 720p and a 480p version next to it, for viewers on a weak
+connection. One video at a time, at the lowest CPU priority (limited to one core and 512 MB),
+roughly as long as the match itself. While it converts, the two new files sit in
+`data/transcode-tmp` (it needs 3 GB free there and stops otherwise); they are deleted after the
+upload. Its log: `docker compose -p volleyiq logs -f transcoder`. Started by hand:
+`COMPOSE_PROFILES=video docker compose up -d`.
+
 ## Optional AI features
 
 Two features are hidden unless an AI backend is configured in `.env`:

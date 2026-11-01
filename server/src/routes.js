@@ -743,9 +743,13 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     } catch (e) {
       return bad(reply, `Could not finish the upload: ${e.message}`, 502);
     }
-    // The previous video of this match goes.
+    // The previous video of this match (and its smaller versions) goes.
     if (match.video_key && match.video_key !== key) await deleteObject(storage, match.video_key, sOpts).catch(() => {});
-    db.prepare('UPDATE matches SET video_key = ?, video_bytes = ? WHERE id = ?').run(key, int(req.body?.size), match.id);
+    await dropVariants(match);
+    db.prepare('UPDATE matches SET video_key = ?, video_bytes = ?, video_variants = NULL WHERE id = ?').run(key, int(req.body?.size), match.id);
+    // The transcoder service makes the 720p and 480p versions.
+    db.prepare("DELETE FROM video_jobs WHERE match_id = ? AND state != 'running'").run(match.id);
+    db.prepare('INSERT INTO video_jobs (match_id, source_key) VALUES (?, ?)').run(match.id, key);
     return { ok: true };
   });
 
@@ -765,23 +769,47 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     if (match.video_key) {
       try { await deleteObject(storage, match.video_key, sOpts); } catch (e) { return bad(reply, `Could not delete: ${e.message}`, 502); }
     }
-    db.prepare('UPDATE matches SET video_key = NULL, video_bytes = NULL WHERE id = ?').run(match.id);
+    await dropVariants(match);
+    db.prepare('UPDATE matches SET video_key = NULL, video_bytes = NULL, video_variants = NULL WHERE id = ?').run(match.id);
+    db.prepare("DELETE FROM video_jobs WHERE match_id = ? AND state != 'running'").run(match.id);
     return { ok: true };
   });
 
-  /** A link to stream the video, valid for 6 hours. */
-  const videoLink = (key) => ({ url: presign(storage, 'GET', key, { expires: 6 * 3600 }), expiresIn: 6 * 3600 });
+  /** The smaller versions of a match's video ({ '720': {key, bytes}, '480': ... }). */
+  const variantsOf = (m) => { try { return m?.video_variants ? JSON.parse(m.video_variants) : {}; } catch { return {}; } };
+  async function dropVariants(m) {
+    for (const v of Object.values(variantsOf(m))) await deleteObject(storage, v.key, sOpts).catch(() => {});
+  }
+  /** Links to stream the video, valid for 6 hours: the original and each smaller version. */
+  const videoLink = (m) => ({
+    url: presign(storage, 'GET', m.video_key, { expires: 6 * 3600 }),
+    expiresIn: 6 * 3600,
+    variants: Object.fromEntries(Object.entries(variantsOf(m)).map(([q, v]) => [q, presign(storage, 'GET', v.key, { expires: 6 * 3600 })])),
+  });
   app.get('/api/matches/:id/video/url', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video in the cloud for this match', 404);
-    return videoLink(match.video_key);
+    return videoLink(match);
+  });
+  /** The conversion into smaller versions: queued, running (with progress), done or failed. */
+  app.get('/api/matches/:id/video/status', coach, async (req) => {
+    const job = db.prepare('SELECT state, progress, error, updated_at FROM video_jobs WHERE match_id = ? ORDER BY id DESC LIMIT 1').get(req.params.id);
+    const ahead = job?.state === 'queued' ? db.prepare("SELECT COUNT(*) AS n FROM video_jobs WHERE state IN ('queued', 'running') AND id < (SELECT MAX(id) FROM video_jobs WHERE match_id = ?)").get(req.params.id).n : 0;
+    return { job: job ? { ...job, ahead } : null };
+  });
+  app.post('/api/matches/:id/video/convert', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!storage || !match?.video_key) return bad(reply, 'No video in the cloud for this match', 404);
+    db.prepare("DELETE FROM video_jobs WHERE match_id = ? AND state != 'running'").run(match.id);
+    db.prepare('INSERT INTO video_jobs (match_id, source_key) VALUES (?, ?)').run(match.id, match.video_key);
+    return { ok: true };
   });
   // For the public link: only matches of that team.
   app.get('/api/share/team/:token/video/:matchId', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
-    const match = team && db.prepare('SELECT video_key FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
+    const match = team && db.prepare('SELECT video_key, video_variants FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video', 404);
-    return videoLink(match.video_key);
+    return videoLink(match);
   });
 
   // ---------- detection runs (to measure the auto-detection) ----------
