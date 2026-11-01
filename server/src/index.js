@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
-import { registerAuth, registerCors } from './auth.js';
+import { registerAuth, registerCors, requireCoach } from './auth.js';
 import { registerRoutes } from './routes.js';
 import { makeNumberReader, makeVisionScanner } from './vision.js';
 import { makeInsighter } from './insights.js';
@@ -15,6 +15,7 @@ import { makeUpdates } from './updates.js';
 import { aiConfig, keyInfo } from './ai.js';
 import { s3Config } from './s3.js';
 import { makeSchedule, registerSchedule, startScheduleSync } from './schedule.js';
+import { makeBackups } from './backup.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +63,18 @@ export async function buildApp(env = process.env, opts = {}) {
   registerSchedule(app, { db, schedule, youtube });
   if (env.NODE_ENV !== 'test') {
     const stop = startScheduleSync(db, schedule, (m) => app.log.warn(m));
+    app.addHook('onClose', async () => stop());
+  }
+
+  // Nightly backups of the database into the bucket (when video storage is set up).
+  const storage = opts.storage !== undefined ? opts.storage : s3Config(env);
+  const backups = makeBackups(db, { storage, dataDir, fetchFn: opts.storageFetch ?? fetch, keep: Number(env.BACKUP_KEEP) || 14, log: (m) => app.log.info(m) });
+  app.get('/api/backup', { preHandler: requireCoach }, async () => ({ enabled: !!storage, last: backups.status(), backups: await backups.list().catch(() => []) }));
+  app.post('/api/backup', { preHandler: requireCoach }, async (req, reply) => {
+    try { return await backups.run(); } catch (e) { return reply.code(502).send({ error: e.message }); }
+  });
+  if (env.NODE_ENV !== 'test') {
+    const stop = backups.start();
     app.addHook('onClose', async () => stop());
   }
 

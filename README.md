@@ -171,7 +171,21 @@ backs up the Caddyfile and the database, and only touches `/opt/volleyiq`, its
 own Docker project and a marked block in the Caddyfile.
 </details>
 
-**Back up** `data/volleyiq.db`: it is the only state.
+**Back up** `data/volleyiq.db`: it is the only state. With the video bucket set up (`S3_*` in
+`.env`), the server does this by itself every night around 3:00: a consistent copy, gzipped, under
+`backups/` in the bucket, the newest 14 kept (`BACKUP_KEEP` in `.env`). About shows the last one and
+has "Back up now".
+
+To restore one: download `backups/volleyiq-<date>.db.gz` from the bucket (Hetzner console, or
+`rclone copy`), then on the server:
+
+```bash
+gunzip volleyiq-<date>.db.gz
+docker compose -p volleyiq stop app transcoder
+cp data/volleyiq.db data/volleyiq.db.before-restore    # just in case
+cp volleyiq-<date>.db data/volleyiq.db
+docker compose -p volleyiq start app transcoder
+```
 
 **Match videos (optional).** To let the team watch replays without their own copy, add a
 private S3-compatible bucket (e.g. Hetzner Object Storage) with the `S3_*` lines in `.env`.

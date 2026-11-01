@@ -1,6 +1,6 @@
 import { loadTheme, saveTheme, type ThemeChoice } from '../lib/theme';
 import { useEffect, useState } from 'react';
-import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type YoutubeUsage } from '../lib/api';
+import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type BackupStatus, type YoutubeUsage } from '../lib/api';
 import { Native } from '../lib/native';
 import { compareVersions } from '../lib/version';
 
@@ -84,6 +84,7 @@ export function AboutPage() {
       </section>
 
       <YoutubeQuota />
+      <BackupCard />
 
       <section className="card">
         <h2 className="section-title">Appearance</h2>
@@ -175,6 +176,35 @@ export function YoutubeQuota() {
           <div className="row between"><b>{u.searchesLeft} searches left today</b><span className="small muted">{u.used.toLocaleString()} of {u.limit.toLocaleString()} units used</span></div>
           <div className="progress"><div style={{ width: `${Math.min(100, (u.used / u.limit) * 100)}%` }} /></div>
           <p className="small muted">Starts over at {new Date(u.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(u.resetsAt).toLocaleDateString()}). A search costs 101 of the 10,000 free units a day. Counted by VolleyIQ: searches with the same key elsewhere are not included.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** The nightly database backups in the bucket: when the last one ran, and one right now. */
+function BackupCard() {
+  const [b, setB] = useState<BackupStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const load = () => api.backupStatus().then(setB).catch(() => {});
+  useEffect(() => { load(); }, []);
+  if (!b) return null;
+  const when = (iso: string) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <section className="card">
+      <h2 className="section-title">Backups</h2>
+      {!b.enabled ? <p className="small muted">Backups go to the video bucket: set up the S3_ lines in the server's .env first. Until then, copy data/volleyiq.db yourself now and then.</p> : (
+        <>
+          {b.last?.ok ? <p className="small"><span className="tone-good">✓</span> Last backup {when(b.last.at)} · {Math.round((b.last.bytes ?? 0) / 1024)} KB</p>
+            : b.last ? <p className="small error">Last backup failed ({when(b.last.at)}): {b.last.error}</p>
+            : <p className="small muted">No backup yet.</p>}
+          <p className="small muted">Every night around 3:00 the whole database (teams, tags, line-ups, settings) is copied into your bucket under backups/; the newest {b.backups.length > 0 ? `${b.backups.length} are` : '14 are'} kept. How to restore one: see the README.</p>
+          <button className="btn" disabled={busy} onClick={async () => {
+            setBusy(true); setError('');
+            try { await api.backupNow(); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+          }}>{busy ? 'Backing up…' : 'Back up now'}</button>
+          {error && <p className="small error">{error}</p>}
         </>
       )}
     </section>

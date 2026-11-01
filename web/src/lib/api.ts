@@ -40,6 +40,12 @@ export interface DetectorTuning {
   /** What the next run uses. */
   use: { threshold: number; sustainMax: number };
 }
+/** Nightly backups of the database into the bucket. */
+export interface BackupStatus {
+  enabled: boolean;
+  last: { ok: boolean; at: string; key?: string; bytes?: number; error?: string; lastOk?: { at: string } | null } | null;
+  backups: { key: string; size: number; modified: string | null }[];
+}
 /** Today's YouTube quota: units used and left (a search costs 101), and when it starts over. */
 export interface YoutubeUsage { enabled: boolean; used: number; limit: number; left: number; searchesLeft: number; resetsAt: string }
 export interface CenterQuery { region?: string | null; from: string; to: string }
@@ -223,6 +229,8 @@ export const api = {
   readNumbers: (images: { media_type: string; data: string }[]) => req<{ teams: { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] }[] }>('POST', '/api/numbers/read', { images }),
   detector: () => req<DetectorTuning>('GET', '/api/detector'),
   setDetectorOff: (off: boolean) => req<{ ok: boolean }>('PUT', '/api/detector', { off }),
+  backupStatus: () => req<BackupStatus>('GET', '/api/backup'),
+  backupNow: () => req<{ ok: boolean; at: string; key: string; bytes: number }>('POST', '/api/backup'),
   youtubeUsage: () => req<YoutubeUsage>('GET', '/api/youtube/usage'),
   center: (q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[]; videoSearch: boolean }>('GET', `/api/center?${centerQs(q)}`),
   sharedCenter: (token: string, q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[] }>('GET', `/api/share/team/${token}/center?${centerQs(q)}`),

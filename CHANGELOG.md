@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Backups**
+- With the video bucket set up, the server backs up the whole database every night around 3:00 into the bucket (backups/, gzipped, the newest 14 kept). About → Backups shows the last one and has "Back up now". The README says how to restore one.
+
 **Regions in Matches, timeline in Replays**
 - Matches (app and public "All games"): every game shows its Swiss Volley region (SVRZ, SVRA, SV for the national leagues, …), also in the game's details; the region filter lists the codes with their names. All of Switzerland is now read region by region for this (first load of a week a few seconds longer, then kept).
 - Public Replays: the same timeline under the video as on the match page.

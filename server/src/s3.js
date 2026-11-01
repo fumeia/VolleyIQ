@@ -132,3 +132,13 @@ export async function uploadFile(cfg, key, path, { fetchFn = fetch, partSize = 1
   }
   return size;
 }
+
+/** The objects whose key starts with [prefix]: { key, size, modified } (up to 1000). */
+export async function listObjects(cfg, prefix, opts = {}) {
+  const xml = await request(cfg, 'GET', '', { ...opts, query: { 'list-type': '2', prefix } });
+  return [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => ({
+    key: m[1].match(/<Key>([^<]*)<\/Key>/)?.[1].replace(/&amp;/g, '&') ?? '',
+    size: Number(m[1].match(/<Size>(\d+)<\/Size>/)?.[1] ?? 0),
+    modified: m[1].match(/<LastModified>([^<]*)<\/LastModified>/)?.[1] ?? null,
+  })).filter((o) => o.key);
+}
