@@ -25,6 +25,14 @@ export interface ScheduleGame {
   suggestions?: VideoSuggestion[];
 }
 export interface VideoSuggestion { id: number; url: string; title: string | null; sender_jersey: number | null; note: string | null; created_at: string }
+/** A game in the match center (any Swiss Volley game). */
+export interface CenterGame {
+  gameId: number; start: string; home: string; away: string; leagueId: number | null; league: string | null; phase: string | null; group: string | null;
+  gender: 'f' | 'm' | 'mixed' | null; hall: string | null; city: string | null; result: string | null; sets: string[];
+  videoState: 'confirmed' | 'found' | null; sent?: number; match_id?: number | null;
+}
+export interface CenterQuery { region?: string | null; from: string; to: string }
+const centerQs = (q: CenterQuery) => new URLSearchParams({ ...(q.region ? { region: q.region } : {}), from: q.from, to: q.to }).toString();
 /** Any game of a league (other teams' games too). */
 export interface LeagueGame { gameId: number; start: string; home: string; away: string; league: string | null; group: string | null; hall: string | null; result: string | null; sets: string[]; video: GameVideo | null }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
@@ -201,6 +209,10 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  center: (q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[]; videoSearch: boolean }>('GET', `/api/center?${centerQs(q)}`),
+  sharedCenter: (token: string, q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[] }>('GET', `/api/share/team/${token}/center?${centerQs(q)}`),
+  gameVideo: (gameId: number) => req<{ video: GameVideo | null; suggestions: VideoSuggestion[] }>('GET', `/api/games/${gameId}/video`),
+  sharedGameVideo: (token: string, gameId: number) => req<{ video: GameVideo | null }>('GET', `/api/share/team/${token}/games/${gameId}/video`),
   sharedSchedule: (token: string) => req<{ games: ScheduleGame[] }>('GET', `/api/share/team/${token}/schedule`),
   suggestVideo: (token: string, gameId: number, s: { url: string; jersey: number; note?: string }) => req<{ ok: boolean }>('POST', `/api/share/team/${token}/games/${gameId}/video`, s),
   decideVideoSuggestion: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; video: GameVideo | null }>('POST', `/api/video-suggestions/${id}`, { decision }),

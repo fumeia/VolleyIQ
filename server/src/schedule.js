@@ -1,6 +1,6 @@
 // Team schedules from Swiss Volley, other teams' games and videos found for games.
 import { requireCoach } from './auth.js';
-import { clubTeams, fetchCalendar, findCalendar, findVideos, forTeam, isClubCalendar, leagueGames, parseLink } from './swissvolley.js';
+import { allGames, clubTeams, fetchCalendar, findCalendar, findVideos, forTeam, isClubCalendar, leagueGames, parseLink, REGIONS } from './swissvolley.js';
 
 const coach = { preHandler: requireCoach };
 const bad = (reply, msg, code = 400) => reply.code(code).send({ error: msg });
@@ -171,7 +171,39 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     } catch { return null; }
   }
 
-  return { sync, connect, league, opponentGames, videoOf, searchVideo, videoTitle, cache };
+  /**
+   * The match center: every Swiss Volley game in a period, in all of Switzerland (at most two
+   * weeks) or in one region (up to a season). Kept for an hour, past weeks for a day.
+   */
+  async function center({ region, from, to }) {
+    if (region && !REGIONS.some((r) => r.id === region)) throw Object.assign(new Error('Unknown region'), { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '') || to < from) throw Object.assign(new Error('from and to are needed (YYYY-MM-DD)'), { status: 400 });
+    const days = (Date.parse(to) - Date.parse(from)) / 86400000;
+    if (days > (region ? 400 : 15)) throw Object.assign(new Error(region ? 'At most a season at a time' : 'Pick a region to see more than two weeks'), { status: 400 });
+    const key = `center:${region ?? 'all'}:${from}:${to}`;
+    const past = to < new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+    const fresh = cache.get(key, past ? 24 * HOURS : HOURS);
+    if (fresh) return fresh;
+    try {
+      const games = await allGames({
+        region, from, to, fetchFn,
+        cache: { get: () => cache.get('action:games'), set: (id) => cache.set('action:games', id) },
+      });
+      const seen = db.prepare(`INSERT INTO sv_games (game_id, starts_at, home, away, league) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(game_id) DO UPDATE SET starts_at = excluded.starts_at, home = excluded.home, away = excluded.away, league = excluded.league, seen_at = datetime('now')`);
+      db.transaction(() => { for (const g of games) seen.run(g.gameId, g.start, g.home, g.away, g.league); })();
+      // Only what the list needs (a season of a region is over a thousand games).
+      const slim = games.map(({ homeId, awayId, homeClub, awayClub, ...g }) => g);
+      cache.set(key, slim);
+      return slim;
+    } catch (e) {
+      const old = cache.get(key);
+      if (old) return old;
+      throw e;
+    }
+  }
+
+  return { sync, connect, league, opponentGames, center, videoOf, searchVideo, videoTitle, cache };
 }
 
 export function registerSchedule(app, { db, schedule, youtube }) {
@@ -200,7 +232,10 @@ export function registerSchedule(app, { db, schedule, youtube }) {
     const team = shareTeam(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     const gameId = Number(req.params.gameId);
-    if (!db.prepare('SELECT 1 FROM schedule WHERE team_id = ? AND game_id = ?').get(team.id, gameId)) return bad(reply, 'Not a game of this team', 404);
+    // A game of this team, or any game seen in the match center.
+    if (!db.prepare('SELECT 1 FROM schedule WHERE team_id = ? AND game_id = ?').get(team.id, gameId) && !db.prepare('SELECT 1 FROM sv_games WHERE game_id = ?').get(gameId)) {
+      return bad(reply, 'Unknown game', 404);
+    }
     const url = String(req.body?.url ?? '').trim();
     if (!/^https?:\/\/[^\s]+$/.test(url) || url.length > 500) return bad(reply, 'Paste the full link of the video, starting with https://');
     const jersey = Number(req.body?.jersey);
@@ -216,6 +251,43 @@ export function registerSchedule(app, { db, schedule, youtube }) {
     db.prepare('INSERT INTO video_suggestions (team_id, game_id, url, title, sender_jersey, note) VALUES (?, ?, ?, ?, ?, ?)')
       .run(team.id, gameId, url, title, jersey, String(req.body?.note ?? '').trim().slice(0, 300) || null);
     return { ok: true };
+  });
+
+  // ---------- match center: every Swiss Volley game, filtered in the page ----------
+  const centerQuery = (q) => ({ region: q.region || null, from: q.from, to: q.to });
+  app.get('/api/center', coach, async (req, reply) => {
+    try {
+      const games = await schedule.center(centerQuery(req.query));
+      const sent = new Map(db.prepare("SELECT game_id, COUNT(*) AS n FROM video_suggestions WHERE status = 'open' GROUP BY game_id").all().map((r) => [r.game_id, r.n]));
+      const videos = new Map(db.prepare("SELECT game_id, state FROM game_videos WHERE state IN ('confirmed', 'found')").all().map((r) => [r.game_id, r.state]));
+      const ours = new Map(db.prepare('SELECT game_id, match_id FROM schedule WHERE match_id IS NOT NULL').all().map((r) => [r.game_id, r.match_id]));
+      return {
+        regions: REGIONS, videoSearch: !!youtube,
+        games: games.map((g) => ({ ...g, videoState: videos.get(g.gameId) ?? null, sent: sent.get(g.gameId) ?? 0, match_id: ours.get(g.gameId) ?? null })),
+      };
+    } catch (e) {
+      return bad(reply, e.message, e.status ?? 502);
+    }
+  });
+  app.get('/api/share/team/:token/center', async (req, reply) => {
+    if (!shareTeam(req.params.token)) return bad(reply, 'Not found', 404);
+    try {
+      const games = await schedule.center(centerQuery(req.query));
+      const videos = new Map(db.prepare("SELECT game_id, url, title FROM game_videos WHERE state = 'confirmed'").all().map((r) => [r.game_id, r]));
+      return { regions: REGIONS, games: games.map((g) => ({ ...g, videoState: videos.has(g.gameId) ? 'confirmed' : null })) };
+    } catch (e) {
+      return bad(reply, e.message, e.status ?? 502);
+    }
+  });
+  // One game's video: the coach sees all of it (and what visitors sent), visitors only a confirmed one.
+  app.get('/api/games/:gameId/video', coach, async (req) => {
+    const gameId = Number(req.params.gameId);
+    return { video: schedule.videoOf(gameId), suggestions: db.prepare("SELECT id, url, title, sender_jersey, note, created_at FROM video_suggestions WHERE game_id = ? AND status = 'open' ORDER BY id").all(gameId) };
+  });
+  app.get('/api/share/team/:token/games/:gameId/video', async (req, reply) => {
+    if (!shareTeam(req.params.token)) return bad(reply, 'Not found', 404);
+    const v = schedule.videoOf(Number(req.params.gameId));
+    return { video: v?.state === 'confirmed' ? { state: 'confirmed', url: v.url, title: v.title, candidates: [], searched_at: null } : null };
   });
 
   // The coach takes a suggested video for the game, or turns it down.

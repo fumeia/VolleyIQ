@@ -13,11 +13,13 @@ import { SharePage, TeamSharePage } from './pages/SharePage';
 import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
 import { Scout } from './pages/Scout';
+import { MatchCenter } from './components/MatchCenter';
 
 const NAV = [
   { to: '/', label: 'Home', icon: 'home', end: true },
   { to: '/teams', label: 'Teams', icon: 'teams' },
   { to: '/new', label: 'Tag', icon: 'tag' },
+  { to: '/matches', label: 'Matches', icon: 'calendar' },
   { to: '/reports', label: 'Stats', icon: 'stats' },
 ];
 
@@ -40,6 +42,7 @@ export function App() {
       <Routes>
         <Route path="/s/t/:token" element={<TeamSharePage view="overview" />} />
         <Route path="/s/t/:token/stats" element={<TeamSharePage />} />
+        <Route path="/s/t/:token/matches" element={<TeamSharePage view="matches" />} />
         <Route path="/s/t/:token/trends" element={<TeamSharePage view="trends" />} />
         <Route path="/s/t/:token/players" element={<TeamSharePage view="players" />} />
         <Route path="/s/t/:token/m/:matchId" element={<TeamSharePage />} />
@@ -81,6 +84,7 @@ export function App() {
           <Route path="/m/:id" element={<MatchPage />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/scout/:id" element={<Scout />} />
+          <Route path="/matches" element={<div className="page"><header className="page-head"><h1>Matches</h1><span className="muted small">Every game in Swiss Volley</span></header><MatchCenter /></div>} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<p className="muted">Page not found.</p>} />
         </Routes>

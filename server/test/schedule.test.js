@@ -182,3 +182,50 @@ test('public team page: games, confirmed videos only, and video suggestions from
   assert.equal((await app.inject({ url: '/api/schedule' })).json().games[0].suggestions.length, 0, 'decided');
   await app.close();
 });
+
+test('match center: any Swiss Volley game, by week or a region season, videos for any game', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-center-'));
+  const g = (id, day, home, away, gender, done) => ({ gameId: id, playDate: `2026-10-${day} 18:00:00`, gender, teams: { home: { caption: home }, away: { caption: away } },
+    league: { leagueId: 1, caption: '3L ' }, phase: { caption: 'Quali' }, group: { caption: 'Gruppe A' }, hall: { caption: 'Halle', city: 'Musterdorf' },
+    resultSummary: done ? { wonSetsHomeTeam: 3, wonSetsAwayTeam: 0 } : [], setResults: done ? [{ home: 25, away: 20 }] : [] });
+  const queries = [];
+  const fake = async (url, o = {}) => {
+    if (o.method === 'POST' && url.endsWith('/de/game-center')) {
+      const q = JSON.parse(o.body)[0];
+      queries.push(q);
+      const list = q.includes('region=SVRZ') ? [g(7001, 20, 'VBC Muster H2', 'Volley Nord H1', 'm', true)] : [g(7001, 20, 'VBC Muster H2', 'Volley Nord H1', 'm', true), g(7002, 21, 'Volley Süd D1', 'STV Ost D2', 'f', false)];
+      return { ok: true, status: 200, text: async () => `0:["$@1"]\n1:${JSON.stringify(list)}\n` };
+    }
+    if (url.endsWith('/de/game-center')) return { ok: true, status: 200, text: async () => '<script src="/_next/static/chunks/a.js"></script>' };
+    if (url.includes('chunks/a.js')) return { ok: true, status: 200, text: async () => 'x=(0,l.$)("abc1234567abc1234567abc1234567abc1234567");dateStart' };
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { scheduleFetch: fake, youtubeKey: null });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Herren 2' } })).json();
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+
+  const week = (await app.inject({ url: '/api/center?from=2026-10-19&to=2026-10-25' })).json();
+  assert.equal(week.regions.length, 15);
+  assert.deepEqual(week.games.map((x) => [x.gameId, x.gender, x.league, x.result, x.city]), [[7001, 'm', '3L', '3:0', 'Musterdorf'], [7002, 'f', '3L', null, 'Musterdorf']]);
+  assert.equal(queries.at(-1), '?includeCup=1&dateStart=2026-10-19&dateEnd=2026-10-25');
+  assert.equal((await app.inject({ url: '/api/center?from=2026-08-01&to=2027-07-31' })).statusCode, 400, 'a season only per region');
+  assert.equal((await app.inject({ url: '/api/center?region=xx&from=2026-08-01&to=2027-07-31' })).statusCode, 400);
+  const season = (await app.inject({ url: '/api/center?region=svrz&from=2026-08-01&to=2027-07-31' })).json();
+  assert.equal(season.games.length, 1);
+  assert.match(queries.at(-1), /^\?region=SVRZ&includeCup=1&dateStart=2026-08-01/);
+  const n = queries.length;
+  await app.inject({ url: '/api/center?region=svrz&from=2026-08-01&to=2027-07-31' });
+  assert.equal(queries.length, n, 'kept for a while');
+
+  // A visitor sends a video for a game of another team; the coach uses it; it shows publicly.
+  assert.equal((await app.inject({ method: 'POST', url: `/api/share/team/${token}/games/7002/video`, payload: { url: 'https://example.com/v', jersey: 3 } })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/share/team/${token}/games/9999/video`, payload: { url: 'https://example.com/v', jersey: 3 } })).statusCode, 404);
+  assert.equal((await app.inject({ url: '/api/center?from=2026-10-19&to=2026-10-25' })).json().games[1].sent, 1);
+  const { suggestions } = (await app.inject({ url: '/api/games/7002/video' })).json();
+  await app.inject({ method: 'POST', url: `/api/video-suggestions/${suggestions[0].id}`, payload: { decision: 'accept' } });
+  const pub = (await app.inject({ url: `/api/share/team/${token}/center?from=2026-10-19&to=2026-10-25` })).json();
+  assert.equal(pub.games[1].videoState, 'confirmed');
+  assert.equal((await app.inject({ url: `/api/share/team/${token}/games/7002/video` })).json().video.url, 'https://example.com/v');
+  assert.equal((await app.inject({ url: `/api/share/team/nope/center?from=2026-10-19&to=2026-10-25` })).statusCode, 404);
+  await app.close();
+});

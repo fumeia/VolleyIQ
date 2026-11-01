@@ -301,6 +301,12 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS video_suggestions_game ON video_suggestions(team_id, game_id, status);`,
+  // v24: the Swiss Volley games seen in the match center (any team), so a video can be sent for them.
+  `CREATE TABLE IF NOT EXISTS sv_games (
+    game_id INTEGER PRIMARY KEY,
+    starts_at TEXT, home TEXT, away TEXT, league TEXT,
+    seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );`,
 ];
 
 function migrate(db) {

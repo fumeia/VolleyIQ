@@ -192,23 +192,21 @@ const simpleGame = (g) => ({
   homeClub: Number(g.teams?.home?.clubId) || null,
   awayClub: Number(g.teams?.away?.clubId) || null,
   leagueId: g.league?.leagueId ?? null,
-  league: g.league?.caption ?? null,
+  league: g.league?.caption?.trim() ?? null,
+  phase: g.phase?.caption ?? null,
   group: g.group?.caption ?? null,
+  gender: g.gender ?? null,
   hall: g.hall?.caption ?? null,
+  city: g.hall?.city ?? null,
   result: g.resultSummary && Number.isFinite(g.resultSummary.wonSetsHomeTeam) ? `${g.resultSummary.wonSetsHomeTeam}:${g.resultSummary.wonSetsAwayTeam}` : null,
   sets: Array.isArray(g.setResults) ? g.setResults.filter((s) => Number.isFinite(s?.home)).map((s) => `${s.home}:${s.away}`) : [],
 });
 
-/**
- * All games of a league (between [from] and [to], YYYY-MM-DD). [cache] keeps the call id
- * ({ get(), set(id) }); a stale id is replaced by looking it up again once.
- */
-export async function leagueGames(leagueId, { from, to, fetchFn = fetch, cache }) {
-  if (!leagueId) throw new Error('No league');
-  const arg = `?leagueId=${leagueId}&includeCup=1&dateStart=${from}&dateEnd=${to}`;
+/** Games for a game-center query ("?leagueId=…&dateStart=…"); looks the call id up again when it stopped working. */
+async function gamesQuery(arg, { fetchFn = fetch, cache }) {
   let id = cache?.get();
   let data = id ? await callAction(fetchFn, id, arg).catch(() => null) : null;
-  // An unknown call id answers with an error or nothing; an empty league is an empty list.
+  // An unknown call id answers with an error or nothing; no games is an empty list.
   if (!Array.isArray(data)) {
     id = await discoverGamesAction(fetchFn, arg);
     cache?.set(id);
@@ -216,6 +214,28 @@ export async function leagueGames(leagueId, { from, to, fetchFn = fetch, cache }
   }
   if (!Array.isArray(data)) throw new Error('The Swiss Volley game center could not be read');
   return data.map(simpleGame);
+}
+
+/**
+ * All games of a league (between [from] and [to], YYYY-MM-DD). [cache] keeps the call id
+ * ({ get(), set(id) }); a stale id is replaced by looking it up again once.
+ */
+export async function leagueGames(leagueId, { from, to, fetchFn = fetch, cache }) {
+  if (!leagueId) throw new Error('No league');
+  return gamesQuery(`?leagueId=${leagueId}&includeCup=1&dateStart=${from}&dateEnd=${to}`, { fetchFn, cache });
+}
+
+/** The regions of Swiss Volley (sv: the national leagues). */
+export const REGIONS = [
+  ['sv', 'Swiss Volley (national leagues)'], ['svra', 'Region Aargau'], ['svrba', 'Region Basel'], ['svrbeso', 'Region Bern-Solothurn'],
+  ['svrf', 'Région Fribourg'], ['svrg', 'Région Genève'], ['svrgsgl', 'Region GSGL'], ['svri', 'Region Innerschweiz'],
+  ['svrjs', 'Région Jura-Seeland'], ['svrn', 'Région Neuchâtel'], ['svrno', 'Region Nordostschweiz'], ['svrtm', 'Regione Ticino e Moesa'],
+  ['svrv', 'Région Vaud'], ['svrw', 'Region Wallis'], ['svrz', 'Region Zürich'],
+].map(([id, label]) => ({ id, label }));
+
+/** Every game between [from] and [to] (YYYY-MM-DD), in all of Switzerland or one [region]. */
+export async function allGames({ region = null, from, to, fetchFn = fetch, cache }) {
+  return gamesQuery(`?${region ? `region=${region.toUpperCase()}&` : ''}includeCup=1&dateStart=${from}&dateEnd=${to}`, { fetchFn, cache });
 }
 
 // ---------- videos on YouTube ----------

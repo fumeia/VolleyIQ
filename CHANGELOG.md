@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Matches: every game in Swiss Volley**
+- New "Matches" page in the menu (and "All games" on the public team page): every Swiss Volley game, of any team. A week of all of Switzerland, or a whole season of one region.
+- Filters: region, week (or whole season), women / men, league, results / upcoming, team, hall or town, only games with a video. On the phone they fold into one line.
+- A game shows date, result with set scores, league, group and hall. Coaches can search YouTube for it, confirm a video or paste one, see videos sent by visitors, and tag the video. On the public page a confirmed video plays in the page, and visitors can send a link.
+
 **Public team page: Overview**
 - The public team link opens on a new Overview tab: the next game, upcoming games and results (with videos), the season record with the last results, the key numbers from the tagged matches, the leaders and the tagged matches. Stats moved to their own tab.
 - A game shows its hall, its video (played on the page) and, once tagged, links to its stats and replays.

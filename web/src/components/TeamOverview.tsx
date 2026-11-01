@@ -118,28 +118,9 @@ export function TeamOverview({ token, base, players, events, matches }: { token:
 
 /** One game for visitors: when and where, its video (or suggest one), its stats when tagged. */
 function PublicGameSheet({ token, base, game, tagged, onClose }: { token: string; base: string; game: ScheduleGame; tagged: boolean; onClose: () => void }) {
-  const [url, setUrl] = useState('');
-  const [jersey, setJersey] = useState(() => { try { return localStorage.getItem('viq:jersey') ?? ''; } catch { return ''; } });
-  const [note, setNote] = useState('');
-  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
-  const [error, setError] = useState('');
-  const [suggest, setSuggest] = useState(false);
   const v = game.video?.state === 'confirmed' ? game.video : null;
   const yt = v?.url ? parseYouTubeId(v.url) : null;
   const played = !!game.result || game.starts_at < new Date().toISOString().slice(0, 16);
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setState('sending');
-    try {
-      await api.suggestVideo(token, game.game_id, { url: url.trim(), jersey: Number(jersey), note: note.trim() || undefined });
-      try { localStorage.setItem('viq:jersey', jersey); } catch { /* private mode */ }
-      setState('sent');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
-      setState('idle');
-    }
-  }
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet game-sheet" onClick={(e) => e.stopPropagation()}>
@@ -164,29 +145,51 @@ function PublicGameSheet({ token, base, game, tagged, onClose }: { token: string
             <a href={v.url!} target="_blank" rel="noreferrer" className="small">{v.title || v.url}</a>
           </>
         )}
-        {played && (state === 'sent' ? (
-          <p className="small edit-notice">Thanks, the video was sent. It shows here once the team has checked it.</p>
-        ) : !suggest ? (
-          <button className="btn-ghost small sched-more" onClick={() => setSuggest(true)}>{v ? 'Know a better video of this game?' : 'Know a video of this game? Send the link'}</button>
-        ) : (
-          <form className="form suggest-video" onSubmit={send}>
-            <label className="field-label">Video link</label>
-            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" required />
-            <div className="row">
-              <div className="grow">
-                <label className="field-label">Your shirt number</label>
-                <input className="input" inputMode="numeric" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, '').slice(0, 2))} required />
-              </div>
-              <div className="grow">
-                <label className="field-label">Note (optional)</label>
-                <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
-              </div>
-            </div>
-            {error && <p className="error small">{error}</p>}
-            <button className="btn btn-primary" disabled={state === 'sending' || !url.trim() || !jersey}>{state === 'sending' ? 'Sending…' : 'Send'}</button>
-          </form>
-        ))}
+        {played && <SuggestVideoForm token={token} gameId={game.game_id} hasVideo={!!v} />}
       </div>
     </div>
+  );
+}
+
+/** For visitors: send the link of a video of a game, with their shirt number; it shows once the team has checked it. */
+export function SuggestVideoForm({ token, gameId, hasVideo }: { token: string; gameId: number; hasVideo: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState('');
+  const [jersey, setJersey] = useState(() => { try { return localStorage.getItem('viq:jersey') ?? ''; } catch { return ''; } });
+  const [note, setNote] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [error, setError] = useState('');
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setState('sending');
+    try {
+      await api.suggestVideo(token, gameId, { url: url.trim(), jersey: Number(jersey), note: note.trim() || undefined });
+      try { localStorage.setItem('viq:jersey', jersey); } catch { /* private mode */ }
+      setState('sent');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed');
+      setState('idle');
+    }
+  }
+  if (state === 'sent') return <p className="small edit-notice">Thanks, the video was sent. It shows here once the team has checked it.</p>;
+  if (!open) return <button className="btn-ghost small sched-more" onClick={() => setOpen(true)}>{hasVideo ? 'Know a better video of this game?' : 'Know a video of this game? Send the link'}</button>;
+  return (
+    <form className="form suggest-video" onSubmit={send}>
+      <label className="field-label">Video link</label>
+      <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" required />
+      <div className="row">
+        <div className="grow">
+          <label className="field-label">Your shirt number</label>
+          <input className="input" inputMode="numeric" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, '').slice(0, 2))} required />
+        </div>
+        <div className="grow">
+          <label className="field-label">Note (optional)</label>
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+        </div>
+      </div>
+      {error && <p className="error small">{error}</p>}
+      <button className="btn btn-primary" disabled={state === 'sending' || !url.trim() || !jersey}>{state === 'sending' ? 'Sending…' : 'Send'}</button>
+    </form>
   );
 }

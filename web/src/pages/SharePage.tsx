@@ -7,6 +7,7 @@ import { Replays } from '../components/Replays';
 import { Tour } from '../components/Tour';
 import { matchTour, playerTour, statsTour, teamTour } from '../components/ShareTours';
 import { TeamOverview } from '../components/TeamOverview';
+import { MatchCenter } from '../components/MatchCenter';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
@@ -49,7 +50,7 @@ export function SharePage() {
 }
 
 type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
-type View = 'overview' | 'stats' | 'trends' | 'players' | 'replays';
+type View = 'overview' | 'stats' | 'trends' | 'players' | 'replays' | 'matches';
 
 /**
  * The public team site (no login), under the one shareable team link:
@@ -130,6 +131,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
           : <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />}
       </>
     );
+  } else if (tab === 'matches') {
+    body = <MatchCenter token={token!} />;
   } else if (tab === 'overview') {
     body = <TeamOverview token={token!} base={base} players={data.players} events={data.events} matches={data.matches} />;
   } else {
@@ -156,6 +159,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
           <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
           <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
           <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
+          <Link to={`${base}/matches`} className={`tab ${tab === 'matches' ? 'on' : ''}`}>All games</Link>
         </div>
       </nav>
       <div className="page share">

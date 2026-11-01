@@ -204,6 +204,10 @@ Found videos are only suggestions until someone confirms one; a link can also be
 Confirmed videos show on the public team page (Overview), where visitors can also send a video
 link for a game; it appears there once the coach has used it.
 
+The **Matches** page (and "All games" on the public team page) lists every Swiss Volley game,
+of any team: a week of all of Switzerland, or a season of one region, with filters. Every game
+there can get a video the same way.
+
 The calendar is a stable public feed. The other teams' games come from the game center's
 own requests, which can change when Swiss Volley updates its website; the server then looks
 them up again by itself (this takes a few seconds once).
