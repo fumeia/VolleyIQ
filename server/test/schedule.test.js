@@ -112,3 +112,29 @@ test('linking a team, its schedule, the opponent and video search', async () => 
   assert.deepEqual((await app.inject({ url: '/api/schedule' })).json().games.map((g) => g.match_id), [match.id]);
   await app.close();
 });
+
+test('a club calendar: pick which of the club teams it is', async () => {
+  const ev = (id, day, home, away, league) => [
+    'BEGIN:VEVENT', `UID:game-${id}`, `DESCRIPTION:#${id} | ${day}.10.2026 18:00 | ${home} — ${away}\\n\\nLiga: #${league === 'U23' ? 2 : 1} | ${league} | ♀`,
+    `DTSTART;TZID=Europe/Zurich:202610${day}T180000`, 'END:VEVENT'];
+  const club = ['BEGIN:VCALENDAR', 'NAME:#900001 | VBC Muster',
+    ...ev(1, 10, 'VBC Muster D1', 'Volley Nord', '2L'), ...ev(2, 11, 'Volley Süd', 'VBC Muster D1', '2L'),
+    ...ev(3, 12, 'VBC Muster', 'STV Ost', '1L'), ...ev(4, 13, 'VBC Muster', 'Volley West', 'U23'), ...ev(5, 14, 'Volley Nord', 'VBC Muster', '1L'),
+    'END:VCALENDAR'].join('\r\n');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-club-'));
+  const fake = async (url) => (url.includes('iCal/schedule/cccc') ? { ok: true, status: 200, text: async () => club } : { ok: false, status: 404, text: async () => '' });
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { scheduleFetch: fake, youtubeKey: null });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Herren 1' } })).json();
+  const link = 'webcal://volleymanager.volleyball.ch/iCal/schedule/cccc2222cccc2222cccc';
+  const ask = (await app.inject({ method: 'PUT', url: `/api/teams/${team.id}/swissvolley`, payload: { link } })).json();
+  assert.equal(ask.club, 'VBC Muster');
+  assert.deepEqual(ask.choices.map((c) => [c.name, c.leagues, c.games]), [
+    ['VBC Muster', null, 3], ['VBC Muster', ['1L'], 2], ['VBC Muster', ['U23'], 1], ['VBC Muster D1', null, 2],
+  ]);
+  assert.equal((await app.inject({ url: '/api/schedule' })).json().games.length, 0, 'nothing linked yet');
+  const linked = (await app.inject({ method: 'PUT', url: `/api/teams/${team.id}/swissvolley`, payload: { link, pick: ask.choices[1] } })).json();
+  assert.equal(linked.sv_caption, 'VBC Muster');
+  const games = (await app.inject({ url: '/api/schedule' })).json().games;
+  assert.deepEqual(games.map((g) => [g.game_id, g.side]), [[3, 'home'], [5, 'away']], 'only the 1L games of that team');
+  await app.close();
+});

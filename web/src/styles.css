@@ -1102,3 +1102,6 @@ button.court-zone:active { background: #2a2f3a; }
   .sched-vs::before { content: ' vs '; }
 }
 .sched-more { align-self: flex-start; }
+.club-pick { display: flex; flex-direction: column; gap: 6px; }
+.club-pick .btn { justify-content: flex-start; text-align: left; font-weight: 600; }
+.club-pick .btn.club-sub { margin-left: 18px; font-weight: 500; }

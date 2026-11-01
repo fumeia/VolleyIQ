@@ -1,6 +1,6 @@
 // Team schedules from Swiss Volley, other teams' games and videos found for games.
 import { requireCoach } from './auth.js';
-import { fetchCalendar, findCalendar, findVideos, leagueGames, parseLink } from './swissvolley.js';
+import { clubTeams, fetchCalendar, findCalendar, findVideos, forTeam, isClubCalendar, leagueGames, parseLink } from './swissvolley.js';
 
 const coach = { preHandler: requireCoach };
 const bad = (reply, msg, code = 400) => reply.code(code).send({ error: msg });
@@ -30,7 +30,9 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     if (!t?.sv_ical) return null;
     try {
       const cal = await fetchCalendar(t.sv_ical, fetchFn);
-      const caption = cal.team?.caption ?? t.sv_caption;
+      const filter = t.sv_filter ? JSON.parse(t.sv_filter) : null;
+      if (filter) cal.games = forTeam(cal.games, filter);
+      const caption = filter?.name ?? cal.team?.caption ?? t.sv_caption;
       const keep = new Set();
       const upsert = db.prepare(`INSERT INTO schedule (team_id, game_id, starts_at, home, away, side, league, league_id, hall, address, result, cancelled)
         VALUES (@team, @gameId, @start, @home, @away, @side, @league, @leagueId, @hall, @address, @result, @cancelled)
@@ -54,7 +56,7 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
           if (hit) db.prepare('UPDATE schedule SET match_id = ? WHERE id = ?').run(hit.id, r.id);
         }
         db.prepare("UPDATE teams SET sv_caption = ?, sv_team_id = COALESCE(?, sv_team_id), sv_synced_at = datetime('now'), sv_error = NULL WHERE id = ?")
-          .run(caption, cal.team?.teamId ?? null, t.id);
+          .run(caption, filter ? null : cal.team?.teamId ?? null, t.id);
       })();
       return cal.games.length;
     } catch (e) {
@@ -64,14 +66,27 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     }
   }
 
-  /** Links a team to Swiss Volley from a pasted team page or calendar link. */
-  async function connect(teamId, link) {
+  /**
+   * Links a team to Swiss Volley from a pasted team page or calendar link. A club calendar
+   * holds all the club's teams: then the answer is { choices } until one is [pick]ed.
+   */
+  async function connect(teamId, link, pick = null) {
     const target = parseLink(link);
     if (!target) throw Object.assign(new Error('Paste the link of your team page in the Swiss Volley game center (…/club/…/team/…) or its calendar link'), { status: 400 });
-    let ical = target.ical, caption = null;
+    let ical = target.ical, caption = null, filter = null;
     if (!ical) ({ ical, caption } = await findCalendar(target.clubId, target.teamId, fetchFn));
-    db.prepare('UPDATE teams SET sv_link = ?, sv_ical = ?, sv_team_id = ?, sv_caption = ?, sv_error = NULL WHERE id = ?')
-      .run(String(link).trim(), ical, target.teamId ?? null, caption, teamId);
+    else {
+      const cal = await fetchCalendar(ical, fetchFn);
+      if (isClubCalendar(cal)) {
+        const choices = clubTeams(cal.games);
+        const chosen = pick && choices.find((c) => c.name === pick.name && JSON.stringify(c.leagues) === JSON.stringify(pick.leagues ?? null));
+        if (!chosen) return { club: cal.team?.caption ?? null, choices };
+        filter = { name: chosen.name, leagues: chosen.leagues };
+        caption = chosen.name;
+      }
+    }
+    db.prepare('UPDATE teams SET sv_link = ?, sv_ical = ?, sv_team_id = ?, sv_caption = ?, sv_filter = ?, sv_error = NULL WHERE id = ?')
+      .run(String(link).trim(), ical, target.teamId ?? null, caption, filter ? JSON.stringify(filter) : null, teamId);
     await sync(teamId);
     return team(teamId);
   }
@@ -115,7 +130,38 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     return videoOf(game.gameId);
   }
 
-  return { sync, connect, league, videoOf, searchVideo, cache };
+  /**
+   * Every game of the other team this season, whatever the competition: found in the game's
+   * league, then read from that team's own calendar (kept 6 hours). Set scores come from the
+   * league data where it has the game. Without its calendar: the games of that league only.
+   */
+  async function opponentGames(leagueId, opponent) {
+    const games = await league(leagueId);
+    const scores = new Map(games.map((g) => [g.gameId, g]));
+    const one = games.find((g) => g.home === opponent || g.away === opponent);
+    const teamId = one ? (one.home === opponent ? one.homeId : one.awayId) : null;
+    const clubId = one ? (one.home === opponent ? one.homeClub : one.awayClub) : null;
+    if (teamId && clubId) {
+      const key = `team:${teamId}`;
+      let cal = cache.get(key, 6 * HOURS);
+      if (!cal) {
+        try {
+          const { ical } = await findCalendar(clubId, teamId, fetchFn);
+          cal = (await fetchCalendar(ical, fetchFn)).games;
+          cache.set(key, cal);
+        } catch { cal = cache.get(key); }
+      }
+      if (cal) {
+        return cal.map((g) => ({
+          gameId: g.gameId, start: g.start, home: g.home, away: g.away, league: g.league, group: null, hall: g.hall,
+          result: scores.get(g.gameId)?.result ?? g.result, sets: scores.get(g.gameId)?.sets ?? [],
+        }));
+      }
+    }
+    return games.filter((g) => g.home === opponent || g.away === opponent);
+  }
+
+  return { sync, connect, league, opponentGames, videoOf, searchVideo, cache };
 }
 
 export function registerSchedule(app, { db, schedule, youtube }) {
@@ -133,14 +179,14 @@ export function registerSchedule(app, { db, schedule, youtube }) {
   app.put('/api/teams/:id/swissvolley', coach, async (req, reply) => {
     if (!db.prepare('SELECT id FROM teams WHERE id = ?').get(req.params.id)) return bad(reply, 'Not found', 404);
     try {
-      return await schedule.connect(Number(req.params.id), req.body?.link);
+      return await schedule.connect(Number(req.params.id), req.body?.link, req.body?.pick ?? null);
     } catch (e) {
       return bad(reply, e.message, e.status ?? 502);
     }
   });
 
   app.delete('/api/teams/:id/swissvolley', coach, async (req) => {
-    db.prepare('UPDATE teams SET sv_link = NULL, sv_ical = NULL, sv_team_id = NULL, sv_caption = NULL, sv_synced_at = NULL, sv_error = NULL WHERE id = ?').run(req.params.id);
+    db.prepare('UPDATE teams SET sv_link = NULL, sv_ical = NULL, sv_team_id = NULL, sv_caption = NULL, sv_filter = NULL, sv_synced_at = NULL, sv_error = NULL WHERE id = ?').run(req.params.id);
     db.prepare('DELETE FROM schedule WHERE team_id = ? AND match_id IS NULL').run(req.params.id);
     return { ok: true };
   });
@@ -169,8 +215,7 @@ export function registerSchedule(app, { db, schedule, youtube }) {
     const opponent = r.side === 'home' ? r.away : r.home;
     if (!r.league_id) return { opponent, games: [] };
     try {
-      const games = (await schedule.league(r.league_id))
-        .filter((g) => g.home === opponent || g.away === opponent)
+      const games = (await schedule.opponentGames(r.league_id, opponent))
         .sort((a, b) => (a.start < b.start ? 1 : -1))
         .map((g) => ({ ...g, video: schedule.videoOf(g.gameId) }));
       return { opponent, games };

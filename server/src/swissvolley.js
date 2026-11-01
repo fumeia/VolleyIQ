@@ -102,6 +102,45 @@ function toGame(ev) {
   };
 }
 
+/**
+ * The teams in a club calendar (every game has one of them): name, leagues and games, to pick
+ * from. A name that plays in two leagues (e.g. a league and U23) is offered per league too;
+ * cup games go with the league that is not a youth league.
+ */
+export function clubTeams(games) {
+  const count = new Map();
+  for (const g of games) for (const t of [g.home, g.away]) count.set(t, (count.get(t) ?? 0) + 1);
+  const teams = new Map();
+  for (const g of games) {
+    const ours = (count.get(g.home) ?? 0) >= (count.get(g.away) ?? 0) ? g.home : g.away;
+    if (!teams.has(ours)) teams.set(ours, new Map());
+    const l = teams.get(ours);
+    l.set(g.league ?? '', (l.get(g.league ?? '') ?? 0) + 1);
+  }
+  const cup = (l) => /cup/i.test(l);
+  const youth = (l) => /^U\d+/i.test(l);
+  const out = [];
+  for (const [name, leagues] of teams) {
+    const all = [...leagues.keys()];
+    const n = (ls) => ls.reduce((a, l) => a + (leagues.get(l) ?? 0), 0);
+    out.push({ name, leagues: null, label: `${name} (${all.filter(Boolean).join(', ')})`, games: n(all) });
+    const main = all.filter((l) => l && !cup(l));
+    if (main.length > 1) {
+      for (const l of main) {
+        const ls = youth(l) ? [l] : [l, ...all.filter(cup)];
+        out.push({ name, leagues: ls, label: `${name}, only ${ls.join(' + ')}`, games: n(ls) });
+      }
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name) || (a.leagues ? 1 : 0) - (b.leagues ? 1 : 0));
+}
+
+/** A club's calendar (not a single team's): its name has no "(league, …)" part and several teams play in it. */
+export const isClubCalendar = (cal) => !cal.team?.info && clubTeams(cal.games).filter((t) => !t.leagues).length > 1;
+
+/** Only this team's games: { name, leagues } picked from a club calendar. */
+export const forTeam = (games, filter) => (filter ? games.filter((g) => (g.home === filter.name || g.away === filter.name) && (!filter.leagues || filter.leagues.includes(g.league))) : games);
+
 export async function fetchCalendar(ical, fetchFn = fetch) {
   return parseIcs(await get(fetchFn, ical, { Accept: 'text/calendar' }));
 }
@@ -150,6 +189,8 @@ const simpleGame = (g) => ({
   away: g.teams?.away?.caption ?? null,
   homeId: g.teams?.home?.teamId ?? null,
   awayId: g.teams?.away?.teamId ?? null,
+  homeClub: Number(g.teams?.home?.clubId) || null,
+  awayClub: Number(g.teams?.away?.clubId) || null,
   leagueId: g.league?.leagueId ?? null,
   league: g.league?.caption ?? null,
   group: g.group?.caption ?? null,

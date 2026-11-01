@@ -284,6 +284,10 @@ const MIGRATIONS = [
       data TEXT NOT NULL
     )`);
   },
+  // v22: a club calendar holds every team of the club: which one (and which leagues) is this team.
+  (db) => {
+    if (!db.prepare('PRAGMA table_info(teams)').all().some((c) => c.name === 'sv_filter')) db.exec('ALTER TABLE teams ADD COLUMN sv_filter TEXT');
+  },
 ];
 
 function migrate(db) {

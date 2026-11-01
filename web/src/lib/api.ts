@@ -14,6 +14,8 @@ export interface Team {
 /** A video found (or chosen) for a game. */
 export interface GameVideo { state: 'none' | 'found' | 'confirmed' | 'rejected'; url: string | null; title: string | null; searched_at: string | null;
   candidates: { id: string; url: string; title: string; channel: string; publishedAt: string; seconds: number; score: number }[] }
+/** A team in a club calendar: its name there, and only some of its leagues (null: all). */
+export interface ClubTeamChoice { name: string; leagues: string[] | null; label: string; games: number }
 /** A game from a team's Swiss Volley schedule. */
 export interface ScheduleGame {
   id: number; team_id: number; team_name: string; game_id: number; starts_at: string; home: string | null; away: string | null;
@@ -188,7 +190,9 @@ export const api = {
   match: (id: number) => req<MatchBundle>('GET', `/api/matches/${id}`),
   createMatch: (m: Partial<Match>) => req<Match>('POST', '/api/matches', m),
   schedule: (teamId?: number) => req<{ teams: Team[]; games: ScheduleGame[]; videoSearch: boolean }>('GET', `/api/schedule${teamId ? `?team=${teamId}` : ''}`),
-  linkSwissVolley: (teamId: number, link: string) => req<Team>('PUT', `/api/teams/${teamId}/swissvolley`, { link }),
+  /** A club calendar answers with the club's teams to pick from; with [pick], the team is linked. */
+  linkSwissVolley: (teamId: number, link: string, pick?: ClubTeamChoice) =>
+    req<Team | { club: string | null; choices: ClubTeamChoice[] }>('PUT', `/api/teams/${teamId}/swissvolley`, { link, pick }),
   unlinkSwissVolley: (teamId: number) => req<{ ok: boolean }>('DELETE', `/api/teams/${teamId}/swissvolley`),
   syncSchedule: (teamId: number) => req<{ games: number }>('POST', `/api/teams/${teamId}/swissvolley/sync`),
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),

@@ -5,7 +5,8 @@
 **Schedules from Swiss Volley**
 - Link a team once with its page in the Swiss Volley game center (team page → Schedule from Swiss Volley). Its games and results then show on Home (Upcoming / Results) and on the team page, and update by themselves twice a day.
 - Tap a game: date, time, hall with a map link, result. "Tag this match" opens a new match with team, opponent, date and the game already filled in; a match tagged that day is linked to the game by itself.
-- "<Opponent>: games this season" shows the other team's results with set scores, read from the league.
+- A club calendar link (webcal://…, all teams of the club) works too: VolleyIQ lists the club's teams and you pick which one this is (a team in two leagues, e.g. a league and U23, can be picked per league).
+- "<Opponent>: games this season" shows every game of the other team (league and cup, from its own calendar), with set scores where the league has them.
 - Videos: search YouTube for any of these games (needs YOUTUBE_API_KEY on the server), check the suggestions and confirm the right one, or paste a link. With a video, an opponent's game can be tagged for scouting.
 
 **New look**

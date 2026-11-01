@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
-import { api, type Player, type ScheduleGame, type Team } from '../lib/api';
+import { api, type ClubTeamChoice, type Player, type ScheduleGame, type Team } from '../lib/api';
 import { GameSheet, ScheduleTable } from '../components/Schedule';
 import { parseRoster } from '../lib/roster';
 import { anonymousExport } from '../lib/anonymize';
@@ -165,6 +165,7 @@ export function TeamPage() {
 /** The team's schedule and results from Swiss Volley, linked once with the team's page there. */
 function SwissVolleyBox({ team, onChanged }: { team: Team; onChanged: () => void }) {
   const [link, setLink] = useState('');
+  const [choices, setChoices] = useState<{ club: string | null; list: ClubTeamChoice[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sched, setSched] = useState<{ games: ScheduleGame[]; videoSearch: boolean } | null>(null);
@@ -200,12 +201,31 @@ function SwissVolleyBox({ team, onChanged }: { team: Team; onChanged: () => void
         <>
           <span className="small muted">
             Open your team in the <a href="https://www.volleyball.ch/de/game-center" target="_blank" rel="noreferrer">Swiss Volley game center</a> (pick the league,
-            then click your team), copy the link from the address bar and paste it here. The games, results and halls then show here and on Home.
+            then click your team), copy the link from the address bar and paste it here. A team or club calendar link (webcal://volleymanager…) works too.
+            The games, results and halls then show here and on Home.
           </span>
-          <form className="row" onSubmit={(e) => { e.preventDefault(); if (link.trim()) run(() => api.linkSwissVolley(team.id, link.trim())); }}>
-            <input className="input grow" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://www.volleyball.ch/de/game-center/club/…/team/…" />
+          <form className="row" onSubmit={(e) => {
+            e.preventDefault();
+            if (!link.trim()) return;
+            run(async () => {
+              const r = await api.linkSwissVolley(team.id, link.trim());
+              if ('choices' in r) setChoices({ club: r.club, list: r.choices });
+            });
+          }}>
+            <input className="input grow" value={link} onChange={(e) => { setLink(e.target.value); setChoices(null); }} placeholder="https://www.volleyball.ch/de/game-center/club/…/team/…" />
             <button className="btn btn-primary" disabled={busy || !link.trim()}>{busy ? 'Reading…' : 'Link'}</button>
           </form>
+          {choices && (
+            <div className="club-pick">
+              <span className="small">This is the calendar of the whole club{choices.club ? ` (${choices.club})` : ''}. Which team is {team.name}?</span>
+              {choices.list.map((c) => (
+                <button key={`${c.name}|${c.leagues?.join(',') ?? ''}`} className={`btn ${c.leagues ? 'club-sub' : ''}`} disabled={busy}
+                  onClick={() => run(async () => { await api.linkSwissVolley(team.id, link.trim(), c); setChoices(null); })}>
+                  <span className="grow">{c.label}</span><small className="muted">{c.games} games</small>
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
       {error && <span className="small error">{error}</span>}
