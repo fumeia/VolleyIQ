@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-**Look and feel: retro sports broadcast**
-- Deep navy, broadcast yellow and white; Barlow / Barlow Condensed (bundled) in capitals for titles, buttons, tabs and numbers, like a TV score graphic.
-- Square panels, yellow section labels, a striped bar under page titles, the match score as a yellow score bug, stat tiles with a yellow edge, chart panels with a yellow top bar.
-- One icon set (Lucide) instead of emoji; page actions in a row under the title.
+**Look and feel**
+- One icon set (Lucide) instead of emoji across the app and the public pages; Inter as the typeface.
+- Calmer buttons and colours, page actions in a row under the title, a quieter navigation highlight.
+- The number tiles on the stats pages are white like the charts next to them.
 
 **Privacy**
 - Teams → "Export for training (numbers only)": the tags of a team for training the auto-detection, with shirt numbers and roles only (no names, team or opponent names, dates, video file names or match sheets).
