@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Timeline under the video**
+- Match page: a bar with the whole video under the picture. Drag (or tap) to jump anywhere; the picture follows while dragging. It shows the time and the length, a small mark for every saved tag and where each set starts (S1, S2, …).
+
 **Zoom in the video**
 - Pinch with two fingers on the video (Ctrl + mouse wheel or a trackpad pinch on a computer) to zoom in up to 5×, drag to look around, "1×" to see the whole picture again. Taps still play and pause.
 - Roster from the video: a zoomed-in frame is sent as exactly the part in view, at the video's full resolution; a frame without zoom is sent as four overlapping quarters (an AI model shrinks a whole frame, and the numbers get lost). Up to 12 pictures at once.

@@ -7,6 +7,8 @@ export interface PlayerHandle {
   toggle(): void;
   isPlaying(): boolean;
   time(): number | null;
+  /** Length of the video in seconds (null until known). */
+  duration(): number | null;
   seek(t: number): void;
   seekBy(dt: number): void;
   setRate(r: number): void;
@@ -176,6 +178,10 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
     time: () => {
       if (source?.type === 'youtube') return yt.current?.getCurrentTime ? yt.current.getCurrentTime() : null;
       return video.current ? video.current.currentTime : null;
+    },
+    duration: () => {
+      const d = source?.type === 'youtube' ? yt.current?.getDuration?.() : video.current?.duration;
+      return d && Number.isFinite(d) && d > 0 ? d : null;
     },
     seek: (t: number) => {
       const target = Math.max(0, t);

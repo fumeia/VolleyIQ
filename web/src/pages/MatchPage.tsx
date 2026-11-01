@@ -21,6 +21,7 @@ import { EditsPanel } from '../components/EditsPanel';
 import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { QualityControl } from '../components/QualityControl';
 import { ReadNumbers } from '../components/ReadNumbers';
+import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
@@ -365,6 +366,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     }}
                   />
                 ) : tab === 'review' && reviewMode === 'rally' && suggested.length > 0 ? null : (
+                <>
+                <Timeline player={player} events={events} />
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -378,6 +381,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                       onPick={(q) => { setQuality(q); saveQuality('coach', q); }} />}
                   </div>
                 </div>
+                </>
                 )}
               </>
             ) : (
