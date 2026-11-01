@@ -210,10 +210,23 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, ytLimit =
     const fresh = cache.get(key, past ? 24 * HOURS : HOURS);
     if (fresh) return fresh;
     try {
-      const games = await allGames({
-        region, from, to, fetchFn,
-        cache: { get: () => cache.get('action:games'), set: (id) => cache.set('action:games', id) },
-      });
+      const actionCache = { get: () => cache.get('action:games'), set: (id) => cache.set('action:games', id) };
+      // A game does not say which region it belongs to: all of Switzerland is read region by
+      // region (five at a time), so each game can carry its region.
+      let games;
+      if (region) {
+        games = (await allGames({ region, from, to, fetchFn, cache: actionCache })).map((g) => ({ ...g, region }));
+      } else {
+        // The first one alone, so a stale call id is looked up again only once.
+        const [first, ...rest] = REGIONS;
+        const lists = [(await allGames({ region: first.id, from, to, fetchFn, cache: actionCache })).map((g) => ({ ...g, region: first.id }))];
+        for (let i = 0; i < rest.length; i += 5) {
+          lists.push(...await Promise.all(rest.slice(i, i + 5).map(async (r) => (await allGames({ region: r.id, from, to, fetchFn, cache: actionCache })).map((g) => ({ ...g, region: r.id })))));
+        }
+        const byId = new Map();
+        for (const g of lists.flat()) if (!byId.has(g.gameId)) byId.set(g.gameId, g);
+        games = [...byId.values()];
+      }
       const seen = db.prepare(`INSERT INTO sv_games (game_id, starts_at, home, away, league) VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(game_id) DO UPDATE SET starts_at = excluded.starts_at, home = excluded.home, away = excluded.away, league = excluded.league, seen_at = datetime('now')`);
       db.transaction(() => { for (const g of games) seen.run(g.gameId, g.start, g.home, g.away, g.league); })();

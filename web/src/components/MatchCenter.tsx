@@ -84,7 +84,7 @@ export function MatchCenter({ token }: { token?: string }) {
   // Found by the YouTube search, waiting to be checked.
   const toCheck = (data?.games ?? []).filter((g) => g.videoState === 'found').length;
 
-  const regionName = f.region ? data?.regions.find((r) => r.id === f.region)?.label ?? f.region : 'All of Switzerland';
+  const regionName = f.region ? `${f.region.toUpperCase()} · ${data?.regions.find((r) => r.id === f.region)?.label ?? ''}` : 'All of Switzerland';
   const summary = [regionName, f.period === 'season' && f.region ? 'whole season' : `${short(query.from)} – ${short(query.to)}`,
     f.gender ? GENDER[f.gender] : null, f.league || null, f.status === 'played' ? 'results' : f.status === 'next' ? 'upcoming' : null,
     f.q.trim() ? `“${f.q.trim()}”` : null, f.videos === 'check' ? 'videos to check' : f.videos === 'confirmed' ? 'with video' : null].filter(Boolean).join(' · ');
@@ -100,7 +100,7 @@ export function MatchCenter({ token }: { token?: string }) {
           <label className="filter"><span>Region</span>
             <select className="input" value={f.region} onChange={(e) => set({ region: e.target.value })}>
               <option value="">All of Switzerland</option>
-              {(data?.regions ?? []).map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+              {(data?.regions ?? []).map((r) => <option key={r.id} value={r.id}>{r.id.toUpperCase()} · {r.label}</option>)}
             </select>
           </label>
           <div className="filter"><span>Period</span>
@@ -190,7 +190,7 @@ export function MatchCenter({ token }: { token?: string }) {
                     <td className="center-time">{g.start.slice(11, 16) === '00:00' ? '' : g.start.slice(11, 16)}</td>
                     <td className="sched-game">
                       <span>{g.home}</span><span className="sched-vs">{g.away}</span>
-                      <small className="muted">{[g.league, g.gender ? GENDER[g.gender] : null, g.city].filter(Boolean).join(' · ')}</small>
+                      <small className="muted">{[g.region && !f.region ? g.region.toUpperCase() : null, g.league, g.gender ? GENDER[g.gender] : null, g.city].filter(Boolean).join(' · ')}</small>
                       {(g.videoState || g.sent || g.match_id) ? (
                         <span className="sched-flags">
                           {g.match_id ? <span className="badge badge-pending">tagged</span> : null}
@@ -244,6 +244,7 @@ function CenterSheet({ game, token, videoSearch, onClose, onChanged }: {
         <dl className="game-facts">
           <dt>Date</dt><dd>{dayLabel(game.start.slice(0, 10))}{game.start.slice(11, 16) !== '00:00' ? `, ${game.start.slice(11, 16)}` : ''}</dd>
           {game.result && <><dt>Result</dt><dd><b>{game.result}</b>{game.sets.length > 0 && <span className="muted"> ({game.sets.join(', ')})</span>}</dd></>}
+          {game.region && <><dt>Region</dt><dd>{game.region.toUpperCase()}</dd></>}
           <dt>League</dt><dd>{[game.league, game.gender ? GENDER[game.gender] : null, game.group && game.group !== game.phase ? game.group : game.phase].filter(Boolean).join(' · ')}</dd>
           {game.hall && <><dt>Hall</dt><dd>{game.hall}{game.city ? `, ${game.city}` : ''}</dd></>}
         </dl>

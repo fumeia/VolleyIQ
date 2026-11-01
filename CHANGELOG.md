@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Regions in Matches, timeline in Replays**
+- Matches (app and public "All games"): every game shows its Swiss Volley region (SVRZ, SVRA, SV for the national leagues, …), also in the game's details; the region filter lists the codes with their names. All of Switzerland is now read region by region for this (first load of a week a few seconds longer, then kept).
+- Public Replays: the same timeline under the video as on the match page.
+
 **Timeline under the video**
 - Match page: a bar with the whole video under the picture. Drag (or tap) to jump anywhere; the picture follows while dragging. It shows the time and the length, a small mark for every saved tag and where each set starts (S1, S2, …).
 

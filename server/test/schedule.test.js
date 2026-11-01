@@ -196,7 +196,7 @@ test('match center: any Swiss Volley game, by week or a region season, videos fo
     if (o.method === 'POST' && url.endsWith('/de/game-center')) {
       const q = JSON.parse(o.body)[0];
       queries.push(q);
-      const list = q.includes('region=SVRZ') ? [g(7001, 20, 'VBC Muster H2', 'Volley Nord H1', 'm', true)] : [g(7001, 20, 'VBC Muster H2', 'Volley Nord H1', 'm', true), g(7002, 21, 'Volley Süd D1', 'STV Ost D2', 'f', false)];
+      const list = q.includes('region=SVRZ&') ? [g(7001, 20, 'VBC Muster H2', 'Volley Nord H1', 'm', true)] : q.includes('region=SV&') ? [g(7002, 21, 'Volley Süd D1', 'STV Ost D2', 'f', false)] : [];
       return { ok: true, status: 200, text: async () => `0:["$@1"]\n1:${JSON.stringify(list)}\n` };
     }
     if (url.endsWith('/de/game-center')) return { ok: true, status: 200, text: async () => '<script src="/_next/static/chunks/a.js"></script>' };
@@ -209,8 +209,9 @@ test('match center: any Swiss Volley game, by week or a region season, videos fo
 
   const week = (await app.inject({ url: '/api/center?from=2026-10-19&to=2026-10-25' })).json();
   assert.equal(week.regions.length, 15);
-  assert.deepEqual(week.games.map((x) => [x.gameId, x.gender, x.league, x.result, x.city]), [[7001, 'm', '3L', '3:0', 'Musterdorf'], [7002, 'f', '3L', null, 'Musterdorf']]);
-  assert.equal(queries.at(-1), '?includeCup=1&dateStart=2026-10-19&dateEnd=2026-10-25');
+  assert.deepEqual(week.games.map((x) => [x.gameId, x.gender, x.league, x.result, x.city, x.region]).sort((a, b) => a[0] - b[0]),
+    [[7001, 'm', '3L', '3:0', 'Musterdorf', 'svrz'], [7002, 'f', '3L', null, 'Musterdorf', 'sv']]);
+  assert.deepEqual(new Set(queries.filter((x) => x.endsWith('dateStart=2026-10-19&dateEnd=2026-10-25')).map((x) => x.match(/region=(\w+)/)?.[1])).size, 15, 'all of Switzerland: every region');
   assert.equal((await app.inject({ url: '/api/center?from=2026-08-01&to=2027-07-31' })).statusCode, 400, 'a season only per region');
   assert.equal((await app.inject({ url: '/api/center?region=xx&from=2026-08-01&to=2027-07-31' })).statusCode, 400);
   const season = (await app.inject({ url: '/api/center?region=svrz&from=2026-08-01&to=2027-07-31' })).json();
@@ -223,11 +224,11 @@ test('match center: any Swiss Volley game, by week or a region season, videos fo
   // A visitor sends a video for a game of another team; the coach uses it; it shows publicly.
   assert.equal((await app.inject({ method: 'POST', url: `/api/share/team/${token}/games/7002/video`, payload: { url: 'https://example.com/v', jersey: 3 } })).statusCode, 200);
   assert.equal((await app.inject({ method: 'POST', url: `/api/share/team/${token}/games/9999/video`, payload: { url: 'https://example.com/v', jersey: 3 } })).statusCode, 404);
-  assert.equal((await app.inject({ url: '/api/center?from=2026-10-19&to=2026-10-25' })).json().games[1].sent, 1);
+  assert.equal((await app.inject({ url: '/api/center?from=2026-10-19&to=2026-10-25' })).json().games.find((x) => x.gameId === 7002).sent, 1);
   const { suggestions } = (await app.inject({ url: '/api/games/7002/video' })).json();
   await app.inject({ method: 'POST', url: `/api/video-suggestions/${suggestions[0].id}`, payload: { decision: 'accept' } });
   const pub = (await app.inject({ url: `/api/share/team/${token}/center?from=2026-10-19&to=2026-10-25` })).json();
-  assert.equal(pub.games[1].videoState, 'confirmed');
+  assert.equal(pub.games.find((x) => x.gameId === 7002).videoState, 'confirmed');
   assert.equal((await app.inject({ url: `/api/share/team/${token}/games/7002/video` })).json().video.url, 'https://example.com/v');
   assert.equal((await app.inject({ url: `/api/share/team/nope/center?from=2026-10-19&to=2026-10-25` })).statusCode, 404);
   await app.close();

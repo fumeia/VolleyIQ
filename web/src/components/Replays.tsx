@@ -7,6 +7,7 @@ import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
 import { FrameStep, SpeedControl } from './SpeedControl';
 import { QualityControl } from './QualityControl';
+import { Timeline } from './Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 
 interface Props {
@@ -186,6 +187,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
           </label>
         )}
       </div>
+      {source && <Timeline player={player} events={all} />}
       {file ? (
         <p className="small muted replay-file">▶ Your copy: {file.name} · <label className="link">change<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label>
           {(video?.type === 'hosted' || video?.type === 'youtube') && <> · <button className="link" onClick={() => setFiles((m) => { const n = { ...m }; delete n[matchId!]; return n; })}>back to the team video</button></>}</p>

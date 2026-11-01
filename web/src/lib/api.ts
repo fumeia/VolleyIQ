@@ -29,6 +29,8 @@ export interface VideoSuggestion { id: number; url: string; title: string | null
 export interface CenterGame {
   gameId: number; start: string; home: string; away: string; leagueId: number | null; league: string | null; phase: string | null; group: string | null;
   gender: 'f' | 'm' | 'mixed' | null; hall: string | null; city: string | null; result: string | null; sets: string[];
+  /** Swiss Volley region, e.g. svrz (sv: the national leagues). */
+  region?: string;
   videoState: 'confirmed' | 'found' | null; searched?: boolean; sent?: number; match_id?: number | null;
 }
 /** The detector's thresholds, learned from the tagged matches (how the defaults and the best do on them). */
