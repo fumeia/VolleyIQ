@@ -173,6 +173,11 @@ own Docker project and a marked block in the Caddyfile.
 
 **Back up** `data/volleyiq.db`: it is the only state.
 
+**Match videos (optional).** To let the team watch replays without their own copy, add a
+private S3-compatible bucket (e.g. Hetzner Object Storage) with the `S3_*` lines in `.env`.
+The Android app uploads each video straight into the bucket, and viewers stream it with
+links that expire; the server only signs requests and stores no video.
+
 ## Optional AI features
 
 Two features are hidden unless an AI backend is configured in `.env`:

@@ -367,3 +367,44 @@ test('each detection run is kept as it came, with the touches already saved, for
   assert.deepEqual(runs[0].events.map((e) => [e.t, e.action, e.jersey]), [[10.1, 'serve', null], [11, 'receive', 7]]);
   await app.close();
 });
+
+test('match video in the bucket: multipart upload signed by the server, links for the team, delete', async () => {
+  const calls = [];
+  const fake = async (url, o) => {
+    calls.push({ url, method: o.method, body: o.body, auth: o.headers.Authorization });
+    const u = new URL(url);
+    if (o.method === 'POST' && u.searchParams.has('uploads')) return { ok: true, text: async () => '<InitiateMultipartUploadResult><UploadId>up-1</UploadId></InitiateMultipartUploadResult>' };
+    return { ok: true, text: async () => '' };
+  };
+  const storage = (await import('../src/s3.js')).s3Config({ S3_ENDPOINT: 'https://hel1.your-objectstorage.com', S3_BUCKET: 'vids', S3_ACCESS_KEY: 'AK', S3_SECRET_KEY: 'SK' });
+  const app = await setup({}, { storage, storageFetch: fake });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'U18' } })).json();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'm', team_id: team.id } })).json();
+  assert.equal((await app.inject({ url: '/api/video/enabled' })).json().enabled, true);
+
+  const up = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/video/upload`, payload: { size: 40 * 1024 * 1024, name: 'match.MP4' } })).json();
+  assert.equal(up.uploadId, 'up-1');
+  assert.equal(up.parts, 3);
+  assert.match(up.key, new RegExp(`^matches/${m.id}/.+\\.mp4$`));
+  assert.match(calls[0].url, /^https:\/\/vids\.hel1\.your-objectstorage\.com\/matches\/.+\?uploads=$/);
+  assert.match(calls[0].auth, /Credential=AK\/\d{8}\/hel1\/s3\/aws4_request/);
+
+  const parts = (await app.inject({ method: 'POST', url: `/api/matches/${m.id}/video/parts`, payload: { key: up.key, uploadId: up.uploadId, parts: [1, 2, 3] } })).json();
+  assert.match(parts.urls['2'], /X-Amz-Algorithm=AWS4-HMAC-SHA256.*&partNumber=2&uploadId=up-1&X-Amz-Signature=/);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/matches/${m.id}/video/parts`, payload: { key: 'matches/999/x.mp4', uploadId: 'up-1', parts: [1] } })).statusCode, 400, 'only keys of this match');
+
+  const done = await app.inject({ method: 'POST', url: `/api/matches/${m.id}/video/complete`, payload: { key: up.key, uploadId: up.uploadId, size: 40 * 1024 * 1024, parts: [{ n: 2, etag: '"b"' }, { n: 1, etag: '"a"' }, { n: 3, etag: '"c"' }] } });
+  assert.equal(done.statusCode, 200);
+  assert.match(calls.at(-1).body, /<Part><PartNumber>1<\/PartNumber><ETag>"a"<\/ETag><\/Part><Part><PartNumber>2/);
+
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  assert.deepEqual((await app.inject({ url: `/api/share/team/${token}` })).json().matches[0].video, { type: 'hosted' });
+  const link = (await app.inject({ url: `/api/share/team/${token}/video/${m.id}` })).json();
+  assert.match(link.url, /X-Amz-Expires=21600/);
+  assert.equal((await app.inject({ url: `/api/share/team/wrong/video/${m.id}` })).statusCode, 404);
+
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/matches/${m.id}/video` })).statusCode, 200);
+  assert.equal(calls.at(-1).method, 'DELETE');
+  assert.equal((await app.inject({ url: `/api/share/team/${token}/video/${m.id}` })).statusCode, 404);
+  await app.close();
+});

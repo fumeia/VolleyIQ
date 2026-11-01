@@ -33,6 +33,10 @@ interface VolleyIQPlugin {
   aiCheckAll(o: { matchId: number; job: string }): Promise<{ id: string }>;
   aiCheckStatus(o: { matchId: number }): Promise<{ work: WorkState | null }>;
   cancelAiCheck(o: { matchId: number }): Promise<void>;
+  /** Upload the match video into the team's storage in the background (resumes after a break). */
+  uploadVideo(o: { matchId: number; uri: string; apiBase: string; token: string | null }): Promise<void>;
+  videoUploadStatus(o: { matchId: number }): Promise<{ work: WorkState | null }>;
+  cancelVideoUpload(o: { matchId: number }): Promise<void>;
   cancelAnalysis(o: { matchId: number }): Promise<void>;
   deleteVideo(o: { uri: string }): Promise<void>;
   requestNotifications(): Promise<{ granted: boolean }>;

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Match videos in your own storage**
+- With a bucket set up (S3_* in .env, e.g. Hetzner Object Storage), the app uploads a match video straight into it in the background (resumes after a lost connection, progress notification). The match page and the public Replays stream it from there with links that expire, so nobody needs their own copy. Delete it per match. Nothing of the video passes through the server.
+
 **Privacy**
 - Teams → "Export for training (numbers only)": the tags of a team for training the auto-detection, with shirt numbers and roles only (no names, team or opponent names, dates, video file names or match sheets).
 

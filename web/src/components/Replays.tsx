@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, SKILLS } from '../lib/actions';
-import type { Match, Player, VEvent } from '../lib/api';
+import { api, type Match, type Player, type VEvent } from '../lib/api';
 import { ourHalfAt } from '../lib/calibration';
 import { EditSheet } from './EditSheet';
 import { fmtTime } from './TagPad';
@@ -53,7 +53,15 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
 
   const video = match?.video;
   const file = matchId != null ? files[matchId] : undefined;
-  const source = video?.type === 'youtube' ? { type: 'youtube' as const, id: video.id } : file ? { type: 'file' as const, url: file.url } : null;
+  // A video in the team's storage: a link that expires, fetched when the match is picked.
+  const [hosted, setHosted] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (video?.type !== 'hosted' || matchId == null || hosted[matchId]) return;
+    api.sharedVideo(token, matchId).then((r) => setHosted((h) => ({ ...h, [matchId]: r.url }))).catch(() => {});
+  }, [video?.type, matchId]);
+  const source = video?.type === 'youtube' ? { type: 'youtube' as const, id: video.id }
+    : video?.type === 'hosted' && matchId != null && hosted[matchId] ? { type: 'file' as const, url: hosted[matchId], remote: true }
+    : file ? { type: 'file' as const, url: file.url } : null;
 
   const all = useMemo(() => events.filter((e) => e.match_id === matchId && e.t != null && ACTION_BY_CODE[e.action]?.group !== 'team')
     .sort((a, b) => a.t! - b.t!), [events, matchId]);
@@ -147,7 +155,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
       </div>
 
       <div className="replay-video" ref={videoBox}>
-        {source ? <VideoPlayer ref={player} source={source} /> : (
+        {source ? <VideoPlayer ref={player} source={source} /> : video?.type === 'hosted' ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
             <b>📁 Choose your copy of the match video</b>

@@ -12,10 +12,12 @@ export interface Match {
   calibration?: Calibration | null; lineups?: Lineups | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
+  /** The match video in the team's storage (bucket key, size). */
+  video_key?: string | null; video_bytes?: number | null;
   /** Corrections from viewers of the public link waiting for a decision (matches list). */
   open_edits?: number;
-  /** Public link only: which video goes with the match (a YouTube id, or the name of the coach's file). */
-  video?: { type: 'youtube'; id: string } | { type: 'file'; name: string } | null;
+  /** Public link only: which video goes with the match (in the team's storage, a YouTube id, or the name of the coach's file). */
+  video?: { type: 'hosted' } | { type: 'youtube'; id: string } | { type: 'file'; name: string } | null;
 }
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
@@ -202,6 +204,10 @@ export const api = {
     req<EditSuggestion[]>('GET', `/api/edits?status=${status}${matchId ? `&match_id=${matchId}` : ''}`),
   decideEdit: (id: number, decision: 'accept' | 'reject') => req<{ ok: boolean; event: VEvent | null }>('POST', `/api/edits/${id}/${decision}`),
   detectionRuns: (matchId: number) => req<import('./detectionReport').DetectionRun[]>('GET', `/api/matches/${matchId}/runs`),
+  videoEnabled: () => req<{ enabled: boolean }>('GET', '/api/video/enabled'),
+  videoUrl: (matchId: number) => req<{ url: string; expiresIn: number }>('GET', `/api/matches/${matchId}/video/url`),
+  deleteVideo: (matchId: number) => req<{ ok: boolean }>('DELETE', `/api/matches/${matchId}/video`),
+  sharedVideo: (token: string, matchId: number) => req<{ url: string; expiresIn: number }>('GET', `/api/share/team/${token}/video/${matchId}`),
   aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),
   insightsSummary: (stats: unknown, lang: 'en' | 'de') =>
     req<{ bullets: string[] }>('POST', '/api/insights/summary', { stats, lang }),

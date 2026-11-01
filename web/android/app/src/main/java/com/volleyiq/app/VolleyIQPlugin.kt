@@ -35,6 +35,7 @@ import com.volleyiq.app.work.AnalysisWorker
 import com.volleyiq.app.work.ImportWorker
 import com.volleyiq.app.work.UpdateWorker
 import com.volleyiq.app.work.UploadWorker
+import com.volleyiq.app.work.VideoUploadWorker
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -197,6 +198,39 @@ class VolleyIQPlugin : Plugin() {
     fun cancelAiCheck(call: PluginCall) {
         val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
         work.cancelUniqueWork("aicheck-$matchId")
+        call.resolve()
+    }
+
+    /** Upload the match video into the team's bucket in the background (resumes after a break). */
+    @PluginMethod
+    fun uploadVideo(call: PluginCall) {
+        val matchId = call.getInt("matchId")?.toLong() ?: return call.reject("matchId required")
+        val uri = call.getString("uri") ?: return call.reject("uri required")
+        val request = OneTimeWorkRequestBuilder<VideoUploadWorker>()
+            .setInputData(workDataOf(
+                VideoUploadWorker.KEY_MATCH to matchId, VideoUploadWorker.KEY_URI to uri,
+                UploadWorker.KEY_API to call.getString("apiBase"), UploadWorker.KEY_TOKEN to call.getString("token"),
+            ))
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .addTag("video-$matchId")
+            .build()
+        work.enqueueUniqueWork("video-$matchId", ExistingWorkPolicy.KEEP, request)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun videoUploadStatus(call: PluginCall) {
+        val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
+        val info = work.getWorkInfosForUniqueWork("video-$matchId").get().firstOrNull()
+        call.resolve(JSObject().put("work", info?.let(::toJs)))
+    }
+
+    @PluginMethod
+    fun cancelVideoUpload(call: PluginCall) {
+        val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
+        work.cancelUniqueWork("video-$matchId")
         call.resolve()
     }
 

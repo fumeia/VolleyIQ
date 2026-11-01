@@ -229,6 +229,12 @@ const MIGRATIONS = [
   );
   CREATE INDEX IF NOT EXISTS detection_runs_match ON detection_runs(match_id, id);
   `,
+  // v19: the match video in the bucket (object key and size), next to a local / YouTube video.
+  (db) => {
+    const cols = db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name);
+    if (!cols.includes('video_key')) db.exec('ALTER TABLE matches ADD COLUMN video_key TEXT');
+    if (!cols.includes('video_bytes')) db.exec('ALTER TABLE matches ADD COLUMN video_bytes INTEGER');
+  },
 ];
 
 function migrate(db) {

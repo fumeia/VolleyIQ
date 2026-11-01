@@ -13,6 +13,7 @@ import { makeInsighter } from './insights.js';
 import { makeTouchChecker } from './touches.js';
 import { makeUpdates } from './updates.js';
 import { aiConfig, keyInfo } from './ai.js';
+import { s3Config } from './s3.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +49,8 @@ export async function buildApp(env = process.env, opts = {}) {
     budget: opts.budget ?? (() => keyInfo(aiConfig(env, 'touches'))),
     aiMonthlyBudget: Number(env.AI_MONTHLY_BUDGET) || null,
     aiCurrency: env.AI_CURRENCY || '$',
+    storage: opts.storage !== undefined ? opts.storage : s3Config(env),
+    storageFetch: opts.storageFetch,
   });
 
   app.get('/api/health', async () => ({ ok: true, version: VERSION }));

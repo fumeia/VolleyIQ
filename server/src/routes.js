@@ -3,6 +3,7 @@ import { ACTIONS, ROLES } from './actions.js';
 import { requireCoach } from './auth.js';
 import { MAX_EXAMPLES, MAX_TOUCHES, cleanLabel } from './touches.js';
 import { cleanSheet } from './sheet.js';
+import { abortUpload, completeUpload, createUpload, deleteObject, presign } from './s3.js';
 import { cleanImages } from './vision.js';
 
 function bad(reply, msg, code = 400) {
@@ -62,7 +63,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$' }) {
+export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -280,9 +281,12 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     // The court marking goes along so the Replays tab draws the court the way the camera sees it.
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, video_type, video_ref FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
       // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
-      .map(({ video_type, video_ref, ...m }) => ({ ...m, video: video_type === 'youtube' && video_ref ? { type: 'youtube', id: video_ref } : video_ref ? { type: 'file', name: video_ref } : null }));
+      .map(({ video_type, video_ref, video_key, ...m }) => ({
+        ...m,
+        video: video_key && storage ? { type: 'hosted' } : video_type === 'youtube' && video_ref ? { type: 'youtube', id: video_ref } : video_ref ? { type: 'file', name: video_ref } : null,
+      }));
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
@@ -685,6 +689,99 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
       return n;
     });
     return { inserted: save() };
+  });
+
+  // ---------- match video in the bucket (optional, S3_* in .env) ----------
+  // The app uploads straight into the bucket in parts; the server only signs. Viewers get
+  // a link that expires. Nothing of the video passes through or stays on this server.
+  const PART = 16 * 1024 * 1024;
+  const MAX_VIDEO = 20 * 1024 ** 3;
+  const sOpts = storageFetch ? { fetchFn: storageFetch } : {};
+  const noStorage = (reply) => bad(reply, 'Video storage is not set up on this server (S3_* in .env).', 503);
+  const keyOf = (match, uploadKey) => typeof uploadKey === 'string' && uploadKey.startsWith(`matches/${match.id}/`) && uploadKey.length < 200 ? uploadKey : null;
+
+  app.get('/api/video/enabled', coach, async () => ({ enabled: !!storage, partSize: PART }));
+
+  app.post('/api/matches/:id/video/upload', coach, async (req, reply) => {
+    if (!storage) return noStorage(reply);
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const size = int(req.body?.size);
+    if (!size || size <= 0 || size > MAX_VIDEO) return bad(reply, 'size required (up to 20 GB)');
+    const ext = String(req.body?.name ?? '').toLowerCase().match(/\.(mp4|mov|m4v|webm|mkv)$/)?.[1] ?? 'mp4';
+    const key = `matches/${match.id}/${crypto.randomBytes(9).toString('base64url')}.${ext}`;
+    try {
+      const uploadId = await createUpload(storage, key, sOpts);
+      return { key, uploadId, partSize: PART, parts: Math.ceil(size / PART) };
+    } catch (e) {
+      return bad(reply, `Could not start the upload: ${e.message}`, 502);
+    }
+  });
+
+  // Presigned URLs for the parts still to send (an upload can resume after a break).
+  app.post('/api/matches/:id/video/parts', coach, async (req, reply) => {
+    if (!storage) return noStorage(reply);
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const key = keyOf(match, req.body?.key);
+    const uploadId = typeof req.body?.uploadId === 'string' ? req.body.uploadId : null;
+    const parts = (Array.isArray(req.body?.parts) ? req.body.parts : []).map(int).filter((n) => n >= 1 && n <= 10000).slice(0, 50);
+    if (!key || !uploadId || !parts.length) return bad(reply, 'key, uploadId and parts required');
+    return { urls: Object.fromEntries(parts.map((n) => [n, presign(storage, 'PUT', key, { query: { partNumber: n, uploadId }, expires: 3600 })])) };
+  });
+
+  app.post('/api/matches/:id/video/complete', coach, async (req, reply) => {
+    if (!storage) return noStorage(reply);
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    const key = keyOf(match, req.body?.key);
+    const uploadId = typeof req.body?.uploadId === 'string' ? req.body.uploadId : null;
+    const parts = (Array.isArray(req.body?.parts) ? req.body.parts : []).filter((p) => int(p?.n) >= 1 && typeof p?.etag === 'string').map((p) => ({ n: int(p.n), etag: p.etag.slice(0, 100) }));
+    if (!key || !uploadId || !parts.length) return bad(reply, 'key, uploadId and parts required');
+    try {
+      await completeUpload(storage, key, uploadId, parts, sOpts);
+    } catch (e) {
+      return bad(reply, `Could not finish the upload: ${e.message}`, 502);
+    }
+    // The previous video of this match goes.
+    if (match.video_key && match.video_key !== key) await deleteObject(storage, match.video_key, sOpts).catch(() => {});
+    db.prepare('UPDATE matches SET video_key = ?, video_bytes = ? WHERE id = ?').run(key, int(req.body?.size), match.id);
+    return { ok: true };
+  });
+
+  app.post('/api/matches/:id/video/abort', coach, async (req, reply) => {
+    if (!storage) return noStorage(reply);
+    const match = q.match.get(req.params.id);
+    const key = match && keyOf(match, req.body?.key);
+    if (!key || typeof req.body?.uploadId !== 'string') return bad(reply, 'key and uploadId required');
+    await abortUpload(storage, key, req.body.uploadId, sOpts).catch(() => {});
+    return { ok: true };
+  });
+
+  app.delete('/api/matches/:id/video', coach, async (req, reply) => {
+    if (!storage) return noStorage(reply);
+    const match = q.match.get(req.params.id);
+    if (!match) return bad(reply, 'Match not found', 404);
+    if (match.video_key) {
+      try { await deleteObject(storage, match.video_key, sOpts); } catch (e) { return bad(reply, `Could not delete: ${e.message}`, 502); }
+    }
+    db.prepare('UPDATE matches SET video_key = NULL, video_bytes = NULL WHERE id = ?').run(match.id);
+    return { ok: true };
+  });
+
+  /** A link to stream the video, valid for 6 hours. */
+  const videoLink = (key) => ({ url: presign(storage, 'GET', key, { expires: 6 * 3600 }), expiresIn: 6 * 3600 });
+  app.get('/api/matches/:id/video/url', coach, async (req, reply) => {
+    const match = q.match.get(req.params.id);
+    if (!storage || !match?.video_key) return bad(reply, 'No video in the cloud for this match', 404);
+    return videoLink(match.video_key);
+  });
+  // For the public link: only matches of that team.
+  app.get('/api/share/team/:token/video/:matchId', async (req, reply) => {
+    const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
+    const match = team && db.prepare('SELECT video_key FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
+    if (!storage || !match?.video_key) return bad(reply, 'No video', 404);
+    return videoLink(match.video_key);
   });
 
   // ---------- detection runs (to measure the auto-detection) ----------

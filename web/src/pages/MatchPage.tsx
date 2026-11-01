@@ -21,8 +21,8 @@ import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
-import { api, ApiError, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type Player, type VEvent } from '../lib/api';
-import { isApp, localVideo, playableUrl, setLocalVideo, type LocalVideo } from '../lib/native';
+import { api, ApiError, serverBase, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type Player, type VEvent } from '../lib/api';
+import { isApp, localVideo, Native, playableUrl, setLocalVideo, type LocalVideo, type WorkState } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
@@ -93,12 +93,20 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const toastTimer = useRef<number | undefined>(undefined);
 
   const isLive = match.mode === 'live';
+  // The video in the team's storage, streamed when it is not on this device.
+  const [cloudUrl, setCloudUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setCloudUrl(null);
+    if (isLive || local || !match.video_key) return;
+    api.videoUrl(match.id).then((r) => setCloudUrl(r.url)).catch(() => {});
+  }, [isLive, !!local, match.video_key]);
   const source = useMemo(() => {
     if (isLive) return null;
     if (local) return { type: 'file' as const, url: isApp() ? playableUrl(local.uri) : local.uri };
+    if (cloudUrl) return { type: 'file' as const, url: cloudUrl, remote: true };
     if (match.video_type === 'youtube' && match.video_ref) return { type: 'youtube' as const, id: match.video_ref };
     return null;
-  }, [isLive, local, match.video_type, match.video_ref]);
+  }, [isLive, local, cloudUrl, match.video_type, match.video_ref]);
 
   const suggested = events.filter((e) => e.status === 'suggested');
   // Keep the rally review open after its last rally, so its Undo stays reachable.
@@ -442,6 +450,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <div className="row wrap">
                 <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
                 <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
+                <CloudVideoBox match={match} local={local} onChanged={async () => setMatch((await api.match(match.id)).match)} />
               </div>
             )}
             {tab === 'events' && (
@@ -707,6 +716,68 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
  * list): save one as a checkpoint, go back to one later. Restoring first saves the
  * current state as its own version, so a restore can be undone too.
  */
+/**
+ * The match video in the team's storage: upload it from the phone (in the background,
+ * so teammates can watch the replays without their own copy), or delete it.
+ */
+function CloudVideoBox({ match, local, onChanged }: { match: Match; local: LocalVideo | null; onChanged: () => Promise<void> }) {
+  const [enabled, setEnabled] = useState(false);
+  const [job, setJob] = useState<WorkState | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.videoEnabled().then((x) => setEnabled(x.enabled)).catch(() => setEnabled(false)); }, []);
+  // Follow the upload job while this is open (it runs on without the app).
+  useEffect(() => {
+    if (!enabled || !isApp()) return;
+    let live = true, was: string | null = null;
+    const tick = async () => {
+      const w = (await Native.videoUploadStatus({ matchId: match.id }).catch(() => null))?.work ?? null;
+      if (!live) return;
+      setJob(w);
+      if (w?.state === 'succeeded' && was && was !== 'succeeded') await onChanged();
+      was = w?.state ?? null;
+    };
+    tick();
+    const t = window.setInterval(tick, 2000);
+    return () => { live = false; clearInterval(t); };
+  }, [enabled, match.id]);
+  if (!enabled) return null;
+  const running = !!job && ['enqueued', 'running', 'blocked'].includes(job.state);
+  const gb = (b: number | null | undefined) => (b ? `${(b / 1073741824).toFixed(b > 1073741824 * 10 ? 0 : 1)} GB` : '');
+  return (
+    <div className="card cloud-video">
+      <b>Team video</b>
+      {match.video_key ? (
+        <>
+          <span className="small">✓ In your storage{match.video_bytes ? ` · ${gb(match.video_bytes)}` : ''}. The team watches it in Replays without their own copy.</span>
+          <button className="btn-ghost small danger" disabled={busy} onClick={async () => {
+            if (!confirm('Delete the video from your storage? Replays then need everyone\'s own copy again.')) return;
+            setBusy(true);
+            try { await api.deleteVideo(match.id); await onChanged(); } finally { setBusy(false); }
+          }}>Delete from storage</button>
+        </>
+      ) : running ? (
+        <>
+          <div className="progress"><div style={{ width: `${Math.round(Math.max(0.02, job!.progress) * 100)}%` }} /></div>
+          <span className="small">{job!.message ?? 'Uploading…'} · goes on in the background</span>
+          <button className="btn-ghost small" onClick={() => Native.cancelVideoUpload({ matchId: match.id })}>Stop</button>
+        </>
+      ) : isApp() && local ? (
+        <>
+          <span className="small muted">Upload the video once, so the team can watch the replays without their own copy. It goes straight to your storage, in the background.</span>
+          {job?.state === 'failed' && <span className="small error">Last try: {job.error}</span>}
+          <button className="btn" onClick={async () => {
+            await Native.requestNotifications().catch(() => {});
+            await Native.uploadVideo({ matchId: match.id, uri: local.uri, apiBase: serverBase(), token: api.token() });
+            setJob({ id: '', state: 'enqueued', progress: 0, message: 'Starting…' });
+          }}>Upload for the team</button>
+        </>
+      ) : (
+        <span className="small muted">Upload it from the Android app on the phone with the video.</span>
+      )}
+    </div>
+  );
+}
+
 function VersionsBox({ match, pending, onRestored }: { match: Match; pending: number; onRestored: () => Promise<unknown> }) {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<MatchVersion[] | null>(null);

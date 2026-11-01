@@ -18,7 +18,8 @@ export interface PlayerHandle {
 }
 
 interface Props {
-  source: { type: 'youtube'; id: string } | { type: 'file'; url: string } | null;
+  /** [remote]: streamed from the team's storage (plays like a file, but its frames cannot be read for the AI check). */
+  source: { type: 'youtube'; id: string } | { type: 'file'; url: string; remote?: boolean } | null;
   onStateChange?: (playing: boolean) => void;
 }
 
@@ -98,7 +99,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
       const v = video.current;
       return v && v.videoWidth ? v.videoWidth / v.videoHeight : null;
     },
-    fileUrl: () => (source?.type === 'file' ? source.url : null),
+    fileUrl: () => (source?.type === 'file' && !source.remote ? source.url : null),
     play: () => (source?.type === 'youtube' ? yt.current?.playVideo?.() : video.current?.play().catch(() => {})),
     pause: () => (source?.type === 'youtube' ? yt.current?.pauseVideo?.() : video.current?.pause()),
     isPlaying: () => {
