@@ -250,6 +250,40 @@ const MIGRATIONS = [
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`);
   },
+  // v21: team schedules from Swiss Volley (the team calendar), and videos found for games
+  // (ours and other teams'), plus a small cache for what is read from the Swiss Volley site.
+  (db) => {
+    const cols = db.prepare('PRAGMA table_info(teams)').all().map((c) => c.name);
+    for (const [c, t] of [['sv_link', 'TEXT'], ['sv_ical', 'TEXT'], ['sv_team_id', 'INTEGER'], ['sv_caption', 'TEXT'], ['sv_synced_at', 'TEXT'], ['sv_error', 'TEXT']]) {
+      if (!cols.includes(c)) db.exec(`ALTER TABLE teams ADD COLUMN ${c} ${t}`);
+    }
+    db.exec(`CREATE TABLE IF NOT EXISTS schedule (
+      id INTEGER PRIMARY KEY,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      game_id INTEGER NOT NULL,
+      starts_at TEXT NOT NULL,                -- local Swiss time, YYYY-MM-DDTHH:MM
+      home TEXT, away TEXT,
+      side TEXT,                              -- home | away (which one is this team)
+      league TEXT, league_id INTEGER, hall TEXT, address TEXT,
+      result TEXT,                            -- sets, home:away, once played
+      cancelled INTEGER NOT NULL DEFAULT 0,
+      match_id INTEGER REFERENCES matches(id) ON DELETE SET NULL,
+      UNIQUE (team_id, game_id)
+    );
+    CREATE INDEX IF NOT EXISTS schedule_start ON schedule(starts_at);
+    CREATE TABLE IF NOT EXISTS game_videos (
+      game_id INTEGER PRIMARY KEY,
+      candidates TEXT,                        -- JSON, best first
+      url TEXT, title TEXT,                   -- the video chosen for the game
+      state TEXT NOT NULL DEFAULT 'none',     -- none | found | confirmed | rejected
+      searched_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS sv_cache (
+      key TEXT PRIMARY KEY,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+      data TEXT NOT NULL
+    )`);
+  },
 ];
 
 function migrate(db) {

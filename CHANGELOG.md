@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Schedules from Swiss Volley**
+- Link a team once with its page in the Swiss Volley game center (team page → Schedule from Swiss Volley). Its games and results then show on Home (Upcoming / Results) and on the team page, and update by themselves twice a day.
+- Tap a game: date, time, hall with a map link, result. "Tag this match" opens a new match with team, opponent, date and the game already filled in; a match tagged that day is linked to the game by itself.
+- "<Opponent>: games this season" shows the other team's results with set scores, read from the league.
+- Videos: search YouTube for any of these games (needs YOUTUBE_API_KEY on the server), check the suggestions and confirm the right one, or paste a link. With a video, an opponent's game can be tagged for scouting.
+
 **New look**
 - Light design by default, like a stats portal: white panels on a light grey page, one blue for what is selected, a dark blue bar at the top. The dark design is still there: About → Appearance (Light, Dark or like the device).
 - On a computer the pages sit next to a narrow menu on the left; on the phone the menu is at the bottom. Plain line icons instead of emoji.

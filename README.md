@@ -187,6 +187,23 @@ roughly as long as the match itself. While it converts, the two new files sit in
 upload. Its log: `docker compose -p volleyiq logs -f transcoder`. Started by hand:
 `COMPOSE_PROFILES=video docker compose up -d`.
 
+## Schedules from Swiss Volley
+
+On a team's page, paste the link of that team in the
+[Swiss Volley game center](https://www.volleyball.ch/de/game-center) (pick the league, click the
+team, copy the address: `…/game-center/club/<club>/team/<team>`). The server finds the team's
+public calendar and reads it twice a day: upcoming games and results show on Home and on the
+team page. From a game you can start tagging it (date, opponent and the game are filled in),
+see the other team's games this season (results and sets, read from the game center), and
+find a video of any of these games.
+
+Video search uses the YouTube Data API: add `YOUTUBE_API_KEY` to `.env` (see `.env.example`).
+Found videos are only suggestions until someone confirms one; a link can also be pasted by hand.
+
+The calendar is a stable public feed. The other teams' games come from the game center's
+own requests, which can change when Swiss Volley updates its website; the server then looks
+them up again by itself (this takes a few seconds once).
+
 ## Optional AI features
 
 Two features are hidden unless an AI backend is configured in `.env`:

@@ -14,6 +14,7 @@ import { makeTouchChecker } from './touches.js';
 import { makeUpdates } from './updates.js';
 import { aiConfig, keyInfo } from './ai.js';
 import { s3Config } from './s3.js';
+import { makeSchedule, registerSchedule, startScheduleSync } from './schedule.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +53,15 @@ export async function buildApp(env = process.env, opts = {}) {
     storage: opts.storage !== undefined ? opts.storage : s3Config(env),
     storageFetch: opts.storageFetch,
   });
+
+  // Team schedules from Swiss Volley, other teams' games, videos found on YouTube.
+  const youtube = (opts.youtubeKey !== undefined ? opts.youtubeKey : env.YOUTUBE_API_KEY) || null;
+  const schedule = makeSchedule(db, { fetchFn: opts.scheduleFetch ?? fetch, youtubeKey: youtube, log: (m) => app.log.warn(m) });
+  registerSchedule(app, { db, schedule, youtube });
+  if (env.NODE_ENV !== 'test') {
+    const stop = startScheduleSync(db, schedule, (m) => app.log.warn(m));
+    app.addHook('onClose', async () => stop());
+  }
 
   app.get('/api/health', async () => ({ ok: true, version: VERSION }));
 

@@ -12,6 +12,7 @@ import { Reports } from './pages/Reports';
 import { SharePage, TeamSharePage } from './pages/SharePage';
 import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
+import { Scout } from './pages/Scout';
 
 const NAV = [
   { to: '/', label: 'Home', icon: 'home', end: true },
@@ -78,6 +79,7 @@ export function App() {
           <Route path="/new" element={<NewMatch />} />
           <Route path="/m/:id" element={<MatchPage />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/scout/:id" element={<Scout />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<p className="muted">Page not found.</p>} />
         </Routes>

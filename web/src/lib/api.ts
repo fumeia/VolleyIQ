@@ -6,7 +6,22 @@ import type { VideoLink } from './videoQuality';
 
 export interface VideoJob { state: 'queued' | 'running' | 'done' | 'failed'; progress: number; error: string | null; updated_at: string; ahead: number }
 
-export interface Team { id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number }
+export interface Team {
+  id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number;
+  /** Linked to Swiss Volley: the pasted link, the team's name there, last read, last error. */
+  sv_link?: string | null; sv_caption?: string | null; sv_synced_at?: string | null; sv_error?: string | null;
+}
+/** A video found (or chosen) for a game. */
+export interface GameVideo { state: 'none' | 'found' | 'confirmed' | 'rejected'; url: string | null; title: string | null; searched_at: string | null;
+  candidates: { id: string; url: string; title: string; channel: string; publishedAt: string; seconds: number; score: number }[] }
+/** A game from a team's Swiss Volley schedule. */
+export interface ScheduleGame {
+  id: number; team_id: number; team_name: string; game_id: number; starts_at: string; home: string | null; away: string | null;
+  side: 'home' | 'away' | null; league: string | null; league_id: number | null; hall: string | null; address: string | null;
+  result: string | null; cancelled: boolean; match_id: number | null; video: GameVideo | null;
+}
+/** Any game of a league (other teams' games too). */
+export interface LeagueGame { gameId: number; start: string; home: string; away: string; league: string | null; group: string | null; hall: string | null; result: string | null; sets: string[]; video: GameVideo | null }
 export interface Player { id: number; team_id: number; name: string; number: number | null; role: RoleCode; active: number }
 export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
@@ -172,6 +187,14 @@ export const api = {
   matches: () => req<Match[]>('GET', '/api/matches'),
   match: (id: number) => req<MatchBundle>('GET', `/api/matches/${id}`),
   createMatch: (m: Partial<Match>) => req<Match>('POST', '/api/matches', m),
+  schedule: (teamId?: number) => req<{ teams: Team[]; games: ScheduleGame[]; videoSearch: boolean }>('GET', `/api/schedule${teamId ? `?team=${teamId}` : ''}`),
+  linkSwissVolley: (teamId: number, link: string) => req<Team>('PUT', `/api/teams/${teamId}/swissvolley`, { link }),
+  unlinkSwissVolley: (teamId: number) => req<{ ok: boolean }>('DELETE', `/api/teams/${teamId}/swissvolley`),
+  syncSchedule: (teamId: number) => req<{ games: number }>('POST', `/api/teams/${teamId}/swissvolley/sync`),
+  scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
+  opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
+  searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  setVideo: (gameId: number, v: { url?: string; title?: string; state?: 'confirmed' | 'rejected' }) => req<GameVideo>('PUT', `/api/games/${gameId}/video`, v),
   updateMatch: (id: number, m: Partial<Match>) => req<Match>('PATCH', `/api/matches/${id}`, m),
   versions: (id: number) => req<MatchVersion[]>('GET', `/api/matches/${id}/versions`),
   saveVersion: (id: number, label: string) => req<MatchVersion[]>('POST', `/api/matches/${id}/versions`, { label }),

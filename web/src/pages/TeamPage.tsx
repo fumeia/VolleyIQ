@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
-import { api, type Player, type Team } from '../lib/api';
+import { api, type Player, type ScheduleGame, type Team } from '../lib/api';
+import { GameSheet, ScheduleTable } from '../components/Schedule';
 import { parseRoster } from '../lib/roster';
 import { anonymousExport } from '../lib/anonymize';
 
@@ -74,6 +75,8 @@ export function TeamPage() {
         <span>Show "What to practise" on the player pages <small className="muted">(also the default on the public link, where viewers can switch them)</small></span>
       </label>
       {!!team.show_tips && <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>}
+
+      <SwissVolleyBox team={team} onChanged={load} />
 
       <h2 className="section-title">Roster</h2>
       <form className="roster-form" onSubmit={async (e) => {
@@ -156,5 +159,56 @@ export function TeamPage() {
       </ul>
       <p className="muted small">Roles: {ROLES.map((r) => `${r.code} = ${r.label}`).join(' · ')}</p>
     </div>
+  );
+}
+
+/** The team's schedule and results from Swiss Volley, linked once with the team's page there. */
+function SwissVolleyBox({ team, onChanged }: { team: Team; onChanged: () => void }) {
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [sched, setSched] = useState<{ games: ScheduleGame[]; videoSearch: boolean } | null>(null);
+  const [game, setGame] = useState<ScheduleGame | null>(null);
+  const load = () => api.schedule(team.id).then((s) => setSched({ games: s.games, videoSearch: s.videoSearch })).catch(() => {});
+  useEffect(() => { if (team.sv_link) load(); else setSched(null); }, [team.id, team.sv_link, team.sv_synced_at]);
+  const run = async (f: () => Promise<unknown>) => {
+    setBusy(true); setError('');
+    try { await f(); onChanged(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
+  };
+  const when = (s: string) => new Date(`${s.replace(' ', 'T')}Z`).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <section className="card sv-box">
+      <div className="row between wrap">
+        <b>Schedule from Swiss Volley</b>
+        {team.sv_link && (
+          <span className="row">
+            <button className="btn-ghost small" disabled={busy} onClick={() => run(() => api.syncSchedule(team.id))}>{busy ? 'Reading…' : 'Update now'}</button>
+            <button className="btn-ghost small" disabled={busy} onClick={() => { if (confirm('Unlink the team from Swiss Volley? Its schedule disappears here (tagged matches stay).')) run(() => api.unlinkSwissVolley(team.id)); }}>Unlink</button>
+          </span>
+        )}
+      </div>
+      {team.sv_link ? (
+        <>
+          <span className="small muted">
+            {team.sv_caption ?? 'Linked'}{team.sv_synced_at ? ` · read ${when(team.sv_synced_at)}` : ''} · updates by itself twice a day
+          </span>
+          {team.sv_error && <span className="small error">Last update failed: {team.sv_error}</span>}
+          {sched && <ScheduleTable games={sched.games} onPick={setGame} />}
+          {game && <GameSheet game={game} videoSearch={!!sched?.videoSearch} onClose={() => setGame(null)} onChanged={load} />}
+        </>
+      ) : (
+        <>
+          <span className="small muted">
+            Open your team in the <a href="https://www.volleyball.ch/de/game-center" target="_blank" rel="noreferrer">Swiss Volley game center</a> (pick the league,
+            then click your team), copy the link from the address bar and paste it here. The games, results and halls then show here and on Home.
+          </span>
+          <form className="row" onSubmit={(e) => { e.preventDefault(); if (link.trim()) run(() => api.linkSwissVolley(team.id, link.trim())); }}>
+            <input className="input grow" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://www.volleyball.ch/de/game-center/club/…/team/…" />
+            <button className="btn btn-primary" disabled={busy || !link.trim()}>{busy ? 'Reading…' : 'Link'}</button>
+          </form>
+        </>
+      )}
+      {error && <span className="small error">{error}</span>}
+    </section>
   );
 }

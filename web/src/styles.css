@@ -1065,3 +1065,40 @@ button.court-zone:active { background: #2a2f3a; }
 :root:not([data-theme='dark']) .sv-zone-line { stroke: rgba(0,0,0,.2); }
 :root:not([data-theme='dark']) .sv-tag { fill: rgba(0,0,0,.55); }
 :root:not([data-theme='dark']) .sv-back-m { fill: rgba(0,0,0,.05); }
+
+/* ---------- schedule (Swiss Volley) ---------- */
+.sched { display: flex; flex-direction: column; gap: 8px; }
+.sched .tabs { margin-bottom: 2px; }
+.sched-empty { margin: 4px 0; }
+.sched-table td { vertical-align: top; }
+.sched-table tbody tr { cursor: pointer; }
+.sched-table td:first-child small { display: block; }
+.sched-table th:nth-child(2), .sched-table td.sched-game { text-align: left; white-space: normal; }
+.sched-game > span { display: block; }
+.sched-game small { display: block; margin-top: 2px; }
+.sched-vs::before { content: 'vs '; color: var(--muted); font-size: 12px; }
+.sched-us { font-weight: 700; }
+.sched-flags { width: 1%; }
+.sched-cancelled td { opacity: .55; text-decoration: line-through; }
+.sched-detail td { white-space: normal; text-align: left; background: var(--surface) !important; cursor: default; }
+.sched-detail .btn { margin-top: 8px; }
+.sched-table tr.on td { background: var(--accent-soft); }
+.game-sheet { gap: 10px; }
+.game-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+.game-facts dt { color: var(--muted); }
+.game-facts dd { margin: 0; }
+.game-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.game-actions .btn { flex: 1 1 200px; }
+.video-finder { display: flex; flex-direction: column; gap: 8px; }
+.video-pick { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); }
+.video-pick > a, a.video-pick { flex: 1; min-width: 0; display: flex; flex-direction: column; color: var(--text); }
+.video-pick b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-pick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-pick.on { border-color: var(--accent); background: var(--accent-soft); }
+.sv-box form .input { min-width: 0; }
+.sched-table td:first-child, .sched-table th:first-child { width: 1%; padding-right: 14px; }
+@media (min-width: 700px) {
+  .sched-game > span { display: inline; }
+  .sched-vs::before { content: ' vs '; }
+}
+.sched-more { align-self: flex-start; }

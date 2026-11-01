@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
-import { api, type Match, type Team } from '../lib/api';
+import { api, type Match, type ScheduleGame, type Team } from '../lib/api';
+import { GameSheet, ScheduleTable } from '../components/Schedule';
 
 export function Dashboard() {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [sched, setSched] = useState<{ games: ScheduleGame[]; linked: number; videoSearch: boolean } | null>(null);
+  const [game, setGame] = useState<ScheduleGame | null>(null);
+  const loadSchedule = () => api.schedule().then((s) => setSched({ games: s.games, linked: s.teams.length, videoSearch: s.videoSearch })).catch(() => {});
 
   useEffect(() => {
     api.matches().then(setMatches);
     api.teams().then(setTeams);
+    loadSchedule();
   }, []);
 
   return (
@@ -46,7 +51,15 @@ export function Dashboard() {
         </div>
       )}
 
-      <h2 className="section-title">Recent matches</h2>
+      <h2 className="section-title">Games</h2>
+      {sched && sched.linked > 0 ? (
+        <ScheduleTable games={sched.games} showTeam={sched.linked > 1} limit={5} onPick={setGame} />
+      ) : teams.length > 0 && sched ? (
+        <p className="muted small">Link your team with Swiss Volley on its <Link to={`/teams/${teams[0].id}`}>team page</Link> to see the schedule and results here.</p>
+      ) : null}
+      {game && <GameSheet game={game} videoSearch={!!sched?.videoSearch} onClose={() => setGame(null)} onChanged={loadSchedule} />}
+
+      <h2 className="section-title">Tagged matches</h2>
       {matches === null ? <p className="muted">Loading…</p> : matches.length === 0 ? (
         <p className="muted">No matches yet.</p>
       ) : (

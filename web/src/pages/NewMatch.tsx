@@ -11,18 +11,20 @@ export function NewMatch() {
   const nav = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [mode, setMode] = useState<'video' | 'live'>(params.get('mode') === 'live' ? 'live' : 'video');
-  const [teamId, setTeamId] = useState<number | ''>('');
-  const [label, setLabel] = useState('');
-  const [opponent, setOpponent] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [yt, setYt] = useState('');
+  // Opened from a game of the schedule (or a scouting video): filled in already.
+  const [teamId, setTeamId] = useState<number | ''>(params.get('team') ? Number(params.get('team')) : '');
+  const [label, setLabel] = useState(params.get('label') ?? '');
+  const [opponent, setOpponent] = useState(params.get('opponent') ?? '');
+  const [date, setDate] = useState(params.get('date') ?? new Date().toISOString().slice(0, 10));
+  const [yt, setYt] = useState(params.get('video') ?? '');
+  const scheduleId = params.get('schedule') ? Number(params.get('schedule')) : null;
   const [error, setError] = useState('');
   const [sheet, setSheet] = useState<{ flow: MatchSheetFlow; liberoNo: number | null } | null>(null);
 
   useEffect(() => {
     api.teams().then((t) => {
       setTeams(t);
-      if (t.length === 1) setTeamId(t[0].id);
+      if (t.length === 1) setTeamId((cur) => (cur === '' ? t[0].id : cur));
     });
   }, []);
 
@@ -49,6 +51,7 @@ export function NewMatch() {
       const lineups = lineupsFromSheet(sheet.flow, players, sheet.liberoNo);
       await api.updateMatch(m.id, { sheet: sheet.flow, ...(Object.keys(lineups).length ? { lineups } : {}) }).catch(() => {});
     }
+    if (scheduleId) await api.scheduleMatch(scheduleId, m.id).catch(() => {});
     // Non-YouTube links (WeTransfer, Drive, …) and, in the app, YouTube too are downloaded to the phone on the next screen.
     if (link && (isApp() || !ytId)) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
     nav(`/m/${m.id}`);
