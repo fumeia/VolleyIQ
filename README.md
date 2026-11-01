@@ -176,7 +176,8 @@ own Docker project and a marked block in the Caddyfile.
 **Match videos (optional).** To let the team watch replays without their own copy, add a
 private S3-compatible bucket (e.g. Hetzner Object Storage) with the `S3_*` lines in `.env`.
 The Android app uploads each video straight into the bucket, and viewers stream it with
-links that expire; the server only signs requests and stores no video.
+links that expire; the server only signs requests and stores no video. Check the setup with
+`docker compose exec app node src/s3-check.js` (writes, streams and deletes a tiny test file).
 
 ## Optional AI features
 

@@ -80,7 +80,7 @@ export async function request(cfg, method, key, { query = {}, body = '', fetchFn
     headers: {
       'x-amz-content-sha256': hash, 'x-amz-date': t,
       Authorization: `AWS4-HMAC-SHA256 Credential=${cfg.accessKey}/${scope}, SignedHeaders=${signed.join(';')}, Signature=${sig}`,
-      ...(body ? { 'content-type': 'application/xml' } : {}),
+      ...(body && method === 'POST' ? { 'content-type': 'application/xml' } : {}),
     },
     body: body || undefined,
   });
