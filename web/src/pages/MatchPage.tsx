@@ -721,7 +721,7 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
  * so teammates can watch the replays without their own copy), or delete it.
  */
 function CloudVideoBox({ match, local, onChanged }: { match: Match; local: LocalVideo | null; onChanged: () => Promise<void> }) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [job, setJob] = useState<WorkState | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api.videoEnabled().then((x) => setEnabled(x.enabled)).catch(() => setEnabled(false)); }, []);
@@ -740,7 +740,15 @@ function CloudVideoBox({ match, local, onChanged }: { match: Match; local: Local
     const t = window.setInterval(tick, 2000);
     return () => { live = false; clearInterval(t); };
   }, [enabled, match.id]);
-  if (!enabled) return null;
+  if (enabled === null) return null;
+  if (!enabled) {
+    return (
+      <div className="card cloud-video">
+        <b>Team video</b>
+        <span className="small muted">Not set up on the server yet: add the S3_ lines for your storage bucket to the server's .env and update it (see the README). Then the video can be uploaded here once for the whole team.</span>
+      </div>
+    );
+  }
   const running = !!job && ['enqueued', 'running', 'blocked'].includes(job.state);
   const gb = (b: number | null | undefined) => (b ? `${(b / 1073741824).toFixed(b > 1073741824 * 10 ? 0 : 1)} GB` : '');
   return (
