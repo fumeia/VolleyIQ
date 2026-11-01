@@ -54,14 +54,20 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const video = match?.video;
   const file = matchId != null ? files[matchId] : undefined;
   // A video in the team's storage: a link that expires, fetched when the match is picked.
+  // 'failed': the link could not be fetched; the viewer can still choose their own copy.
   const [hosted, setHosted] = useState<Record<number, string>>({});
   useEffect(() => {
     if (video?.type !== 'hosted' || matchId == null || hosted[matchId]) return;
-    api.sharedVideo(token, matchId).then((r) => setHosted((h) => ({ ...h, [matchId]: r.url }))).catch(() => {});
+    api.sharedVideo(token, matchId).then((r) => setHosted((h) => ({ ...h, [matchId]: r.url })))
+      .catch(() => setHosted((h) => ({ ...h, [matchId]: 'failed' })));
   }, [video?.type, matchId]);
-  const source = video?.type === 'youtube' ? { type: 'youtube' as const, id: video.id }
-    : video?.type === 'hosted' && matchId != null && hosted[matchId] ? { type: 'file' as const, url: hosted[matchId], remote: true }
-    : file ? { type: 'file' as const, url: file.url } : null;
+  const hostedUrl = video?.type === 'hosted' && matchId != null && hosted[matchId] && hosted[matchId] !== 'failed' ? hosted[matchId] : null;
+  const hostedLoading = video?.type === 'hosted' && matchId != null && !hosted[matchId];
+  // Your own copy, when chosen, wins over the team video (e.g. when that one does not play).
+  const source = file ? { type: 'file' as const, url: file.url }
+    : video?.type === 'youtube' ? { type: 'youtube' as const, id: video.id }
+    : hostedUrl ? { type: 'file' as const, url: hostedUrl, remote: true }
+    : null;
 
   const all = useMemo(() => events.filter((e) => e.match_id === matchId && e.t != null && ACTION_BY_CODE[e.action]?.group !== 'team')
     .sort((a, b) => a.t! - b.t!), [events, matchId]);
@@ -155,17 +161,23 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
       </div>
 
       <div className="replay-video" ref={videoBox}>
-        {source ? <VideoPlayer ref={player} source={source} /> : video?.type === 'hosted' ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
+        {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} /> : hostedLoading ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
             <b>📁 Choose your copy of the match video</b>
             <span className="small muted">
+              {video?.type === 'hosted' ? 'The team video could not be loaded. ' : ''}
               It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The video file used for tagging is called <b>{video.name}</b>.</> : ''}
             </span>
           </label>
         )}
       </div>
-      {file && <p className="small muted replay-file">▶ {file.name} · <label className="link">change<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>}
+      {file ? (
+        <p className="small muted replay-file">▶ Your copy: {file.name} · <label className="link">change<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label>
+          {(video?.type === 'hosted' || video?.type === 'youtube') && <> · <button className="link" onClick={() => setFiles((m) => { const n = { ...m }; delete n[matchId!]; return n; })}>back to the team video</button></>}</p>
+      ) : source && (
+        <p className="small muted replay-file">Video not playing? <label className="link">Use your own copy instead<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
+      )}
 
       <div className="replay-filters">
         <div className="chips">
