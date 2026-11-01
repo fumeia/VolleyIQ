@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Video conversion survives updates**
+- The 720p / 480p conversion now works in 10-minute pieces kept on the server's disk until the end. A restart (a server update, a reboot) goes on with the next piece instead of starting the whole match over; at most the piece in progress is converted again. The pieces are joined without converting again.
+
 **Backups**
 - With the video bucket set up, the server backs up the whole database every night around 3:00 into the bucket (backups/, gzipped, the newest 14 kept). About → Backups shows the last one and has "Back up now". The README says how to restore one.
 

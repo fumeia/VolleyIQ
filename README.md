@@ -198,7 +198,8 @@ video from the bucket and puts a 720p and a 480p version next to it, for viewers
 connection. One video at a time, at the lowest CPU priority (at most two cores and 512 MB);
 50/60 fps videos are made 25/30 fps (half the work; the original keeps every frame). With
 `TRANSCODE_HOURS=23-7` in `.env` it only converts at night: a conversion still running in the
-morning is paused and goes on the next night. While it converts, the two new files sit in
+morning is paused and goes on the next night. It converts in 10-minute pieces kept in `data/transcode-tmp`,
+so a restart (a server update) goes on with the next piece instead of starting over. While it converts, the two new files sit in
 `data/transcode-tmp` (it needs 3 GB free there and stops otherwise); they are deleted after the
 upload. Its log: `docker compose -p volleyiq logs -f transcoder`. Started by hand:
 `COMPOSE_PROFILES=video docker compose up -d`.
