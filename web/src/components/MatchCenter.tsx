@@ -5,7 +5,7 @@ import { VideoFinder } from './Schedule';
 import { SuggestVideoForm } from './TeamOverview';
 import { parseYouTubeId } from './VideoPlayer';
 
-type Filters = { region: string; period: 'week' | 'range' | 'season'; week: string; from: string; to: string; gender: string; league: string; q: string; status: 'all' | 'played' | 'next'; video: boolean };
+type Filters = { region: string; period: 'week' | 'range' | 'season'; week: string; from: string; to: string; gender: string; league: string; q: string; status: 'all' | 'played' | 'next'; videos: '' | 'check' | 'confirmed' };
 const KEY = 'viq:center';
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 /** Monday of the week of [d]. */
@@ -18,8 +18,13 @@ const GENDER: Record<string, string> = { f: 'Women', m: 'Men', mixed: 'Mixed' };
 
 function loadFilters(): Filters {
   const today = iso(new Date());
-  const base: Filters = { region: '', period: 'week', week: monday(new Date()), from: addDays(today, -13), to: today, gender: '', league: '', q: '', status: 'all', video: false };
-  try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) ?? '{}'), week: monday(new Date()) }; } catch { return base; }
+  const base: Filters = { region: '', period: 'week', week: monday(new Date()), from: addDays(today, -13), to: today, gender: '', league: '', q: '', status: 'all', videos: '' };
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}');
+    // Older versions kept a single "only with video" switch.
+    const videos = saved.videos ?? (saved.video ? 'confirmed' : '');
+    return { ...base, ...saved, videos, week: monday(new Date()) };
+  } catch { return base; }
 }
 
 /**
@@ -62,7 +67,7 @@ export function MatchCenter({ token }: { token?: string }) {
       (!f.gender || g.gender === f.gender)
       && (!f.league || g.league === f.league)
       && (f.status === 'all' || (f.status === 'played' ? !!g.result : !g.result))
-      && (!f.video || g.videoState === 'confirmed')
+      && (!f.videos || g.videoState === (f.videos === 'check' ? 'found' : 'confirmed'))
       && words.every((w) => `${g.home} ${g.away} ${g.league ?? ''} ${g.group ?? ''} ${g.hall ?? ''} ${g.city ?? ''}`.toLowerCase().includes(w)))
       .sort((a, b) => (a.start < b.start ? -1 : 1));
   }, [data, f]);
@@ -76,11 +81,13 @@ export function MatchCenter({ token }: { token?: string }) {
     return out;
   }, [rows, shown]);
   const withVideo = (data?.games ?? []).filter((g) => g.videoState === 'confirmed').length;
+  // Found by the YouTube search, waiting to be checked.
+  const toCheck = (data?.games ?? []).filter((g) => g.videoState === 'found').length;
 
   const regionName = f.region ? data?.regions.find((r) => r.id === f.region)?.label ?? f.region : 'All of Switzerland';
   const summary = [regionName, f.period === 'season' && f.region ? 'whole season' : `${short(query.from)} – ${short(query.to)}`,
     f.gender ? GENDER[f.gender] : null, f.league || null, f.status === 'played' ? 'results' : f.status === 'next' ? 'upcoming' : null,
-    f.q.trim() ? `“${f.q.trim()}”` : null, f.video ? 'with video' : null].filter(Boolean).join(' · ');
+    f.q.trim() ? `“${f.q.trim()}”` : null, f.videos === 'check' ? 'videos to check' : f.videos === 'confirmed' ? 'with video' : null].filter(Boolean).join(' · ');
   return (
     <div className="center-page">
       {!open && (
@@ -146,12 +153,26 @@ export function MatchCenter({ token }: { token?: string }) {
           <label className="filter grow"><span>Search</span>
             <input className="input" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Team, hall or town" />
           </label>
-          <label className="toggle filter-check"><input type="checkbox" checked={f.video} onChange={(e) => set({ video: e.target.checked })} /> Only with video{withVideo ? ` (${withVideo})` : ''}</label>
+          <div className="filter"><span>Videos</span>
+            <div className="seg">
+              <button className={!f.videos ? 'on' : ''} onClick={() => set({ videos: '' })}>All games</button>
+              <button className={f.videos === 'check' ? 'on' : ''} onClick={() => set({ videos: 'check', status: 'all' })}>To check{toCheck ? ` (${toCheck})` : ''}</button>
+              <button className={f.videos === 'confirmed' ? 'on' : ''} onClick={() => set({ videos: 'confirmed', status: 'all' })}>With video{withVideo ? ` (${withVideo})` : ''}</button>
+            </div>
+          </div>
         </div>
         <button className="btn btn-primary filter-done" onClick={() => setOpen(false)}>Show {rows.length} game{rows.length === 1 ? '' : 's'}</button>
       </section>}
 
-      {!token && data?.videoSearch && <BulkSearch games={rows} onFound={(id, state) => setData((d) => d && { ...d, games: d.games.map((g) => (g.gameId === id ? { ...g, ...state } : g)) })} />}
+      {!token && toCheck > 0 && f.videos !== 'check' && (
+        <button className="to-check" onClick={() => { set({ videos: 'check', status: 'all' }); setOpen(false); }}>
+          <b>{toCheck} possible video{toCheck === 1 ? '' : 's'} to check</b><span className="muted small">found by the YouTube search · show them</span>
+        </button>
+      )}
+      {!token && data?.videoSearch && f.videos !== 'check' && <BulkSearch games={rows}
+        onShow={() => { set({ videos: 'check', status: 'all' }); setOpen(false); }}
+        onFound={(id, state) => setData((d) => d && { ...d, games: d.games.map((g) => (g.gameId === id ? { ...g, ...state } : g)) })} />}
+      {!token && f.videos === 'check' && rows.length > 0 && <p className="small muted">Open a game to look at what the search found, then confirm the right video (or "None of these").</p>}
 
       <p className="small muted center-count">
         {loading ? 'Reading Swiss Volley…' : error ? '' : `${rows.length} game${rows.length === 1 ? '' : 's'}${rows.length !== (data?.games.length ?? 0) ? ` of ${data?.games.length}` : ''}`}
@@ -265,11 +286,12 @@ function CenterSheet({ game, token, videoSearch, onClose, onChanged }: {
  * Search YouTube for many games at once: the played games in the list that have no video and
  * were not searched yet, one after the other, as far as today's quota goes.
  */
-function BulkSearch({ games, onFound }: { games: CenterGame[]; onFound: (gameId: number, g: Partial<CenterGame>) => void }) {
+function BulkSearch({ games, onFound, onShow }: { games: CenterGame[]; onFound: (gameId: number, g: Partial<CenterGame>) => void; onShow: () => void }) {
   const [usage, setUsage] = useState<YoutubeUsage | null>(null);
   const [run, setRun] = useState<{ done: number; total: number; found: number; stop: boolean; error?: string } | null>(null);
   const stopRef = useRef(false);
-  useEffect(() => { api.youtubeUsage().then(setUsage).catch(() => {}); }, [run?.done === run?.total]);
+  // Asked again whenever a search run ends, so "searches left" is current.
+  useEffect(() => { api.youtubeUsage().then(setUsage).catch(() => {}); }, [run?.stop]);
   const todo = games.filter((g) => g.result && g.videoState !== 'confirmed' && !g.searched);
   if (!usage?.enabled) return null;
   const n = Math.min(todo.length, usage.searchesLeft);
@@ -305,10 +327,11 @@ function BulkSearch({ games, onFound }: { games: CenterGame[]; onFound: (gameId:
       ) : (
         <>
           <span className="small grow">
-            {run ? <>Searched {run.done} game{run.done === 1 ? '' : 's'}: possible videos for <b>{run.found}</b> (marked in the list; open a game to check them).{run.error ? <span className="error"> {run.error}</span> : null} </> : null}
-            {todo.length ? `${todo.length} played game${todo.length === 1 ? '' : 's'} in this list without a video search yet.` : 'Every played game in this list was searched.'}
-            {' '}<span className="muted">{usage.searchesLeft} searches left today.</span>
+            {run && <><b>Searched {run.done} game{run.done === 1 ? '' : 's'}: possible videos for {run.found}.</b>{run.error ? <span className="error"> {run.error}</span> : null}<br /></>}
+            {todo.length ? `${todo.length} played game${todo.length === 1 ? '' : 's'} in this list not searched yet.` : 'Every played game in this list was searched.'}
+            {' '}<span className="muted">{usage.searchesLeft ? `${usage.searchesLeft} searches left today.` : `No searches left today (they come back at ${new Date(usage.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}).`}</span>
           </span>
+          {run && run.found > 0 && <button className="btn btn-primary" onClick={onShow}>Show the {run.found} to check</button>}
           {n > 0 && <button className="btn" onClick={start}>Search YouTube for {n}</button>}
         </>
       )}

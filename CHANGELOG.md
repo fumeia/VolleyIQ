@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Videos found by the search are easy to find**
+- Matches: a "N possible videos to check" bar shows the games the YouTube search found something for; one tap lists just those. Once you confirm a video (or "None of these") the game leaves that list.
+- The video filter is now All games / To check / With video ("only with video" only showed confirmed ones, so found videos seemed to be missing).
+- After a search run: "Show the N to check". "Searches left" is read again after every run, and when YouTube says the quota is used up, the message says so plainly.
+
 **The detection learns from your tags**
 - Each detection run now keeps every sound peak it heard, also the faint ones it did not count, with how loud and how long each was.
 - The server tries other settings against the touches you tagged (in every match with such a run): which would have heard the most of your touches with the least noise between rallies. Once 150 touches are tagged (about four sets), the next run uses the best ones by itself.

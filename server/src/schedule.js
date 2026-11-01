@@ -137,7 +137,11 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, ytLimit =
       found = await findVideos(game, { key: youtubeKey, fetchFn, onUnits: addUnits });
     } catch (e) {
       // Google says the quota is gone (e.g. the key is also used elsewhere): count the day as full.
-      if (/answered 403/.test(e.message)) { addUnits(Math.max(0, ytLimit - ytUsage().used)); throw Object.assign(new Error("YouTube refused the search: today's quota is used up, or the key is not valid"), { status: 429 }); }
+      // 403 (quota exceeded) or 429 (too many requests): today's searches are used up.
+      if (/answered (403|429)/.test(e.message)) {
+        addUnits(Math.max(0, ytLimit - ytUsage().used));
+        throw Object.assign(new Error("YouTube stopped: today's searches are used up (also counted are searches with the same key elsewhere). They come back at 9:00."), { status: 429 });
+      }
       throw e;
     }
     const old = videoOf(game.gameId);

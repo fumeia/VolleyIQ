@@ -1173,3 +1173,5 @@ button.court-zone:active { background: #2a2f3a; }
 .bulk-search .progress { flex: 1 1 100%; }
 .week-nav input[type=date] { width: auto; min-height: 36px; padding: 4px 8px; }
 .seg button:disabled { opacity: .45; }
+
+.to-check { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--accent); border-left-width: 4px; border-radius: var(--radius); background: var(--accent-soft); color: var(--text); font: inherit; cursor: pointer; }
