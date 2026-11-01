@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
+import { Sparkles } from 'lucide-react';
 
 /**
  * AI coach summary: a few grounded bullet points in English or German, generated
@@ -36,7 +37,7 @@ export function CoachSummary({ stats }: { stats: unknown }) {
   return (
     <section className="findings coach-summary">
       <div className="row between">
-        <b>✨ Coach summary</b>
+        <b className="row"><Sparkles /> Coach summary</b>
         <span className="seg-mini">
           <button className={lang === 'en' ? 'on' : ''} disabled={busy} onClick={() => generate('en')}>EN</button>
           <button className={lang === 'de' ? 'on' : ''} disabled={busy} onClick={() => generate('de')}>DE</button>

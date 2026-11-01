@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { CircleHelp } from 'lucide-react';
 
 export interface TourStep {
   /** CSS selector of the part to point at; none = a card in the middle. */
@@ -48,7 +49,7 @@ export function Tour({ id, steps }: { id: string; steps: TourStep[] }) {
   }, [i]);
 
   if (i == null || !step) {
-    return <button className="tour-open" onClick={() => setI(0)} title="A short tour of this page">? Guide</button>;
+    return <button className="tour-open" onClick={() => setI(0)} title="A short tour of this page"><CircleHelp /> Guide</button>;
   }
   const last = i === steps.length - 1;
   const pad = 6;

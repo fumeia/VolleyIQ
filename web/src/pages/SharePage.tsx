@@ -8,6 +8,7 @@ import { Tour } from '../components/Tour';
 import { matchTour, playerTour, teamTour } from '../components/ShareTours';
 import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
+import { Link2 } from 'lucide-react';
 
 /** Public, read-only match report for teammates: the stats first, the report images on their own tab. */
 export function SharePage() {
@@ -97,7 +98,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
               }} /> Show practice tips
             </label>
           }
-          actions={<CopyLink label="🔗 Copy link" />} />
+          actions={<CopyLink label={<><Link2 /> Copy link</>} />} />
       </>
     );
   } else if (tab === 'players') {
@@ -151,7 +152,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   );
 }
 
-function CopyLink({ label }: { label: string }) {
+function CopyLink({ label }: { label: React.ReactNode }) {
   return (
     <button className="btn small" onClick={async () => {
       const url = window.location.href;

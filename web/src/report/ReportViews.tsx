@@ -8,6 +8,7 @@ import {
 } from './Cards';
 import { downloadBlob, safeFile, shareImages, svgToPng } from './exportImage';
 import { fmtAvg, fmtEff, fmtPct } from './ui';
+import { Share2 } from 'lucide-react';
 
 interface CardDef { id: string; label: string; node: ReactNode }
 
@@ -36,7 +37,7 @@ export function ReportGallery({ cards, fileBase, shareText, actions }: { cards: 
     <div className="report">
       <div className="report-actions">
         <button className="btn btn-primary" disabled={!!busy} onClick={() => run('all', async () => shareImages(await render(cards.map((c) => c.id)), shareText))}>
-          {busy === 'all' ? 'Preparing images…' : `📤 Share all ${cards.length} images`}
+          {busy === 'all' ? 'Preparing images…' : <><Share2 /> Share all {cards.length} images</>}
         </button>
         {actions}
       </div>

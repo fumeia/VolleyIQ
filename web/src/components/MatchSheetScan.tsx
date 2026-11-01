@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type MatchSheet, type SheetPlayer, type Team } from '../lib/api';
 import { ROLES, type RoleCode } from '../lib/actions';
 import { replaySet, type MatchSheetFlow } from '../lib/sheetFlow';
+import { Camera } from 'lucide-react';
 
 /** Map a role word off the sheet (de/fr/en or a code) to our role codes. */
 function toRole(s: string | null | undefined, libero: boolean): RoleCode {
@@ -171,7 +172,7 @@ export function MatchSheetScan({ onPick, onTeamCreated, onAttach }: {
   return (
     <div className="sheet-scan card">
       <div className="row between">
-        <b>📸 Scan match sheet</b>
+        <b className="row"><Camera /> Scan match sheet</b>
         <button type="button" className="btn small" disabled={busy} onClick={() => fileRef.current?.click()}>
           {busy ? 'Reading…' : sheet ? 'Rescan' : 'Take / pick photo'}
         </button>

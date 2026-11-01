@@ -3,6 +3,7 @@ import { actionLabel, ACTION_BY_CODE } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { findIssues } from '../lib/quality';
 import { fmtTime } from './TagPad';
+import { Trash2 } from 'lucide-react';
 
 interface Props {
   events: VEvent[];
@@ -142,7 +143,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
           <button className="btn small btn-danger" disabled={!picked.length || busy} onClick={async () => {
             setBusy(true);
             try { await onDeleteMany(picked); setSelected(null); } finally { setBusy(false); }
-          }}>🗑 Delete {picked.length || ''}</button>
+          }}><Trash2 /> Delete {picked.length || ''}</button>
           <button className="btn-ghost small" onClick={() => setSelected(null)}>Cancel</button>
         </div>
       ) : (

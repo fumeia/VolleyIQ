@@ -63,7 +63,7 @@ export function ReviewPanel({ events, players, player, update, remove, removeMan
   if (!ev) {
     return (
       <div className="pad">
-        <p>All suggestions reviewed. 🎉</p>
+        <p>All suggestions reviewed.</p>
         <button className="btn btn-primary wide" onClick={onExit}>Back to tagging</button>
       </div>
     );

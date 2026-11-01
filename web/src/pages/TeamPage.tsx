@@ -4,6 +4,7 @@ import { ROLES, type RoleCode } from '../lib/actions';
 import { api, type Player, type Team } from '../lib/api';
 import { parseRoster } from '../lib/roster';
 import { anonymousExport } from '../lib/anonymize';
+import { Download, Pencil, Trash2 } from 'lucide-react';
 
 export function TeamPage() {
   const id = Number(useParams().id);
@@ -26,7 +27,7 @@ export function TeamPage() {
     <div className="page">
       <header className="page-head">
         {teamName == null ? (
-          <h1 className="row">{team.name} <button className="btn-ghost small" onClick={() => setTeamName(team.name)} title="Rename the team">✎ Rename</button></h1>
+          <h1>{team.name}</h1>
         ) : (
           <form className="row" onSubmit={async (e) => {
             e.preventDefault();
@@ -39,8 +40,9 @@ export function TeamPage() {
             <button type="button" className="btn-ghost" onClick={() => setTeamName(null)}>Cancel</button>
           </form>
         )}
-        <div className="row">
-          <button className="btn-ghost small" onClick={async () => {
+        <div className="page-actions">
+          <button className="btn small" onClick={() => setTeamName(team.name)}><Pencil /> Rename</button>
+          <button className="btn small" onClick={async () => {
             const data = await api.teamReport(team.id);
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
@@ -48,8 +50,8 @@ export function TeamPage() {
             a.download = `${team.name.replace(/[^\w]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             URL.revokeObjectURL(a.href);
-          }}>Export data</button>
-          <button className="btn-ghost small" title="For training the auto-detection: shirt numbers and roles only, no names, teams, opponents or dates" onClick={async () => {
+          }}><Download /> Export data</button>
+          <button className="btn small" title="For training the auto-detection: shirt numbers and roles only, no names, teams, opponents or dates" onClick={async () => {
             const data = anonymousExport(await api.teamReport(team.id));
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
@@ -57,21 +59,21 @@ export function TeamPage() {
             a.download = `volleyiq_training_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             URL.revokeObjectURL(a.href);
-          }}>Export for training (numbers only)</button>
-          <button className="btn-ghost small" onClick={async () => {
+          }}><Download /> Training export</button>
+          <button className="btn small btn-quiet-danger" onClick={async () => {
             if (!confirm(`Delete team ${team.name}? Matches stay but lose their roster link.`)) return;
             await api.deleteTeam(team.id);
             nav('/teams');
-          }}>Delete</button>
+          }}><Trash2 /> Delete</button>
         </div>
       </header>
 
-      <label className="toggle tips-toggle">
+      <label className="toggle tips-toggle card">
         <input type="checkbox" checked={!!team.show_tips} onChange={async (e) => {
           await api.updateTeam(team.id, { show_tips: e.target.checked ? 1 : 0 });
           load();
         }} />
-        <span>Show "What to practise" on the player pages <small className="muted">(also the default on the public link, where viewers can switch them)</small></span>
+        <span className="toggle-text"><span>Show "What to practise" on player pages</span><small className="muted">Also the default on the public link, where viewers can switch them</small></span>
       </label>
       {!!team.show_tips && <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>}
 

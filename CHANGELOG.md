@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Look and feel**
+- One icon set (Lucide) instead of emoji across the app and the public pages; Inter as the typeface.
+- Calmer buttons and colours, page actions in a row under the title, a quieter navigation highlight.
+- The number tiles on the stats pages are white like the charts next to them.
+
 **Privacy**
 - Teams → "Export for training (numbers only)": the tags of a team for training the auto-detection, with shirt numbers and roles only (no names, team or opponent names, dates, video file names or match sheets).
 

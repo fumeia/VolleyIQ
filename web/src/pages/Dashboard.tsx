@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Match, type Team } from '../lib/api';
+import { Film, Timer, Play } from 'lucide-react';
 
 export function Dashboard() {
   const [matches, setMatches] = useState<Match[] | null>(null);
@@ -22,7 +23,7 @@ export function Dashboard() {
         const open = matches?.find((m) => (m.suggested_count ?? 0) > 0);
         return open ? (
           <Link to={`/m/${open.id}`} className="continue-card">
-            <span className="quick-icon">▶</span>
+            <span className="quick-icon"><Play /></span>
             <span><b>Continue reviewing: {open.label}</b><small className="muted">{open.suggested_count} suggestions waiting</small></span>
             <span className="go">›</span>
           </Link>
@@ -31,10 +32,10 @@ export function Dashboard() {
 
       <div className="quick">
         <Link to="/new?mode=video" className="quick-card">
-          <span className="quick-icon">🎬</span><b>Tag from video</b><small>YouTube, phone video or upload</small>
+          <span className="quick-icon"><Film /></span><b>Tag from video</b><small>YouTube, phone video or upload</small>
         </Link>
         <Link to="/new?mode=live" className="quick-card">
-          <span className="quick-icon">⏱</span><b>Live match</b><small>Score and tag courtside</small>
+          <span className="quick-icon"><Timer /></span><b>Live match</b><small>Score and tag courtside</small>
         </Link>
       </div>
 
