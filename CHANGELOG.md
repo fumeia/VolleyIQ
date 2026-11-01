@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Teams and rosters for test videos**
+- Matches → a game with a confirmed video: tag it for either side. That team is taken from your teams (same name) or created with its Swiss Volley name, and the other side is the opponent.
+- Match page → ⚙ → "Roster from the video": pause where shirt numbers can be seen (line-up before the game, a time-out, players on court), add up to four frames, and the AI lists the numbers per shirt colour (liberos marked). Tap numbers to leave them out, then add them to the team: players named after their number (#7), liberos as L. Roles and names can be set on the team page. Needs a video file on the device (in the app YouTube videos are downloaded first) and the AI backend; counts toward the daily AI limit.
+
 **Fixes**
 - The Android app showed "No connection to the server" on every change that uses PUT (confirming a found video, linking a team, the learned-settings switch). The server's CORS rules did not allow PUT, so the app's requests were blocked before they reached the server.
 

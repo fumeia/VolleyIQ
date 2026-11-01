@@ -1,0 +1,87 @@
+import { useState } from 'react';
+import { api, type Player } from '../lib/api';
+import { stillFrame } from '../lib/frames';
+import type { PlayerHandle } from './VideoPlayer';
+
+type Found = { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] };
+
+/**
+ * Fills a roster from the video: frames where the shirt numbers can be seen (the line-up
+ * before the game, a time-out, players on court) go to the AI, which lists the numbers per
+ * shirt colour. Pick the team's colour: the numbers not yet on the roster are added as players
+ * named after their number (roles and names can be set on the team page).
+ */
+export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
+  player: React.RefObject<PlayerHandle | null>; teamId: number | null; teamName: string; players: Player[]; onAdded: () => void;
+}) {
+  const [frames, setFrames] = useState<{ t: number; data: string }[]>([]);
+  const [found, setFound] = useState<Found[] | null>(null);
+  const [off, setOff] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const url = player.current?.fileUrl() ?? null;
+  const have = new Set(players.filter((p) => p.active).map((p) => p.number));
+  const run = async (label: string, f: () => Promise<void>) => {
+    setBusy(label); setError('');
+    try { await f(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(''); }
+  };
+  if (!teamId) return <p className="small muted">Pick a team for this match first.</p>;
+  if (!url) return <p className="small muted">Works with a video file on this device (in the app, YouTube videos are downloaded first), not with a YouTube video played in the browser.</p>;
+  const time = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  return (
+    <div className="read-numbers">
+      <p className="small muted">
+        Pause where the shirt numbers can be seen (the line-up before the game, a time-out, players on court) and add the frame.
+        Two to four frames from different moments read more numbers.
+      </p>
+      <div className="row wrap">
+        <button className="btn" disabled={!!busy || frames.length >= 4} onClick={() => run('frame', async () => {
+          player.current?.pause();
+          const t = player.current?.time() ?? 0;
+          const data = await stillFrame(url, t);
+          setFrames((l) => [...l, { t, data }]);
+          setFound(null);
+        })}>{busy === 'frame' ? 'Taking the frame…' : `Add this frame (${frames.length}/4)`}</button>
+        {frames.map((f, i) => (
+          <span key={i} className="chip">{time(f.t)} <button className="link" onClick={() => { setFrames((l) => l.filter((_, k) => k !== i)); setFound(null); }} aria-label="Remove">✕</button></span>
+        ))}
+      </div>
+      {frames.length > 0 && !found && (
+        <button className="btn btn-primary" disabled={!!busy} onClick={() => run('read', async () => {
+          const r = await api.readNumbers(frames.map((f) => ({ media_type: 'image/jpeg', data: f.data })));
+          setFound(r.teams);
+          setOff(new Set());
+          if (!r.teams.length) setError('No shirt numbers could be read. Try frames where the players are closer or face the camera.');
+        })}>{busy === 'read' ? 'Reading the numbers…' : 'Read the shirt numbers'}</button>
+      )}
+      {found?.map((t, i) => {
+        const fresh = t.numbers.filter((n) => !have.has(n.number) && !off.has(`${i}:${n.number}`));
+        return (
+          <div key={i} className="card numbers-team">
+            <b>{t.shirt}{t.side ? <small className="muted"> · {t.side}</small> : null}</b>
+            <div className="chips">
+              {t.numbers.map((n) => {
+                const k = `${i}:${n.number}`;
+                const known = have.has(n.number);
+                return (
+                  <button key={k} className={`chip ${known ? '' : off.has(k) ? '' : 'on'}`} disabled={known} title={known ? 'Already on the roster' : 'Tap to leave out'}
+                    onClick={() => setOff((s) => { const x = new Set(s); if (x.has(k)) x.delete(k); else x.add(k); return x; })}>
+                    {n.number}{n.libero ? ' L' : ''}{known ? ' ✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            <button className="btn" disabled={!!busy || !fresh.length} onClick={() => run('add', async () => {
+              for (const n of fresh) await api.addPlayer(teamId, { name: `#${n.number}`, number: n.number, role: n.libero ? 'L' : 'OH' });
+              onAdded();
+              setFound(null);
+              setFrames([]);
+            })}>{fresh.length ? `Add ${fresh.length} to ${teamName}` : 'All already on the roster'}</button>
+          </div>
+        );
+      })}
+      {found && found.length > 0 && <p className="small muted">Pick the colour of {teamName}. Added players are named after their number; set roles (and names, if you know them) on the team page. Liberos come in as L, everyone else as outside hitter until you change it.</p>}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}

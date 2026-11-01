@@ -244,3 +244,27 @@ test('the Android app can send PUT (CORS preflight allows it)', async () => {
   }
   await app.close();
 });
+
+test('shirt numbers from video frames: per team, cleaned, within the AI limits', async () => {
+  const { cleanNumbers, makeNumberReader } = await import('../src/vision.js');
+  assert.deepEqual(cleanNumbers({ teams: [
+    { shirt: 'white', side: 'near', numbers: [{ number: 7, libero: false }, { number: 7, libero: false }, { number: 12, libero: false }, { number: 140, libero: false }, { number: 1, libero: true }] },
+    { shirt: 'red', side: 'up', numbers: [] },
+  ] }), { teams: [{ shirt: 'white', side: 'near', numbers: [{ number: 1, libero: true }, { number: 7, libero: false }, { number: 12, libero: false }] }] });
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-num-'));
+  let seen = null;
+  const numbers = makeNumberReader({}, async (images) => { seen = images.length; return { teams: [{ shirt: 'blue', side: 'far', numbers: [{ number: 4, libero: false }] }] }; });
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { numbers });
+  assert.equal((await app.inject({ url: '/api/numbers/enabled' })).json().enabled, true);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/numbers/read', payload: {} })).statusCode, 400);
+  const img = { media_type: 'image/jpeg', data: 'AAAA' };
+  const r = (await app.inject({ method: 'POST', url: '/api/numbers/read', payload: { images: [img, img] } })).json();
+  assert.equal(seen, 2);
+  assert.deepEqual(r.teams[0].numbers, [{ number: 4, libero: false }]);
+  await app.close();
+
+  const off = await buildApp({ NODE_ENV: 'test', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'viq-num-')), WEB_DIST: path.join(dir, 'none') });
+  assert.equal((await off.inject({ method: 'POST', url: '/api/numbers/read', payload: { images: [img] } })).statusCode, 503);
+  await off.close();
+});

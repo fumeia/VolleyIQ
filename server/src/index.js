@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { registerAuth, registerCors } from './auth.js';
 import { registerRoutes } from './routes.js';
-import { makeVisionScanner } from './vision.js';
+import { makeNumberReader, makeVisionScanner } from './vision.js';
 import { makeInsighter } from './insights.js';
 import { makeTouchChecker } from './touches.js';
 import { makeUpdates } from './updates.js';
@@ -43,6 +43,7 @@ export async function buildApp(env = process.env, opts = {}) {
   registerRoutes(app, {
     db,
     vision: opts.vision ?? makeVisionScanner(env),
+    numbers: opts.numbers ?? makeNumberReader(env),
     insights: opts.insights ?? makeInsighter(env),
     touches: opts.touches ?? makeTouchChecker(env),
     aiDailyLimit: Number(env.AI_DAILY_LIMIT) || 400,

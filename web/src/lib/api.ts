@@ -218,6 +218,7 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  readNumbers: (images: { media_type: string; data: string }[]) => req<{ teams: { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] }[] }>('POST', '/api/numbers/read', { images }),
   detector: () => req<DetectorTuning>('GET', '/api/detector'),
   setDetectorOff: (off: boolean) => req<{ ok: boolean }>('PUT', '/api/detector', { off }),
   youtubeUsage: () => req<YoutubeUsage>('GET', '/api/youtube/usage'),

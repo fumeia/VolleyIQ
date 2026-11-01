@@ -72,3 +72,20 @@ export async function touchPictures(url: string, times: number[], label: (k: num
   }
   return out;
 }
+
+/** The frame at [t] at up to [maxWidth] pixels wide (shirt numbers need detail), as base64 JPEG. */
+export async function stillFrame(url: string, t: number, maxWidth = 1920): Promise<string> {
+  const v = await openVideo(url);
+  try {
+    await seek(v, t);
+    const s = Math.min(1, maxWidth / v.videoWidth);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(v.videoWidth * s);
+    canvas.height = Math.round(v.videoHeight * s);
+    canvas.getContext('2d')!.drawImage(v, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
+  } finally {
+    v.removeAttribute('src');
+    v.load();
+  }
+}

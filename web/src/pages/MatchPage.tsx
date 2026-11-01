@@ -20,6 +20,7 @@ import { MoreMenu } from '../components/MoreMenu';
 import { EditsPanel } from '../components/EditsPanel';
 import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { QualityControl } from '../components/QualityControl';
+import { ReadNumbers } from '../components/ReadNumbers';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
@@ -600,6 +601,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             <button className="btn wide" onClick={() => { setShowSettings(false); setLineupSet(setNo); }}>
               Line-up for set {setNo}{lineup ? ' ✓' : ''} (on-court players first)
             </button>
+            {!isLive && source?.type === 'file' && (
+              <details className="auto-step">
+                <summary><b>Roster from the video</b> <small className="muted">read the shirt numbers with AI</small></summary>
+                <ReadNumbers player={player} teamId={match.team_id} teamName={match.team_name ?? 'the team'} players={players} onAdded={reload} />
+              </details>
+            )}
             <label className="field-label">Timestamp lead (reaction time): {settings.leadSeconds}s</label>
             <input type="range" min={0} max={3} step={0.5} value={settings.leadSeconds} onChange={(e) => setSettings({ ...settings, leadSeconds: Number(e.target.value) })} />
             {!isLive && source && (

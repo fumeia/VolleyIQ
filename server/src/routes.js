@@ -64,7 +64,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined, transcodeHours = null }) {
+export function registerRoutes(app, { db, vision, numbers = null, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined, transcodeHours = null }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -476,6 +476,21 @@ export function registerRoutes(app, { db, vision, insights, touches, aiDailyLimi
     } catch (e) {
       req.log?.error({ err: e }, 'match sheet scan failed');
       return bad(reply, 'Could not read the match sheet. Try a sharper, straight-on photo.', 502);
+    }
+  });
+
+  // ---------- shirt numbers from video frames (fills a roster) ----------
+  app.get('/api/numbers/enabled', coach, async () => ({ enabled: !!numbers?.enabled }));
+  app.post('/api/numbers/read', coach, async (req, reply) => {
+    if (!numbers?.enabled) return bad(reply, 'Reading shirt numbers is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
+    const [images, err] = cleanImages(req.body);
+    if (err) return bad(reply, err);
+    if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
+    try {
+      return await numbers.read(images, { onUsage: usage('numbers', numbers.model, images.length) });
+    } catch (e) {
+      req.log?.error({ err: e }, 'number reading failed');
+      return bad(reply, `Could not read the numbers: ${String(e?.message ?? e).slice(0, 160)}`, 502);
     }
   });
 

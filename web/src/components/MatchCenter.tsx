@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, type CenterGame, type CenterQuery, type GameVideo, type VideoSuggestion, type YoutubeUsage } from '../lib/api';
 import { VideoFinder } from './Schedule';
 import { SuggestVideoForm } from './TeamOverview';
@@ -272,9 +272,7 @@ function CenterSheet({ game, token, videoSearch, onClose, onChanged }: {
               </div>
             )}
             <VideoFinder gameId={game.gameId} game={{ home: game.home, away: game.away, start: game.start }} video={video} canSearch={videoSearch} onChange={changed} />
-            {confirmed?.url && (
-              <Link className="btn btn-primary" to={`/new?${new URLSearchParams({ date: game.start.slice(0, 10), video: confirmed.url, label: `${game.home} - ${game.away}`, opponent: game.home })}`}>Tag this video</Link>
-            )}
+            {confirmed?.url && <TagSides game={game} url={confirmed.url} />}
           </>
         )}
       </div>
@@ -335,6 +333,40 @@ function BulkSearch({ games, onFound, onShow }: { games: CenterGame[]; onFound: 
           {n > 0 && <button className="btn" onClick={start}>Search YouTube for {n}</button>}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Tag a found video: pick the side to tag. That team is taken from the teams (same name) or
+ * created with its Swiss Volley name; the other side is the opponent.
+ */
+function TagSides({ game, url }: { game: CenterGame; url: string }) {
+  const nav = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function tag(side: 'home' | 'away') {
+    setBusy(true); setError('');
+    try {
+      const name = game[side];
+      const teams = await api.teams();
+      const team = teams.find((t) => t.name.trim().toLowerCase() === name.trim().toLowerCase()) ?? await api.createTeam(name);
+      nav(`/new?${new URLSearchParams({
+        team: String(team.id), opponent: side === 'home' ? game.away : game.home, date: game.start.slice(0, 10), video: url, label: `${game.home} - ${game.away}`,
+      })}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed');
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="tag-sides">
+      <span className="small muted">Tag this video for (the team is created if it does not exist yet):</span>
+      <div className="row wrap">
+        <button className="btn btn-primary" disabled={busy} onClick={() => tag('home')}>{game.home}</button>
+        <button className="btn btn-primary" disabled={busy} onClick={() => tag('away')}>{game.away}</button>
+      </div>
+      {error && <p className="error small">{error}</p>}
     </div>
   );
 }

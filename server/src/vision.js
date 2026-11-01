@@ -158,3 +158,81 @@ export function cleanImages(body) {
   }
   return [out, null];
 }
+
+// ---------- shirt numbers from video frames (to fill in a roster) ----------
+
+const NUMBERS_SYSTEM = `You look at frames from a volleyball match video and list the shirt numbers you can read, per team.
+
+- Teams are told apart by shirt colour. Liberos wear a different colour than their team: put them in their team (the one on the same side of the net, or lined up with it) and mark them as libero.
+- Only numbers you can read with confidence. A number half hidden, blurred or seen from an angle where 6/9, 1/7 or 3/8 could be confused: leave it out.
+- Several frames are of the same match (e.g. the line-up before the game, players on court): combine them, each number once per team.
+- Ignore referees, coaches in plain clothes, the score board and numbers on the floor or walls.`;
+
+const NUMBERS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    teams: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          shirt: { type: 'string', description: 'shirt colour(s), e.g. "white with blue"' },
+          side: { type: ['string', 'null'], enum: ['near', 'far', 'left', 'right', null], description: 'where the team is in the frames, if clear' },
+          numbers: {
+            type: 'array',
+            items: {
+              type: 'object', additionalProperties: false,
+              properties: { number: { type: 'integer' }, libero: { type: 'boolean' } },
+              required: ['number', 'libero'],
+            },
+          },
+        },
+        required: ['shirt', 'side', 'numbers'],
+      },
+    },
+  },
+  required: ['teams'],
+};
+
+/** Reads the shirt numbers per team from video frames (null config: disabled). */
+export function makeNumberReader(env = {}, read = null) {
+  const cfg = aiConfig(env, 'scan');
+  const model = cfg?.model ?? (env.VISION_MODEL || 'claude-opus-5-5');
+  if (read) return { enabled: true, model, read };
+  if (!cfg) return { enabled: false, model, read: async () => { throw new Error('disabled'); } };
+  return {
+    enabled: true,
+    model,
+    async read(images, { onUsage = null } = {}) {
+      const text = await aiComplete(cfg, {
+        system: NUMBERS_SYSTEM,
+        text: `List the readable shirt numbers per team in ${images.length === 1 ? 'this frame' : `these ${images.length} frames`}.`,
+        images,
+        maxTokens: 1500,
+        schema: NUMBERS_SCHEMA,
+        jsonHint: '{"teams":[{"shirt":"white with blue","side":"near","numbers":[{"number":7,"libero":false}]}]}',
+        onUsage,
+      });
+      return cleanNumbers(parseJson(text));
+    },
+  };
+}
+
+/** Only sensible numbers (0–99), each once per team, sorted; empty teams left out. */
+export function cleanNumbers(data) {
+  const teams = (Array.isArray(data?.teams) ? data.teams : []).map((t) => {
+    const seen = new Map();
+    for (const n of Array.isArray(t?.numbers) ? t.numbers : []) {
+      const num = Number(n?.number);
+      if (Number.isInteger(num) && num >= 0 && num <= 99) seen.set(num, (seen.get(num) ?? false) || !!n?.libero);
+    }
+    return {
+      shirt: String(t?.shirt ?? '').slice(0, 60) || 'unknown',
+      side: ['near', 'far', 'left', 'right'].includes(t?.side) ? t.side : null,
+      numbers: [...seen].sort((a, b) => a[0] - b[0]).map(([number, libero]) => ({ number, libero })),
+    };
+  }).filter((t) => t.numbers.length);
+  return { teams: teams.slice(0, 4) };
+}
