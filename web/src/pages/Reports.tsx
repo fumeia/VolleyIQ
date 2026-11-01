@@ -6,7 +6,6 @@ import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 import { PlayerLearning } from '../components/analysis/PlayerLearning';
 import { exportEventsCsv, exportPlayersCsv } from '../lib/csv';
 import { dec, pct, playerStats, type StatLine } from '../lib/stats';
-import { Ban, Download, ExternalLink, FileText, Link2 } from 'lucide-react';
 
 const BOARDS: { label: string; v: (s: StatLine) => number | null; fmt: (n: number | null) => string; min?: (s: StatLine) => boolean }[] = [
   { label: 'Points', v: (s) => s.points, fmt: String },
@@ -67,10 +66,10 @@ export function Reports() {
         )}
       </div>
       <div className="segmented">
-        <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Charts</button>
+        <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Charts & stats</button>
         <button className={view === 'players' ? 'on' : ''} onClick={() => setView('players')}>Players</button>
-        <button className={view === 'report' ? 'on' : ''} onClick={() => setView('report')}>Images</button>
-        <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Leaders</button>
+        <button className={view === 'report' ? 'on' : ''} onClick={() => setView('report')}>Report images</button>
+        <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Leaderboard</button>
       </div>
       {!teams.length && <p className="muted">Create a team first.</p>}
       {data && view === 'report' && (matchId === 'all' ? (
@@ -83,9 +82,9 @@ export function Reports() {
         const one = matchId === 'all' ? null : data.matches.find((m) => m.id === matchId);
         return (
           <div className="row wrap">
-            <button className="btn small" onClick={() => setPrinting(true)}><FileText /> PDF report</button>
-            {one && <button className="btn small" onClick={() => exportEventsCsv(one, data.players, events)}><Download /> Events CSV</button>}
-            {one && <button className="btn small" onClick={() => exportPlayersCsv(one, data.players, events)}><Download /> Player CSV</button>}
+            <button className="btn small" onClick={() => setPrinting(true)}>📄 PDF report</button>
+            {one && <button className="btn small" onClick={() => exportEventsCsv(one, data.players, events)}>⬇ Events CSV</button>}
+            {one && <button className="btn small" onClick={() => exportPlayersCsv(one, data.players, events)}>⬇ Player CSV</button>}
           </div>
         );
       })()}
@@ -112,7 +111,7 @@ export function Reports() {
                 </label>
               )}
               actions={url
-                ? <button className="btn small" onClick={() => shareUrl(url, p.name)}><Link2 /> Share page</button>
+                ? <button className="btn small" onClick={() => shareUrl(url, p.name)}>🔗 Share page</button>
                 : <span className="muted small">Create the public link (top) to share this page.</span>} />
           </>
         );
@@ -168,14 +167,14 @@ function PublicLink({ teamId, token, setToken }: { teamId: number; token: string
   if (token === undefined) return null;
   const url = token ? `${publicBase()}/s/t/${token}` : null;
   return url ? (
-    <div className="page-actions">
-      <button className="btn small btn-primary" onClick={() => shareUrl(url, 'Team stats')}><Link2 /> Share public stats</button>
-      <a className="btn small" href={url} target="_blank" rel="noreferrer"><ExternalLink /> Open</a>
-      <button className="btn small btn-quiet-danger" onClick={async () => {
+    <div className="row">
+      <button className="btn" onClick={() => shareUrl(url, 'Team stats')}>🔗 Share public stats</button>
+      <a className="btn-ghost small" href={url} target="_blank" rel="noreferrer">Open</a>
+      <button className="btn-ghost small" onClick={async () => {
         if (confirm('Revoke the public link? Everyone with the old link loses access.')) setToken((await api.shareTeam(teamId, true)).share_token);
-      }}><Ban /> Revoke</button>
+      }}>Revoke</button>
     </div>
   ) : (
-    <div className="page-actions"><button className="btn small btn-primary" onClick={async () => setToken((await api.shareTeam(teamId)).share_token)}><Link2 /> Create public stats link</button></div>
+    <button className="btn" onClick={async () => setToken((await api.shareTeam(teamId)).share_token)}>🔗 Create public stats link</button>
   );
 }

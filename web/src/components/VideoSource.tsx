@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type Match } from '../lib/api';
 import { describeLink, isApp, Native, setLocalVideo, type LocalVideo, type WorkState } from '../lib/native';
 import { parseYouTubeId } from './VideoPlayer';
-import { FolderOpen } from 'lucide-react';
 
 /**
  * Imports a shared link to the phone in the background (WeTransfer, Drive,
@@ -107,10 +106,10 @@ export function VideoSource({ match, onLocal, onMatch }: Props) {
       {app ? (
         <button className="btn wide" onClick={async () => {
           try { useLocal(await Native.pickVideo()); } catch (e) { if ((e as { code?: string }).code !== 'CANCELLED') setErr((e as Error).message); }
-        }}><FolderOpen /> Pick video from this phone</button>
+        }}>📁 Pick video from this phone</button>
       ) : (
         <label className="btn wide file-btn">
-          <FolderOpen /> Pick video file
+          📁 Pick video file
           <input type="file" accept="video/*" hidden onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) onLocal({ uri: URL.createObjectURL(f), name: f.name });

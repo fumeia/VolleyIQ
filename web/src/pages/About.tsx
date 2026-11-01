@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { api, authToken, isApp, publicBase, serverBase, type AppRelease } from '../lib/api';
 import { Native } from '../lib/native';
 import { compareVersions } from '../lib/version';
-import { Download } from 'lucide-react';
 
 type Channel = 'stable' | 'test';
 type AppInfo = Awaited<ReturnType<typeof Native.appInfo>>;
@@ -108,13 +107,13 @@ export function AboutPage() {
               {app ? (
                 <>
                   <button className="btn btn-primary" disabled={progress != null} onClick={install}>
-                    {progress != null ? `Downloading… ${progress == null ? '' : `${Math.round(progress * 100)}%`}` : <><Download /> Download and install</>}
+                    {progress != null ? `Downloading… ${progress == null ? '' : `${Math.round(progress * 100)}%`}` : '⬇ Download and install'}
                   </button>
                   {progress != null && <div className="progress"><div style={{ width: `${Math.round((progress ?? 0) * 100)}%` }} /></div>}
                   <p className="small muted">{progress != null ? 'Downloads in the background with a notification, so you can switch to other apps; tap the notification to install when it is done. ' : ''}Android asks you to confirm the install. Your matches and login stay as they are.</p>
                 </>
               ) : (
-                <a className="btn btn-primary" href={`/api/app/apk/${latest.assetId}`}><Download /> Download the Android app ({latest.version})</a>
+                <a className="btn btn-primary" href={`/api/app/apk/${latest.assetId}`}>⬇ Download the Android app ({latest.version})</a>
               )}
               {installError && <p className="small error">{installError}</p>}
             </div>

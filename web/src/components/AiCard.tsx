@@ -6,7 +6,6 @@ import { aiPrefs, checkAll, estimate, money, touchesToCheck } from '../lib/aiChe
 import { TRUST_AFTER, trustFor } from '../lib/aiTrust';
 import { groupRallies } from '../lib/rallyReview';
 import { plural } from './analysis/ui';
-import { Sparkles } from 'lucide-react';
 
 interface Props {
   match: Match;
@@ -129,7 +128,7 @@ export function AiCard({ match, players, suggested, fileUrl, localUri, reload, a
 
   return (
     <div className="auto-step ai-card">
-      <b className="row"><Sparkles /> AI check <small className="muted">(optional, uses AI credit)</small></b>
+      <b>✨ AI check <small className="muted">(optional, uses AI credit)</small></b>
       <span className="small muted">Three frames per detected touch go to the AI model on your server's account. It marks noise, sorts ours / theirs and fills in actions and players before you review.</span>
 
       <div className="ai-credit">
@@ -202,7 +201,7 @@ export function AiCard({ match, players, suggested, fileUrl, localUri, reload, a
         </div>
       ) : todo.length > 0 && (
         <button className="btn wide ai-run-all" disabled={!url && !native} onClick={() => checkEverything()}>
-          <Sparkles /> AI check {todo.length === 1 ? 'the rally' : `all ${todo.length} rallies`} now
+          ✨ AI check {todo.length === 1 ? 'the rally' : `all ${todo.length} rallies`} now
           {!url && !native && <small className="muted"> (load the video file first)</small>}
         </button>
       )}

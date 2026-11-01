@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { EllipsisVertical, Info, LogOut } from 'lucide-react';
 
 /** The ⋮ menu at the top right: About (version, updates) and log out. */
 export function MoreMenu({ className = '' }: { className?: string }) {
@@ -16,11 +15,11 @@ export function MoreMenu({ className = '' }: { className?: string }) {
   }, [open]);
   return (
     <div className={`more-menu ${className}`} ref={box}>
-      <button className="btn-ghost more-btn" aria-label="More" aria-expanded={open} onClick={() => setOpen(!open)}><EllipsisVertical /></button>
+      <button className="btn-ghost more-btn" aria-label="More" aria-expanded={open} onClick={() => setOpen(!open)}>⋮</button>
       {open && (
         <div className="more-list" role="menu">
-          <button role="menuitem" onClick={() => { setOpen(false); nav('/about'); }}><Info /> About &amp; updates</button>
-          <button role="menuitem" onClick={() => api.logout().then(() => location.reload())}><LogOut /> Log out</button>
+          <button role="menuitem" onClick={() => { setOpen(false); nav('/about'); }}>ⓘ About &amp; updates</button>
+          <button role="menuitem" onClick={() => api.logout().then(() => location.reload())}>Log out</button>
         </div>
       )}
     </div>

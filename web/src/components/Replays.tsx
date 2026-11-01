@@ -6,7 +6,6 @@ import { EditSheet } from './EditSheet';
 import { fmtTime } from './TagPad';
 import { VideoPlayer, type PlayerHandle } from './VideoPlayer';
 import { FrameStep, SpeedControl } from './SpeedControl';
-import { FolderOpen } from 'lucide-react';
 
 interface Props {
   token: string;
@@ -151,7 +150,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         {source ? <VideoPlayer ref={player} source={source} /> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
-            <b className="row"><FolderOpen /> Choose your copy of the match video</b>
+            <b>📁 Choose your copy of the match video</b>
             <span className="small muted">
               It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The video file used for tagging is called <b>{video.name}</b>.</> : ''}
             </span>

@@ -79,7 +79,7 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         {def?.court === 'path' && (
           <div className="segmented">
             <button className={tapSets === 'from' ? 'on' : ''} onClick={() => setTapSets('from')}>⚪ Played from</button>
-            <button className={tapSets === 'to' ? 'on' : ''} onClick={() => setTapSets('to')}>Went to</button>
+            <button className={tapSets === 'to' ? 'on' : ''} onClick={() => setTapSets('to')}>🟠 Went to</button>
           </div>
         )}
         <div className="editor-court">

@@ -14,7 +14,6 @@ import { ourHalfAt } from '../lib/calibration';
 import { fmtTime } from './TagPad';
 import { FrameStep, SpeedControl } from './SpeedControl';
 import type { PlayerHandle } from './VideoPlayer';
-import { MapPin, Sparkles, Plus, ListStart, Merge, Eraser, Check, ArrowLeftRight, ChevronLeft, ChevronRight, Trash2, Scissors } from 'lucide-react';
 
 interface Props {
   match: Match;
@@ -274,7 +273,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   if (!r) {
     return (
       <div className="pad">
-        <p>All rallies reviewed.</p>
+        <p>All rallies reviewed. 🎉</p>
         <button className="btn wide" disabled={busy} onClick={() => addAt(true)}>+ Rally the analysis missed, at the current video time</button>
         {last && <button className="btn wide" onClick={runUndo}>↶ Undo: {last.text}</button>}
         <button className="btn btn-primary wide" onClick={onExit}>Back to tagging</button>
@@ -668,7 +667,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           <p><b>Swipe a touch up</b> to remove it (noise, a double). Removed touches stay as a small ↺ chip: tap it to bring the touch back. Greyed, struck-through chips are the other team's touches.</p>
           <p><b>Fix the rally</b>: <b>Touch here</b> adds a missed touch at the video time (it guesses the action from the touch before: serve → pass → set → attack → dig), <b>New rally here</b> (or <b>◀ + Rally</b> before the first one) starts a rally the detection missed, with the touches of a typical rally to fix up (who serves comes from the points before), <b>Join next</b> merges two rallies, <b>New rally from here</b> (on an open touch) splits one.</p>
           <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>Replay touch</b> to play the 1.5 s before it instead (to see how the ball came).</p>
-          <p><b>AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
+          <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
           <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the rally card left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
         </div>
@@ -688,7 +687,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
                 onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tapChip(e); } else if (ev.key === 'Delete' || ev.key === 'Backspace') removeChip(e); }}>
                 {gone ? <span>↺ {ACTION_BY_CODE[v.action]?.short ?? v.action}</span> : <>
                   <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
-                  <span>{`${num(v)}${e.hint ? ' ?' : ''}`}{(v.x != null || v.fx != null) && <MapPin className="chip-ic" />}{note && <Sparkles className="chip-ic" />}</span>
+                  <span>{`${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}{note ? ' ✨' : ''}</span>
                 </>}
               </button>
             );
@@ -698,13 +697,13 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 
         {!selected && <>
           <div className="tool-row">
-            <ToolBtn icon={<Plus />} label="Touch here" sub={now != null ? fmtTime(now) : undefined} disabled={busy || now == null} onClick={() => addAt(false)}
+            <ToolBtn icon="＋" label="Touch here" sub={now != null ? fmtTime(now) : undefined} disabled={busy || now == null} onClick={() => addAt(false)}
               title="Add a missed touch at the current video time" />
-            <ToolBtn icon={<ListStart />} label="New rally here" sub={now != null ? fmtTime(now) : undefined} tone="split" disabled={busy || now == null} onClick={() => addAt(true)}
+            <ToolBtn icon="⇤" label="New rally here" sub={now != null ? fmtTime(now) : undefined} tone="split" disabled={busy || now == null} onClick={() => addAt(true)}
               title="Start a new rally at the current video time" />
-            <ToolBtn icon={<Merge />} label="Join next rally" tone="split" disabled={busy || idx >= rallies.length - 1} onClick={joinNext}
+            <ToolBtn icon="⇥" label="Join next rally" tone="split" disabled={busy || idx >= rallies.length - 1} onClick={joinNext}
               title="The next rally is part of this one (merge them)" />
-            <ToolBtn icon={<Eraser />} label="Clear touches" tone="danger" disabled={r.events.every((e) => removed.has(e.id))}
+            <ToolBtn icon="⌫" label="Clear touches" tone="danger" disabled={r.events.every((e) => removed.has(e.id))}
               onClick={() => { setRemoved(new Set(r.events.map((e) => e.id))); setSel(null); }} title="Remove all touches of this rally, then add them with Touch here" />
           </div>
 
@@ -731,14 +730,14 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             return (
               <button className="ai-run" disabled={!!aiBusy || n === 0} onClick={aiCheck}
                 title="Three frames per touch go to the AI: real touch or not, whose, which action, which player">
-                <span className="row"><Sparkles /> {aiBusy ?? (answers.size ? 'Check this rally again' : 'AI check this rally')}</span>
+                <span>{aiBusy ?? (answers.size ? '✨ Check this rally again' : '✨ AI check this rally')}</span>
                 {!aiBusy && <small>{plural(n, 'touch')}{est.cost != null && budget ? ` · ≈ ${money(est.cost, budget.currency)}` : ''}{budget?.remaining != null ? ` · ${money(budget.remaining, budget.currency)} left` : ''}</small>}
               </button>
             );
           })()}
           {aiSummary && (
             <div className="ai-summary small">
-              <span className="row"><Sparkles /> {aiSummary.text}</span>
+              <span>✨ {aiSummary.text}</span>
               {aiSummary.undo && <button className="btn-ghost small" onClick={aiSummary.undo}>Undo AI</button>}
             </div>
           )}
@@ -755,12 +754,12 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
         <div className="touch-editor">
           <span className="small">This touch is counted as the other team's.</span>
           <div className="tool-row">
-            <ToolBtn icon={<Check />} label="It's our touch" tone="primary" onClick={() => setTouchOwner(selected, 'us')} />
-            <ToolBtn icon={<ArrowLeftRight />} label="Swap the whole rally" onClick={() => setServing(serving === 'us' ? 'them' : 'us')} />
+            <ToolBtn icon="✓" label="It's our touch" tone="primary" onClick={() => setTouchOwner(selected, 'us')} />
+            <ToolBtn icon="⇄" label="Swap the whole rally" onClick={() => setServing(serving === 'us' ? 'them' : 'us')} />
             {r.events[0]?.id !== selected.id
-              ? <ToolBtn icon={<Scissors />} label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} />
+              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} />
               : <span />}
-            <ToolBtn icon={<Trash2 />} label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
+            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
           </div>
         </div>
       ) : (
@@ -769,17 +768,17 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <button className={step === 'player' ? 'on' : ''} onClick={() => setStep('player')}>{num(sv) || 'Who?'}</button>›
             <button className={step === 'action' ? 'on' : ''} onClick={() => setStep('action')}>{def.short}</button>
             {wantsSpots(sv.action, spots.location, spots.scope) && <>›<button className={step === 'from' || step === 'to' ? 'on' : ''}
-              onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}><MapPin />{sv.x != null ? ' ✓' : ''}</button></>}
-            {answers.get(selected.id) && <span className="ai-note small"><Sparkles className="chip-ic" /> {aiNote(answers.get(selected.id)!)}</span>}
+              onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>📍{sv.x != null ? ' ✓' : ''}</button></>}
+            {answers.get(selected.id) && <span className="ai-note small">✨ {aiNote(answers.get(selected.id)!)}</span>}
           </div>
           <div className="tool-row five">
-            <ToolBtn icon={<ChevronLeft />} label="Back" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)} />
+            <ToolBtn icon="◂" label="Back" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)} />
             {r.events[0]?.id !== selected.id
-              ? <ToolBtn icon={<Scissors />} label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} title="A new rally starts with this touch" />
+              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} title="A new rally starts with this touch" />
               : <span />}
-            <ToolBtn icon={<ArrowLeftRight />} label="Their touch" onClick={() => setTouchOwner(selected, 'them')} title="Count this as the other team's touch" />
-            <ToolBtn icon={<Trash2 />} label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
-            <ToolBtn icon={<ChevronRight />} label="Next" tone="primary" onClick={() => advance(selected)} title="Keep this touch as it is" />
+            <ToolBtn icon="⇄" label="Their touch" onClick={() => setTouchOwner(selected, 'them')} title="Count this as the other team's touch" />
+            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
+            <ToolBtn icon="▸" label="Next" tone="primary" onClick={() => advance(selected)} title="Keep this touch as it is" />
           </div>
 
           {step === 'player' && (
@@ -804,7 +803,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
               showTarget={sv.action === 'receive' && step === 'to'}
               net={isNetSpot(sv.action, step === 'from' || def.court !== 'path') ? { initial: def.court === 'path' ? from?.x : sv.x } : undefined}
               onPick={(p) => pickSpot(selected, p)}
-              skipLabel={step === 'from' ? (from ? 'Keep spot ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep spot ▶' : 'Skip ▶'}
+              skipLabel={step === 'from' ? (from ? 'Keep ⚪ ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep 🟠 ▶' : 'Skip ▶'}
               onSkip={() => (step === 'from' ? setStep('to') : advance(selected))}
               onBack={() => setStep(step === 'to' && def.court === 'path' ? 'from' : 'action')}
               extra={sv.action === 'receive' ? (
@@ -844,7 +843,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
 }
 
 /** A labelled tool: an icon over a short text, big enough to hit and to see. */
-function ToolBtn({ icon, label, sub, tone, ...rest }: { icon: React.ReactNode; label: string; sub?: string; tone?: 'split' | 'danger' | 'primary' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+function ToolBtn({ icon, label, sub, tone, ...rest }: { icon: string; label: string; sub?: string; tone?: 'split' | 'danger' | 'primary' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button className={`tool-btn ${tone ?? ''}`} {...rest}>
       <span className="tool-ico" aria-hidden>{icon}</span>

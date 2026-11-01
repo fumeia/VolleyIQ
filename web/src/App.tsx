@@ -11,13 +11,12 @@ import { Reports } from './pages/Reports';
 import { SharePage, TeamSharePage } from './pages/SharePage';
 import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
-import { House, Users, CirclePlus, ChartColumn } from 'lucide-react';
 
 const NAV = [
-  { to: '/', label: 'Home', icon: <House />, end: true },
-  { to: '/teams', label: 'Teams', icon: <Users /> },
-  { to: '/new', label: 'Tag', icon: <CirclePlus /> },
-  { to: '/reports', label: 'Stats', icon: <ChartColumn /> },
+  { to: '/', label: 'Home', icon: '⌂', end: true },
+  { to: '/teams', label: 'Teams', icon: '👥' },
+  { to: '/new', label: 'Tag', icon: '＋' },
+  { to: '/reports', label: 'Stats', icon: '📊' },
 ];
 
 export function App() {

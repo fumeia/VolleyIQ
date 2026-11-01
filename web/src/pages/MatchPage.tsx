@@ -28,7 +28,6 @@ import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
-import { Camera, Settings, History, Save } from 'lucide-react';
 
 type Tab = 'tag' | 'events' | 'review' | 'ai' | 'edits';
 
@@ -318,7 +317,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <button className="set-btn" onClick={() => setSetNo((s) => Math.min(5, s + 1))}>›</button>
           <span className="score">{score.us}<i>:</i>{score.them}</span>
         </div>
-        <button className="btn-ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><Settings /></button>
+        <button className="btn-ghost" onClick={() => setShowSettings(true)} aria-label="Settings">⚙</button>
         <MoreMenu />
       </header>
 
@@ -452,7 +451,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             {tab === 'review' && (
               suggested.length === 0 && !(reviewing && reviewMode === 'rally') ? (
                 <div className="pad">
-                  <p className="muted">No AI suggestions to review. Run <b>Auto</b> to detect touches from the video automatically.</p>
+                  <p className="muted">No AI suggestions to review. Run <b>Auto ✨</b> to detect touches from the video automatically.</p>
                   <button className="btn wide" onClick={() => setTab('ai')}>Open auto-detection</button>
                 </div>
               ) : reviewMode === 'rally' ? (
@@ -636,7 +635,7 @@ function SheetBox({ match, players, events, onSaved, onSeek, onEdit }: {
     return (
       <>
         <button className="btn-ghost small" onClick={() => setOpen('scan')}>
-          <Camera /> Match sheet{flow ? `: ${flow.flow.length} set${flow.flow.length === 1 ? '' : 's'} kept` : ' (read the match flow)'}
+          📸 Match sheet{flow ? `: ${flow.flow.length} set${flow.flow.length === 1 ? '' : 's'} kept` : ' (read the match flow)'}
         </button>
         {flow && <button className="btn-ghost small" onClick={() => setOpen('check')}>✓ Check tags against the sheet</button>}
       </>
@@ -715,7 +714,7 @@ function VersionsBox({ match, pending, onRestored }: { match: Match; pending: nu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { if (open) api.versions(match.id).then(setList).catch((e) => setError(String(e.message ?? e))); }, [open, match.id]);
-  if (!open) return <button className="btn-ghost small" onClick={() => setOpen(true)}><History /> Versions</button>;
+  if (!open) return <button className="btn-ghost small" onClick={() => setOpen(true)}>💾 Versions</button>;
   const run = async (f: () => Promise<void>) => {
     setBusy(true); setError('');
     try { await f(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); }
@@ -727,7 +726,7 @@ function VersionsBox({ match, pending, onRestored }: { match: Match; pending: nu
       <p className="small muted">A version keeps every tag of this match, the line-ups, the court marking and the match sheet. Going back to one replaces the current tags (they are saved as a version first, so you can return to them).</p>
       <form className="row" onSubmit={(e) => { e.preventDefault(); run(async () => { setList(await api.saveVersion(match.id, label)); setLabel(''); }); }}>
         <input className="input grow" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name, e.g. Original tagging" maxLength={80} />
-        <button className="btn btn-primary" disabled={busy}><Save /> Save version</button>
+        <button className="btn btn-primary" disabled={busy}>💾 Save version</button>
       </form>
       {error && <p className="error small">{error}</p>}
       {pending > 0 && <p className="small muted">⏳ {pending} change{pending === 1 ? '' : 's'} still waiting to upload: going back to a version is possible once they are synced.</p>}
