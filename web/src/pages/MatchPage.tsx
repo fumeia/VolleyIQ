@@ -516,6 +516,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 match={match}
                 players={players}
                 video={isApp() ? local : null}
+                onLocal={(v) => { setLocalVideo(match.id, v); setLocal(v); }}
                 getTime={getTime}
                 onCalibration={async (c) => setMatch(await api.updateMatch(match.id, { calibration: c }))}
                 onCalibrate={(from) => {

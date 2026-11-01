@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**YouTube streams in the app too**
+- A YouTube link no longer starts a download in the app: the match plays the YouTube video, like on the website, and you can tag right away. Downloading is only needed for auto-detection, the AI check and reading shirt numbers: tick "Also download it to this phone" when creating the match, or press "Download the YouTube video" in the Auto tab later (tags keep their times).
+
 **Teams and rosters for test videos**
 - Matches → a game with a confirmed video: tag it for either side. That team is taken from your teams (same name) or created with its Swiss Volley name, and the other side is the opponent.
 - Match page → ⚙ → "Roster from the video": pause where shirt numbers can be seen (line-up before the game, a time-out, players on court), add up to four frames, and the AI lists the numbers per shirt colour (liberos marked). Tap numbers to leave them out, then add them to the team: players named after their number (#7), liberos as L. Roles and names can be set on the team page. Needs a video file on the device (in the app YouTube videos are downloaded first) and the AI backend; counts toward the daily AI limit.

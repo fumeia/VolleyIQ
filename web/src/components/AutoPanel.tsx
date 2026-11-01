@@ -6,6 +6,7 @@ import { DetectionReportCard } from './DetectionReportCard';
 import { flatPoints, segments, type Calibration } from '../lib/calibration';
 import { SidesPanel } from './Calibration';
 import { isApp, Native, type LocalVideo, type WorkState } from '../lib/native';
+import { useImport } from './VideoSource';
 
 interface Props {
   match: Match;
@@ -25,6 +26,8 @@ interface Props {
   confirmed: VEvent[];
   fileUrl: () => string | null;
   reload: () => Promise<unknown>;
+  /** The match's YouTube video, downloaded to the phone. */
+  onLocal?: (v: LocalVideo) => void;
 }
 
 /**
@@ -32,7 +35,7 @@ interface Props {
  * (picture), rallies, and optionally jersey numbers and court sides. Results
  * land in Review. Runs as a background job with a notification.
  */
-export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone, pending = 0, onClearSuggestions, suggested, confirmed, fileUrl, reload }: Props) {
+export function AutoPanel({ match, players, video, onCalibrate, onCalibration, getTime, onDone, pending = 0, onClearSuggestions, suggested, confirmed, fileUrl, reload, onLocal }: Props) {
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
@@ -138,6 +141,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       <div className={`auto-step ${video ? 'done' : ''}`}>
         <b>1 · Video</b>
         <span className="small">{video ? '✓ Loaded on this phone' : 'Load the match video on this phone first (pick a file or import a link).'}</span>
+        {!video && isApp() && match.video_type === 'youtube' && match.video_ref && onLocal && <DownloadYoutube match={match} onLocal={onLocal} />}
       </div>
 
       <div className={`auto-step ${match.calibration ? 'done' : ''}`}>
@@ -239,5 +243,26 @@ function LearnedDetector() {
         </label>
       )}
     </details>
+  );
+}
+
+/** The YouTube video of the match, downloaded to the phone (the tagging so far keeps its times). */
+function DownloadYoutube({ match, onLocal }: { match: Match; onLocal: (v: LocalVideo) => void }) {
+  const imp = useImport(match.id, onLocal);
+  const [err, setErr] = useState('');
+  if (imp.running) {
+    return (
+      <div className="job">
+        <div className="progress"><div style={{ width: `${Math.max(2, Math.round((imp.work?.progress ?? 0) * 100))}%` }} /></div>
+        <span className="small">{imp.work?.message ?? 'Starting download…'} · goes on in the background <button className="btn-ghost small" onClick={imp.cancel}>Cancel</button></span>
+      </div>
+    );
+  }
+  return (
+    <>
+      <span className="small muted">The video plays from YouTube. Detection needs the file on the phone: download it once (on Wi-Fi; a full match is 1 to 3 GB).</span>
+      <button className="btn" onClick={() => imp.start(`https://www.youtube.com/watch?v=${match.video_ref}`).catch((e) => setErr((e as Error).message))}>Download the YouTube video</button>
+      {err && <span className="small error">{err}</span>}
+    </>
   );
 }

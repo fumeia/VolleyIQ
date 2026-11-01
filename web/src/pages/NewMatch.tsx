@@ -17,6 +17,8 @@ export function NewMatch() {
   const [opponent, setOpponent] = useState(params.get('opponent') ?? '');
   const [date, setDate] = useState(params.get('date') ?? new Date().toISOString().slice(0, 10));
   const [yt, setYt] = useState(params.get('video') ?? '');
+  // In the app a YouTube video streams by default; downloading is only needed for the automatic tools.
+  const [download, setDownload] = useState(false);
   const scheduleId = params.get('schedule') ? Number(params.get('schedule')) : null;
   const [error, setError] = useState('');
   const [sheet, setSheet] = useState<{ flow: MatchSheetFlow; liberoNo: number | null } | null>(null);
@@ -52,8 +54,8 @@ export function NewMatch() {
       await api.updateMatch(m.id, { sheet: sheet.flow, ...(Object.keys(lineups).length ? { lineups } : {}) }).catch(() => {});
     }
     if (scheduleId) await api.scheduleMatch(scheduleId, m.id).catch(() => {});
-    // Non-YouTube links (WeTransfer, Drive, …) and, in the app, YouTube too are downloaded to the phone on the next screen.
-    if (link && (isApp() || !ytId)) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
+    // Non-YouTube links (WeTransfer, Drive, …) are downloaded to the phone on the next screen; YouTube only when asked.
+    if (link && (!ytId || (isApp() && download))) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
     nav(`/m/${m.id}`);
   }
 
@@ -92,6 +94,12 @@ export function NewMatch() {
             </label>
             <input className="input" type="url" inputMode="url" autoCapitalize="off" value={yt} onChange={(e) => setYt(e.target.value)}
               placeholder={isApp() ? 'https://we.tl/… or https://youtu.be/…' : 'https://youtu.be/…'} />
+            {isApp() && parseYouTubeId(yt.trim()) && (
+              <label className="toggle small">
+                <input type="checkbox" checked={download} onChange={(e) => setDownload(e.target.checked)} />
+                <span>Also download it to this phone <small className="muted">(needed for auto-detection, the AI check and reading shirt numbers; tagging by hand works with the YouTube video, and it can be downloaded later in the Auto tab)</small></span>
+              </label>
+            )}
             <p className="muted small">You can also pick a video file on the next screen.</p>
           </>
         )}

@@ -26,7 +26,7 @@ export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
     try { await f(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(''); }
   };
   if (!teamId) return <p className="small muted">Pick a team for this match first.</p>;
-  if (!url) return <p className="small muted">Works with a video file on this device (in the app, YouTube videos are downloaded first), not with a YouTube video played in the browser.</p>;
+  if (!url) return <p className="small muted">Needs the video file on this device: YouTube does not let the app read its frames. In the app, download the YouTube video in the Auto tab first.</p>;
   const time = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   return (
     <div className="read-numbers">

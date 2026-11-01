@@ -91,8 +91,10 @@ export function VideoSource({ match, onLocal, onMatch }: Props) {
     if (!url) return;
     const yt = parseYouTubeId(url);
     if (yt) onMatch(await api.updateMatch(match.id, { video_type: 'youtube', video_ref: yt }));
+    // YouTube streams (also in the app); it can be downloaded later in the Auto tab for the automatic tools.
+    if (yt) return;
     if (app) {
-      // In the app every link is downloaded, so it plays smoothly and can be analysed on the phone.
+      // In the app other links are downloaded, so they play and can be analysed on the phone.
       try { await imp.start(url); } catch (e) { setErr((e as Error).message); }
     } else if (!yt) {
       if (/\.(mp4|mov|m4v|webm)(\?|$)/i.test(url)) onLocal({ uri: url, name: url.split('/').pop() ?? 'video' });
