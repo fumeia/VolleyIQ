@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Testing the auto-detection on any video**
+- "How well did the detection do?" now only judges the parts of the video you tagged. A run always covers the whole video; when only one set was tagged to test it, the detections in the untagged sets used to count as extras. It says how many it left out.
+
 **Matches: every game in Swiss Volley**
 - New "Matches" page in the menu (and "All games" on the public team page): every Swiss Volley game, of any team. A week of all of Switzerland, or a whole season of one region.
 - Filters: region, week (or whole season), women / men, league, results / upcoming, team, hall or town, only games with a video. On the phone they fold into one line.

@@ -18,13 +18,27 @@ const SKILLS = ['serve', 'receive', 'set', 'attack', 'block', 'dig', 'freeball']
  * found, how far off in time, whether the action and the shirt number were right, and what
  * else it reported (the other team's touches, or noise).
  */
+/** A detection further than this from any saved touch is in a part of the video nobody tagged. */
+export const TAGGED_NEAR = 150;
+
 export function detectionReport(run: RunEvent[], events: VEvent[], players: Player[]) {
-  const dets = [...run].filter((d) => d.t != null).sort((a, b) => a.t - b.t);
-  const first = dets[0]?.t ?? 0, last = dets[dets.length - 1]?.t ?? 0;
+  const all = [...run].filter((d) => d.t != null).sort((a, b) => a.t - b.t);
+  const first = all[0]?.t ?? 0, last = all[all.length - 1]?.t ?? 0;
   // Our saved touches in the stretch of video the run covered (team entries and blocks without a touch are not touches).
   const truth = events
     .filter((e) => e.status === 'confirmed' && e.t != null && aiWord(e.action) != null && e.action !== 'block_miss' && e.t >= first - 3 && e.t <= last + 3)
     .sort((a, b) => a.t! - b.t!);
+  // Only judge the parts that were tagged: a run covers the whole video, but maybe only one set
+  // was tagged to test it. Detections more than 2.5 minutes from any saved touch are left out
+  // (rallies follow each other well within that, even with a time-out; a set nobody tagged is far longer).
+  const taggedTimes = events.filter((e) => e.status === 'confirmed' && e.t != null).map((e) => e.t!).sort((a, b) => a - b);
+  const nearTag = (t: number) => {
+    let lo = 0, hi = taggedTimes.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (taggedTimes[mid] < t) lo = mid + 1; else hi = mid; }
+    return [taggedTimes[lo - 1], taggedTimes[lo]].some((x) => x != null && Math.abs(x - t) <= TAGGED_NEAR);
+  };
+  const dets = all.filter((d) => nearTag(d.t));
+  const tagged = { minutes: dets.length ? Math.round((dets[dets.length - 1].t - dets[0].t) / 60) : 0, leftOut: all.length - dets.length };
 
   // One-to-one, closest pairs first.
   const pairs: { i: number; j: number; dt: number }[] = [];
@@ -80,6 +94,7 @@ export function detectionReport(run: RunEvent[], events: VEvent[], players: Play
   return {
     truth: truth.length,
     detections: dets.length,
+    tagged,
     found: matched.length,
     theirs,
     extra,

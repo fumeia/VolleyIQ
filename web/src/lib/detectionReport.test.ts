@@ -29,4 +29,13 @@ describe('detection report', () => {
     expect(r.byKind.find((k) => k.kind === 'quiet')).toEqual({ kind: 'quiet', n: 1, hits: 0 });
     expect(r.timing.medianAbs).toBeCloseTo(0.1);
   });
+
+  it('only judges the parts that were tagged (one set tagged to test a run over the whole video)', () => {
+    const saved = [tag(100, 'serve'), tag(104, 'dig', 2), tag(140, 'serve')];
+    const run = [det(100, 'serve', 0), det(104, 'dig', 2), det(140.2, 'serve', 0), det(250, 'dig', 2), det(1500, 'serve', 0), det(1510, 'attack', 0)];
+    const r = detectionReport(run, saved, players);
+    expect(r.found).toBe(3);
+    expect(r.extra).toBe(1);
+    expect(r.tagged.leftOut).toBe(2);
+  });
 });

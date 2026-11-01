@@ -27,7 +27,8 @@ export function DetectionReportCard({ match, players, confirmed }: { match: Matc
           {runs.map((x) => <option key={x.id} value={x.id}>Run of {new Date(`${x.created_at.replace(' ', 'T')}Z`).toLocaleString()} · {x.events.length} touches</option>)}
         </select>
       )}
-      <p className="small muted">Measured against the touches you saved for this match (a detection within {MATCH_WINDOW} s of a saved touch counts as found). The more of the match you have reviewed, the more it says.</p>
+      <p className="small muted">Measured against the touches you saved for this match (a detection within {MATCH_WINDOW} s of a saved touch counts as found). The more of the match you have reviewed, the more it says.
+        {r.tagged.leftOut > 0 ? ` Only the tagged parts count: ${r.tagged.leftOut} detection${r.tagged.leftOut === 1 ? '' : 's'} in parts without tags are left out.` : ''}</p>
       {r.truth === 0 ? <p className="small">No saved touches in the part of the video this run covered yet.</p> : (
         <>
           <div className="kpis">
