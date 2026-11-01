@@ -36,7 +36,7 @@ export function ReportGallery({ cards, fileBase, shareText, actions }: { cards: 
     <div className="report">
       <div className="report-actions">
         <button className="btn btn-primary" disabled={!!busy} onClick={() => run('all', async () => shareImages(await render(cards.map((c) => c.id)), shareText))}>
-          {busy === 'all' ? 'Preparing images…' : `📤 Share all ${cards.length} images`}
+          {busy === 'all' ? 'Preparing images…' : `Share all ${cards.length} images`}
         </button>
         {actions}
       </div>

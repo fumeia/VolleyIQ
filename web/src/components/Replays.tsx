@@ -178,7 +178,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
         {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} onError={onVideoError} /> : hostedLoading ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
-            <b>📁 Choose your copy of the match video</b>
+            <b>Choose your copy of the match video</b>
             <span className="small muted">
               {video?.type === 'hosted' ? 'The team video could not be loaded. ' : ''}
               It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The video file used for tagging is called <b>{video.name}</b>.</> : ''}

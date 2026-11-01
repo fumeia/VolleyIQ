@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**New look**
+- Light design by default, like a stats portal: white panels on a light grey page, one blue for what is selected, a dark blue bar at the top. The dark design is still there: About → Appearance (Light, Dark or like the device).
+- On a computer the pages sit next to a narrow menu on the left; on the phone the menu is at the bottom. Plain line icons instead of emoji.
+- Stats topics are one grey panel of buttons (on a wide screen a list beside the report, always in view). Tables have a tinted header row and alternating rows. Tabs are underlined.
+- Courts and diagrams are drawn on a light floor in the light design.
+- The public link has the team name in the top bar and its tabs stay at the top while scrolling.
+
 **Match videos in your own storage**
 - A streamed video shows "Loading video… (slow connection?)" while it buffers and a message when it fails, instead of a black picture; an expired link (page left open for hours) is renewed by itself. In Replays you can switch to your own copy any time.
 - With a bucket set up (S3_* in .env, e.g. Hetzner Object Storage), the app uploads a match video straight into it in the background (resumes after a lost connection, progress notification). The match page and the public Replays stream it from there with links that expire, so nobody needs their own copy. Delete it per match. The upload does not pass through the server.

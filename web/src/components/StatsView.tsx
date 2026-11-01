@@ -69,7 +69,7 @@ export function StatsView({ players, events, matches, onPlay }: {
   return (
     <PlayContext.Provider value={onPlay ?? null}>
     <div className="stats">
-      {/* All topics visible at once, each in its own colour, so none is missed. */}
+      {/* All topics visible at once, so none is missed. */}
       <div className="stats-sections" data-tour="sections">
         {SECTIONS.map(([k, label]) => (
           <button key={k} className={`sec-btn sec-${k} ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)} aria-pressed={section === k}>{label}</button>

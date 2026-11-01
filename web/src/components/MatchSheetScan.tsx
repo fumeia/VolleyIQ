@@ -171,7 +171,7 @@ export function MatchSheetScan({ onPick, onTeamCreated, onAttach }: {
   return (
     <div className="sheet-scan card">
       <div className="row between">
-        <b>📸 Scan match sheet</b>
+        <b>Scan match sheet</b>
         <button type="button" className="btn small" disabled={busy} onClick={() => fileRef.current?.click()}>
           {busy ? 'Reading…' : sheet ? 'Rescan' : 'Take / pick photo'}
         </button>

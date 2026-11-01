@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, type Match, type Team } from '../lib/api';
 
@@ -31,10 +32,10 @@ export function Dashboard() {
 
       <div className="quick">
         <Link to="/new?mode=video" className="quick-card">
-          <span className="quick-icon">🎬</span><b>Tag from video</b><small>YouTube, phone video or upload</small>
+          <span className="quick-icon"><Icon name="tag" size={26} /></span><b>Tag from video</b><small>YouTube, phone video or upload</small>
         </Link>
         <Link to="/new?mode=live" className="quick-card">
-          <span className="quick-icon">⏱</span><b>Live match</b><small>Score and tag courtside</small>
+          <span className="quick-icon"><Icon name="live" size={26} /></span><b>Live match</b><small>Score and tag courtside</small>
         </Link>
       </div>
 

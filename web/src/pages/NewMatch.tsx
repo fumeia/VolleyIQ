@@ -58,8 +58,8 @@ export function NewMatch() {
     <div className="page">
       <header className="page-head"><h1>New match</h1></header>
       <div className="segmented">
-        <button className={mode === 'video' ? 'on' : ''} onClick={() => setMode('video')}>🎬 From video</button>
-        <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>⏱ Live</button>
+        <button className={mode === 'video' ? 'on' : ''} onClick={() => setMode('video')}>From video</button>
+        <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>Live</button>
       </div>
       <MatchSheetScan
         onPick={({ opponent: op, date: d, label: lb, flow, liberoNo }) => {

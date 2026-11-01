@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './lib/api';
 import { MoreMenu } from './components/MoreMenu';
+import { Icon } from './components/Icon';
 import { AboutPage } from './pages/About';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
@@ -13,10 +14,10 @@ import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
 
 const NAV = [
-  { to: '/', label: 'Home', icon: '⌂', end: true },
-  { to: '/teams', label: 'Teams', icon: '👥' },
-  { to: '/new', label: 'Tag', icon: '＋' },
-  { to: '/reports', label: 'Stats', icon: '📊' },
+  { to: '/', label: 'Home', icon: 'home', end: true },
+  { to: '/teams', label: 'Teams', icon: 'teams' },
+  { to: '/new', label: 'Tag', icon: 'tag' },
+  { to: '/reports', label: 'Stats', icon: 'stats' },
 ];
 
 export function App() {
@@ -53,15 +54,22 @@ export function App() {
 
   return (
     <div className={`shell ${isMatch ? 'shell-match' : ''}`}>
+      {!isMatch && (
+        <header className="topbar">
+          <NavLink to="/" className="brand"><img src="/icon.svg" alt="" /> VolleyIQ</NavLink>
+          <span className="grow" />
+          <MoreMenu className="topbar-more" />
+        </header>
+      )}
       <aside className="sidebar">
-        <div className="brand"><img src="/icon.svg" alt="" /> VolleyIQ</div>
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className="side-link">
-            <span className="side-icon">{n.icon}</span> {n.label}
+            <Icon name={n.icon} /> <span>{n.label}</span>
           </NavLink>
         ))}
+        <span className="grow" />
+        <NavLink to="/about" className="side-link"><Icon name="info" /> <span>About</span></NavLink>
       </aside>
-      {!isMatch && <MoreMenu className="shell-more" />}
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -78,7 +86,7 @@ export function App() {
         <nav className="bottombar">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} className="bottom-link">
-              <span className="bottom-icon">{n.icon}</span>
+              <Icon name={n.icon} />
               <span>{n.label}</span>
             </NavLink>
           ))}

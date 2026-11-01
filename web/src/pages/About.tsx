@@ -1,3 +1,4 @@
+import { loadTheme, saveTheme, type ThemeChoice } from '../lib/theme';
 import { useEffect, useState } from 'react';
 import { api, authToken, isApp, publicBase, serverBase, type AppRelease } from '../lib/api';
 import { Native } from '../lib/native';
@@ -61,6 +62,7 @@ export function AboutPage() {
 
   const row = (k: string, v: React.ReactNode) => <div className="about-row"><span className="muted">{k}</span><span>{v}</span></div>;
 
+  const [theme, setTheme] = useState<ThemeChoice>(loadTheme);
   return (
     <div className="page about">
       <header className="about-hero">
@@ -79,6 +81,17 @@ export function AboutPage() {
         ) : row('Website', __APP_VERSION__)}
         {row('Server', server?.version ?? (server ? 'older than 1.0' : 'not reachable'))}
         {row('Server address', publicBase())}
+      </section>
+
+      <section className="card">
+        <h2 className="section-title">Appearance</h2>
+        <div className="segmented">
+          {(['light', 'dark', 'system'] as ThemeChoice[]).map((c) => (
+            <button key={c} className={theme === c ? 'on' : ''} onClick={() => { setTheme(c); saveTheme(c); }}>
+              {c === 'light' ? 'Light' : c === 'dark' ? 'Dark' : 'Like the device'}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="card">

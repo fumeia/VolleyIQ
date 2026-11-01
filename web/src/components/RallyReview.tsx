@@ -273,7 +273,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
   if (!r) {
     return (
       <div className="pad">
-        <p>All rallies reviewed. 🎉</p>
+        <p>All rallies reviewed.</p>
         <button className="btn wide" disabled={busy} onClick={() => addAt(true)}>+ Rally the analysis missed, at the current video time</button>
         {last && <button className="btn wide" onClick={runUndo}>↶ Undo: {last.text}</button>}
         <button className="btn btn-primary wide" onClick={onExit}>Back to tagging</button>
@@ -667,7 +667,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
           <p><b>Swipe a touch up</b> to remove it (noise, a double). Removed touches stay as a small ↺ chip: tap it to bring the touch back. Greyed, struck-through chips are the other team's touches.</p>
           <p><b>Fix the rally</b>: <b>Touch here</b> adds a missed touch at the video time (it guesses the action from the touch before: serve → pass → set → attack → dig), <b>New rally here</b> (or <b>◀ + Rally</b> before the first one) starts a rally the detection missed, with the touches of a typical rally to fix up (who serves comes from the points before), <b>Join next</b> merges two rallies, <b>New rally from here</b> (on an open touch) splits one.</p>
           <p><b>▶ / ⏸</b> (top-left) plays or pauses the video. Opening a touch just shows its frame; turn on <b>Replay touch</b> to play the 1.5 s before it instead (to see how the ball came).</p>
-          <p><b>✨ AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
+          <p><b>AI check</b> (when set up on the server, with a video file): three frames per touch go to the AI. It marks noise, sorts ours / theirs and fills in actions and players as far as its answers have proven right before. Chips it changed get a ✨. Nothing is saved until you save the rally, and every saved rally teaches it how far to trust each kind of answer.</p>
           <p><b>We won / They won</b> saves the rally and turns the last touch into the point or the error. <b>✕</b> = not a rally (noise). Swipe the rally card left = not a rally, right = save. Keys: W, L, N, Enter.</p>
           <p className="muted">Tap to close.</p>
         </div>
@@ -687,7 +687,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
                 onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tapChip(e); } else if (ev.key === 'Delete' || ev.key === 'Backspace') removeChip(e); }}>
                 {gone ? <span>↺ {ACTION_BY_CODE[v.action]?.short ?? v.action}</span> : <>
                   <b>{ACTION_BY_CODE[v.action]?.short ?? v.action}</b>
-                  <span>{`${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' 📍' : ''}`}{note ? ' ✨' : ''}</span>
+                  <span>{`${num(v)}${e.hint ? ' ?' : ''}${v.x != null || v.fx != null ? ' •' : ''}`}{note ? ' (AI)' : ''}</span>
                 </>}
               </button>
             );
@@ -730,14 +730,14 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             return (
               <button className="ai-run" disabled={!!aiBusy || n === 0} onClick={aiCheck}
                 title="Three frames per touch go to the AI: real touch or not, whose, which action, which player">
-                <span>{aiBusy ?? (answers.size ? '✨ Check this rally again' : '✨ AI check this rally')}</span>
+                <span>{aiBusy ?? (answers.size ? 'Check this rally again' : 'AI check this rally')}</span>
                 {!aiBusy && <small>{plural(n, 'touch')}{est.cost != null && budget ? ` · ≈ ${money(est.cost, budget.currency)}` : ''}{budget?.remaining != null ? ` · ${money(budget.remaining, budget.currency)} left` : ''}</small>}
               </button>
             );
           })()}
           {aiSummary && (
             <div className="ai-summary small">
-              <span>✨ {aiSummary.text}</span>
+              <span>AI: {aiSummary.text}</span>
               {aiSummary.undo && <button className="btn-ghost small" onClick={aiSummary.undo}>Undo AI</button>}
             </div>
           )}
@@ -757,9 +757,9 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <ToolBtn icon="✓" label="It's our touch" tone="primary" onClick={() => setTouchOwner(selected, 'us')} />
             <ToolBtn icon="⇄" label="Swap the whole rally" onClick={() => setServing(serving === 'us' ? 'them' : 'us')} />
             {r.events[0]?.id !== selected.id
-              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} />
+              ? <ToolBtn icon="↳" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} />
               : <span />}
-            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
+            <ToolBtn icon="✕" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
           </div>
         </div>
       ) : (
@@ -768,16 +768,16 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
             <button className={step === 'player' ? 'on' : ''} onClick={() => setStep('player')}>{num(sv) || 'Who?'}</button>›
             <button className={step === 'action' ? 'on' : ''} onClick={() => setStep('action')}>{def.short}</button>
             {wantsSpots(sv.action, spots.location, spots.scope) && <>›<button className={step === 'from' || step === 'to' ? 'on' : ''}
-              onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>📍{sv.x != null ? ' ✓' : ''}</button></>}
-            {answers.get(selected.id) && <span className="ai-note small">✨ {aiNote(answers.get(selected.id)!)}</span>}
+              onClick={() => setStep(def.court === 'path' ? 'from' : 'to')}>Spot{sv.x != null ? ' ✓' : ''}</button></>}
+            {answers.get(selected.id) && <span className="ai-note small">AI: {aiNote(answers.get(selected.id)!)}</span>}
           </div>
           <div className="tool-row five">
             <ToolBtn icon="◂" label="Back" disabled={!prevTouch(selected)} onClick={() => open(prevTouch(selected)!)} />
             {r.events[0]?.id !== selected.id
-              ? <ToolBtn icon="✂" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} title="A new rally starts with this touch" />
+              ? <ToolBtn icon="↳" label="New rally from here" tone="split" disabled={busy} onClick={() => splitAt(selected)} title="A new rally starts with this touch" />
               : <span />}
             <ToolBtn icon="⇄" label="Their touch" onClick={() => setTouchOwner(selected, 'them')} title="Count this as the other team's touch" />
-            <ToolBtn icon="🗑" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
+            <ToolBtn icon="✕" label="Not a touch" tone="danger" onClick={() => removeChip(selected)} />
             <ToolBtn icon="▸" label="Next" tone="primary" onClick={() => advance(selected)} title="Keep this touch as it is" />
           </div>
 
@@ -803,7 +803,7 @@ export function RallyReview({ match, suggested, confirmed, players, player, spot
               showTarget={sv.action === 'receive' && step === 'to'}
               net={isNetSpot(sv.action, step === 'from' || def.court !== 'path') ? { initial: def.court === 'path' ? from?.x : sv.x } : undefined}
               onPick={(p) => pickSpot(selected, p)}
-              skipLabel={step === 'from' ? (from ? 'Keep ⚪ ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep 🟠 ▶' : 'Skip ▶'}
+              skipLabel={step === 'from' ? (from ? 'Keep start ▶' : 'Skip: not sure ▶') : sv.x != null ? 'Keep spot ▶' : 'Skip ▶'}
               onSkip={() => (step === 'from' ? setStep('to') : advance(selected))}
               onBack={() => setStep(step === 'to' && def.court === 'path' ? 'from' : 'action')}
               extra={sv.action === 'receive' ? (

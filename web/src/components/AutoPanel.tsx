@@ -84,7 +84,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         {pending > 0 && onClearSuggestions && (
           <button className="btn-ghost small danger wide" onClick={() => {
             if (confirm(`Delete all ${pending} unreviewed auto suggestion${pending === 1 ? '' : 's'}? Saved touches are kept.`)) onClearSuggestions();
-          }}>🗑 Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
+          }}>Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
         )}
       </div>
     );
@@ -168,7 +168,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       {report}
 
       <button className="btn btn-primary wide" disabled={!video || running} onClick={run}>
-        {running ? 'Analysing…' : '✨ Run auto-detection'}
+        {running ? 'Analysing…' : 'Run auto-detection'}
       </button>
       {err && <p className="error small">{err}</p>}
       <p className="muted small">
@@ -178,7 +178,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       {pending > 0 && onClearSuggestions && (
         <button className="btn-ghost small danger wide" disabled={running} onClick={() => {
           if (confirm(`Delete all ${pending} unreviewed auto suggestion${pending === 1 ? '' : 's'}? Saved touches are kept. Then run again, e.g. at sensitivity 0.7.`)) onClearSuggestions();
-        }}>🗑 Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
+        }}>Delete {pending} unreviewed suggestion{pending === 1 ? '' : 's'}</button>
       )}
     </div>
   );

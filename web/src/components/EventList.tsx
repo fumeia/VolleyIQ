@@ -142,7 +142,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
           <button className="btn small btn-danger" disabled={!picked.length || busy} onClick={async () => {
             setBusy(true);
             try { await onDeleteMany(picked); setSelected(null); } finally { setBusy(false); }
-          }}>🗑 Delete {picked.length || ''}</button>
+          }}>Delete {picked.length || ''}</button>
           <button className="btn-ghost small" onClick={() => setSelected(null)}>Cancel</button>
         </div>
       ) : (
@@ -174,7 +174,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
             </span>
             {issues.has(e.id) && <span className="ev-warn" title={issues.get(e.id)}>⚠</span>}
             {e.status === 'suggested' && <span className="badge">AI {e.confidence != null ? Math.round(e.confidence * 100) + '%' : ''}</span>}
-            {e.id < 0 && <span className="badge badge-pending" title="Waiting for connection">⏳</span>}
+            {e.id < 0 && <span className="badge badge-pending" title="Waiting for connection">offline</span>}
             {onEdit && <button className="ev-edit" onClick={() => onEdit(e)} aria-label="Edit">✎</button>}
           </li>
         );

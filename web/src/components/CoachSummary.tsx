@@ -36,7 +36,7 @@ export function CoachSummary({ stats }: { stats: unknown }) {
   return (
     <section className="findings coach-summary">
       <div className="row between">
-        <b>✨ Coach summary</b>
+        <b>Coach summary</b>
         <span className="seg-mini">
           <button className={lang === 'en' ? 'on' : ''} disabled={busy} onClick={() => generate('en')}>EN</button>
           <button className={lang === 'de' ? 'on' : ''} disabled={busy} onClick={() => generate('de')}>DE</button>

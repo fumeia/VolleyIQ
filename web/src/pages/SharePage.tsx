@@ -24,19 +24,24 @@ export function SharePage() {
   if (!data) return <div className="center muted">Loading…</div>;
   const m = data.match;
   return (
-    <div className="page share">
-      <div className="brand"><img src="/icon.svg" alt="" /> VolleyIQ</div>
-      <div className="share-hero">
-        <h1>{m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label}</h1>
-        <p className="muted">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</p>
-      </div>
-      <nav className="tabs public-tabs" data-tour="tabs">
-        <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Stats</button>
-        <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>Report images</button>
+    <div className="public">
+      <header className="public-bar">
+        <div className="public-inner">
+          <span className="brand"><img src="/icon.svg" alt="" /> {m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label}</span>
+          <span className="public-sub">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</span>
+        </div>
+      </header>
+      <nav className="public-nav" data-tour="tabs">
+        <div className="public-inner tabs">
+          <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Stats</button>
+          <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>Report images</button>
+        </div>
       </nav>
+      <div className="page share">
       {view === 'stats'
         ? <StatsView players={data.players} events={data.events} matches={[data.match]} />
         : <MatchReportView match={m} players={data.players} events={data.events} />}
+      </div>
       <Tour id="match" steps={matchTour(m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label)} />
     </div>
   );
@@ -97,7 +102,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
               }} /> Show practice tips
             </label>
           }
-          actions={<CopyLink label="🔗 Copy link" />} />
+          actions={<CopyLink label="Copy link" />} />
       </>
     );
   } else if (tab === 'players') {
@@ -133,18 +138,24 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   }
 
   return (
-    <div className="page share">
-      <header className="public-head">
-        <Link to={base} className="brand"><img src="/icon.svg" alt="" /> {data.team.name}</Link>
-        <span className="muted small">{data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</span>
+    <div className="public">
+      <header className="public-bar">
+        <div className="public-inner">
+          <Link to={base} className="brand"><img src="/icon.svg" alt="" /> {data.team.name}</Link>
+          <span className="public-sub">{data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</span>
+        </div>
       </header>
-      <nav className="tabs public-tabs" data-tour="tabs">
-        <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
-        <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
-        <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
-        <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
+      <nav className="public-nav" data-tour="tabs">
+        <div className="public-inner tabs">
+          <Link to={scope} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
+          <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
+          <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
+          <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
+        </div>
       </nav>
-      {body}
+      <div className="page share">
+        {body}
+      </div>
       {/* Someone opening a player's own link gets that page's tour; everyone else the team's. */}
       {player ? <Tour key="player" id="player" steps={playerTour(player.name.split(' ')[0])} /> : <Tour key="team" id="team" steps={teamTour(data.team.name)} />}
     </div>

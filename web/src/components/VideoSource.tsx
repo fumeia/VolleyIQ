@@ -106,10 +106,10 @@ export function VideoSource({ match, onLocal, onMatch }: Props) {
       {app ? (
         <button className="btn wide" onClick={async () => {
           try { useLocal(await Native.pickVideo()); } catch (e) { if ((e as { code?: string }).code !== 'CANCELLED') setErr((e as Error).message); }
-        }}>📁 Pick video from this phone</button>
+        }}>Pick video from this phone</button>
       ) : (
         <label className="btn wide file-btn">
-          📁 Pick video file
+          Pick video file
           <input type="file" accept="video/*" hidden onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) onLocal({ uri: URL.createObjectURL(f), name: f.name });

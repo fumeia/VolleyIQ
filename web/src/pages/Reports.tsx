@@ -65,12 +65,12 @@ export function Reports() {
           </select>
         )}
       </div>
-      <div className="segmented">
-        <button className={view === 'stats' ? 'on' : ''} onClick={() => setView('stats')}>Charts & stats</button>
-        <button className={view === 'players' ? 'on' : ''} onClick={() => setView('players')}>Players</button>
-        <button className={view === 'report' ? 'on' : ''} onClick={() => setView('report')}>Report images</button>
-        <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Leaderboard</button>
-      </div>
+      <nav className="tabs">
+        <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Charts & stats</button>
+        <button className={`tab ${view === 'players' ? 'on' : ''}`} onClick={() => setView('players')}>Players</button>
+        <button className={`tab ${view === 'report' ? 'on' : ''}`} onClick={() => setView('report')}>Report images</button>
+        <button className={`tab ${view === 'board' ? 'on' : ''}`} onClick={() => setView('board')}>Leaderboard</button>
+      </nav>
       {!teams.length && <p className="muted">Create a team first.</p>}
       {data && view === 'report' && (matchId === 'all' ? (
         <SeasonReportView title={teams.find((t) => t.id === teamId)?.name ?? 'Team'} matches={data.matches} players={data.players} events={events} />
@@ -82,9 +82,9 @@ export function Reports() {
         const one = matchId === 'all' ? null : data.matches.find((m) => m.id === matchId);
         return (
           <div className="row wrap">
-            <button className="btn small" onClick={() => setPrinting(true)}>📄 PDF report</button>
-            {one && <button className="btn small" onClick={() => exportEventsCsv(one, data.players, events)}>⬇ Events CSV</button>}
-            {one && <button className="btn small" onClick={() => exportPlayersCsv(one, data.players, events)}>⬇ Player CSV</button>}
+            <button className="btn small" onClick={() => setPrinting(true)}>PDF report</button>
+            {one && <button className="btn small" onClick={() => exportEventsCsv(one, data.players, events)}>Events CSV</button>}
+            {one && <button className="btn small" onClick={() => exportPlayersCsv(one, data.players, events)}>Player CSV</button>}
           </div>
         );
       })()}
@@ -111,7 +111,7 @@ export function Reports() {
                 </label>
               )}
               actions={url
-                ? <button className="btn small" onClick={() => shareUrl(url, p.name)}>🔗 Share page</button>
+                ? <button className="btn small" onClick={() => shareUrl(url, p.name)}>Share page</button>
                 : <span className="muted small">Create the public link (top) to share this page.</span>} />
           </>
         );
@@ -168,13 +168,13 @@ function PublicLink({ teamId, token, setToken }: { teamId: number; token: string
   const url = token ? `${publicBase()}/s/t/${token}` : null;
   return url ? (
     <div className="row">
-      <button className="btn" onClick={() => shareUrl(url, 'Team stats')}>🔗 Share public stats</button>
+      <button className="btn" onClick={() => shareUrl(url, 'Team stats')}>Share public stats</button>
       <a className="btn-ghost small" href={url} target="_blank" rel="noreferrer">Open</a>
       <button className="btn-ghost small" onClick={async () => {
         if (confirm('Revoke the public link? Everyone with the old link loses access.')) setToken((await api.shareTeam(teamId, true)).share_token);
       }}>Revoke</button>
     </div>
   ) : (
-    <button className="btn" onClick={async () => setToken((await api.shareTeam(teamId)).share_token)}>🔗 Create public stats link</button>
+    <button className="btn" onClick={async () => setToken((await api.shareTeam(teamId)).share_token)}>Create public stats link</button>
   );
 }
