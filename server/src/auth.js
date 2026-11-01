@@ -85,7 +85,7 @@ export function registerCors(app, origins) {
     reply.header('Access-Control-Allow-Origin', origin);
     reply.header('Vary', 'Origin');
     if (req.method === 'OPTIONS') {
-      reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+      reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       reply.header('Access-Control-Allow-Headers', 'authorization,content-type');
       reply.header('Access-Control-Max-Age', '86400');
       return reply.code(204).send();

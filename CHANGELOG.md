@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Fixes**
+- The Android app showed "No connection to the server" on every change that uses PUT (confirming a found video, linking a team, the learned-settings switch). The server's CORS rules did not allow PUT, so the app's requests were blocked before they reached the server.
+
 **Videos found by the search are easy to find**
 - Matches: a "N possible videos to check" bar shows the games the YouTube search found something for; one tap lists just those. Once you confirm a video (or "None of these") the game leaves that list.
 - The video filter is now All games / To check / With video ("only with video" only showed confirmed ones, so found videos seemed to be missing).

@@ -232,3 +232,15 @@ test('match center: any Swiss Volley game, by week or a region season, videos fo
   assert.equal((await app.inject({ url: `/api/share/team/nope/center?from=2026-10-19&to=2026-10-25` })).statusCode, 404);
   await app.close();
 });
+
+test('the Android app can send PUT (CORS preflight allows it)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-cors-'));
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') });
+  for (const method of ['PUT', 'DELETE', 'PATCH']) {
+    const r = await app.inject({ method: 'OPTIONS', url: '/api/games/1/video', headers: { origin: 'https://localhost', 'access-control-request-method': method, 'access-control-request-headers': 'authorization,content-type' } });
+    assert.equal(r.statusCode, 204, method);
+    assert.match(r.headers['access-control-allow-methods'], new RegExp(method));
+    assert.equal(r.headers['access-control-allow-origin'], 'https://localhost');
+  }
+  await app.close();
+});
