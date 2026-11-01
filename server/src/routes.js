@@ -483,7 +483,7 @@ export function registerRoutes(app, { db, vision, numbers = null, insights, touc
   app.get('/api/numbers/enabled', coach, async () => ({ enabled: !!numbers?.enabled }));
   app.post('/api/numbers/read', coach, async (req, reply) => {
     if (!numbers?.enabled) return bad(reply, 'Reading shirt numbers is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
-    const [images, err] = cleanImages(req.body);
+    const [images, err] = cleanImages(req.body, 12);
     if (err) return bad(reply, err);
     if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
     try {

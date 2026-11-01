@@ -614,6 +614,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <button className="btn wide" onClick={() => {
                 player.current?.pause();
                 setShowSettings(false);
+                player.current?.resetZoom();
                 calib.load(match.calibration?.points ?? []);
                 setCalibFrom(null);
                 setCalibrating(true);

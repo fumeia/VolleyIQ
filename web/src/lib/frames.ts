@@ -73,17 +73,27 @@ export async function touchPictures(url: string, times: number[], label: (k: num
   return out;
 }
 
-/** The frame at [t] at up to [maxWidth] pixels wide (shirt numbers need detail), as base64 JPEG. */
-export async function stillFrame(url: string, t: number, maxWidth = 1920): Promise<string> {
+/**
+ * Pictures of the frame at [t] for reading shirt numbers, at the video's full resolution:
+ * the part in [crop] (fractions of the picture, e.g. the zoomed-in view) as one picture, or
+ * without a crop the whole frame cut into four overlapping quarters (an AI model shrinks big
+ * pictures, so a whole frame would lose the numbers). As base64 JPEGs.
+ */
+export async function stillFrames(url: string, t: number, crop: { x: number; y: number; w: number; h: number } | null, maxSide = 1600): Promise<string[]> {
   const v = await openVideo(url);
   try {
     await seek(v, t);
-    const s = Math.min(1, maxWidth / v.videoWidth);
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(v.videoWidth * s);
-    canvas.height = Math.round(v.videoHeight * s);
-    canvas.getContext('2d')!.drawImage(v, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
+    const W = v.videoWidth, H = v.videoHeight;
+    const parts = crop ? [crop] : [[0, 0], [0.4, 0], [0, 0.4], [0.4, 0.4]].map(([x, y]) => ({ x, y, w: 0.6, h: 0.6 }));
+    return parts.map((p) => {
+      const sx = p.x * W, sy = p.y * H, sw = p.w * W, sh = p.h * H;
+      const s = Math.min(1, maxSide / Math.max(sw, sh));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(sw * s));
+      canvas.height = Math.max(1, Math.round(sh * s));
+      canvas.getContext('2d')!.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    });
   } finally {
     v.removeAttribute('src');
     v.load();

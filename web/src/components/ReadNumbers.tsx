@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, type Player } from '../lib/api';
-import { stillFrame } from '../lib/frames';
+import { stillFrames } from '../lib/frames';
 import type { PlayerHandle } from './VideoPlayer';
 
 type Found = { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] };
@@ -14,7 +14,10 @@ type Found = { shirt: string; side: string | null; numbers: { number: number; li
 export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
   player: React.RefObject<PlayerHandle | null>; teamId: number | null; teamName: string; players: Player[]; onAdded: () => void;
 }) {
-  const [frames, setFrames] = useState<{ t: number; data: string }[]>([]);
+  // Each added frame: its time, whether it was zoomed in, and its pictures (one, or four quarters).
+  const [frames, setFrames] = useState<{ t: number; zoomed: boolean; data: string[] }[]>([]);
+  const MAX = 12;
+  const used = frames.reduce((a, f) => a + f.data.length, 0);
   const [found, setFound] = useState<Found[] | null>(null);
   const [off, setOff] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState('');
@@ -31,24 +34,27 @@ export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
   return (
     <div className="read-numbers">
       <p className="small muted">
-        Pause where the shirt numbers can be seen (the line-up before the game, a time-out, players on court) and add the frame.
-        Two to four frames from different moments read more numbers.
+        Pause where the shirt numbers can be seen (the line-up before the game, a time-out, players on court). Zoom in on the players
+        (two fingers on the video, or Ctrl + mouse wheel) and add the frame: the zoomed part is sent at full resolution. Unzoomed, the frame
+        is sent as four quarters. Several frames from different moments read more numbers.
       </p>
       <div className="row wrap">
-        <button className="btn" disabled={!!busy || frames.length >= 4} onClick={() => run('frame', async () => {
+        <button className="btn" disabled={!!busy || used + (player.current?.view() ? 1 : 4) > MAX} onClick={() => run('frame', async () => {
           player.current?.pause();
           const t = player.current?.time() ?? 0;
-          const data = await stillFrame(url, t);
-          setFrames((l) => [...l, { t, data }]);
+          const view = player.current?.view() ?? null;
+          const data = await stillFrames(url, t, view);
+          setFrames((l) => [...l, { t, zoomed: !!view, data }]);
           setFound(null);
-        })}>{busy === 'frame' ? 'Taking the frame…' : `Add this frame (${frames.length}/4)`}</button>
+        })}>{busy === 'frame' ? 'Taking the frame…' : 'Add this frame'}</button>
+        <span className="small muted">{used}/{MAX} pictures</span>
         {frames.map((f, i) => (
-          <span key={i} className="chip">{time(f.t)} <button className="link" onClick={() => { setFrames((l) => l.filter((_, k) => k !== i)); setFound(null); }} aria-label="Remove">✕</button></span>
+          <span key={i} className="chip">{time(f.t)}{f.zoomed ? ' zoomed' : ' whole'} <button className="link" onClick={() => { setFrames((l) => l.filter((_, k) => k !== i)); setFound(null); }} aria-label="Remove">✕</button></span>
         ))}
       </div>
       {frames.length > 0 && !found && (
         <button className="btn btn-primary" disabled={!!busy} onClick={() => run('read', async () => {
-          const r = await api.readNumbers(frames.map((f) => ({ media_type: 'image/jpeg', data: f.data })));
+          const r = await api.readNumbers(frames.flatMap((f) => f.data.map((data) => ({ media_type: 'image/jpeg', data }))));
           setFound(r.teams);
           setOff(new Set());
           if (!r.teams.length) setError('No shirt numbers could be read. Try frames where the players are closer or face the camera.');

@@ -15,6 +15,9 @@ export interface PlayerHandle {
   aspect(): number | null;
   /** The local video's URL, for reading still frames (null for YouTube). */
   fileUrl(): string | null;
+  /** The part of the video in view when zoomed in, as fractions of the picture (null: all of it). */
+  view(): { x: number; y: number; w: number; h: number } | null;
+  resetZoom(): void;
 }
 
 interface Props {
@@ -93,6 +96,26 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
   const tapTimer = useRef<number | undefined>(undefined);
   const stateCb = useRef(onStateChange);
   stateCb.current = onStateChange;
+  // Zoom: s = scale, (x, y) = top left of the part in view, as fractions of the box.
+  const [zoom, setZoomState] = useState({ s: 1, x: 0, y: 0 });
+  const zoomRef = useRef(zoom);
+  const setZoom = (z: { s: number; x: number; y: number }) => {
+    const s = Math.min(5, Math.max(1, z.s));
+    const w = 1 / s;
+    const next = s === 1 ? { s: 1, x: 0, y: 0 } : { s, x: Math.min(1 - w, Math.max(0, z.x)), y: Math.min(1 - w, Math.max(0, z.y)) };
+    zoomRef.current = next;
+    setZoomState(next);
+  };
+  /** Zooms by [factor] keeping the point (fx, fy) of the box (fractions) where it is. */
+  const zoomAt = (factor: number, fx: number, fy: number) => {
+    const z = zoomRef.current;
+    const s = Math.min(5, Math.max(1, z.s * factor));
+    const px = z.x + fx / z.s, py = z.y + fy / z.s;
+    setZoom({ s, x: px - fx / s, y: py - fy / s });
+  };
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{ dist: number; moved: boolean } | null>(null);
+  useEffect(() => { setZoom({ s: 1, x: 0, y: 0 }); }, [source?.type === 'file' ? source.url : source?.type === 'youtube' ? source.id : null]);
 
   useEffect(() => {
     if (source?.type !== 'youtube' || !ytHost.current) return;
@@ -127,6 +150,22 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
       return v && v.videoWidth ? v.videoWidth / v.videoHeight : null;
     },
     fileUrl: () => (source?.type === 'file' && !source.remote ? source.url : null),
+    view: () => {
+      const z = zoomRef.current;
+      if (z.s <= 1) return null;
+      // The box shows the video letterboxed: turn the part of the box in view into a part of the picture.
+      const v = video.current;
+      const box = v?.parentElement?.parentElement;
+      const ar = v && v.videoWidth ? v.videoWidth / v.videoHeight : 16 / 9;
+      const br = box ? box.clientWidth / Math.max(1, box.clientHeight) : 16 / 9;
+      const pw = ar >= br ? 1 : ar / br, ph = ar >= br ? br / ar : 1;
+      const ox = (1 - pw) / 2, oy = (1 - ph) / 2;
+      const w = 1 / z.s;
+      const x0 = Math.max(0, (z.x - ox) / pw), y0 = Math.max(0, (z.y - oy) / ph);
+      const x1 = Math.min(1, (z.x + w - ox) / pw), y1 = Math.min(1, (z.y + w - oy) / ph);
+      return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+    },
+    resetZoom: () => setZoom({ s: 1, x: 0, y: 0 }),
     play: () => (source?.type === 'youtube' ? yt.current?.playVideo?.() : video.current?.play().catch(() => {})),
     pause: () => (source?.type === 'youtube' ? yt.current?.pauseVideo?.() : video.current?.pause()),
     isPlaying: () => {
@@ -153,6 +192,66 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
     },
   };
   useImperativeHandle(ref, () => handle);
+
+  // Two fingers pinch to zoom; one finger (or the mouse) drags the zoomed picture around.
+  const frac = (e: { clientX: number; clientY: number }, el: Element) => {
+    const r = el.getBoundingClientRect();
+    return { fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height };
+  };
+  function onDown(e: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      gesture.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), moved: true };
+    } else gesture.current = { dist: 0, moved: false };
+  }
+  function onMove(e: React.PointerEvent<HTMLDivElement>) {
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev || !gesture.current) return;
+    const el = e.currentTarget;
+    if (pointers.current.size >= 2) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (gesture.current.dist > 0) {
+        const { fx, fy } = frac({ clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 }, el);
+        zoomAt(dist / gesture.current.dist, fx, fy);
+      }
+      gesture.current.dist = dist;
+      return;
+    }
+    const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    if (zoomRef.current.s > 1 && (gesture.current.moved || Math.hypot(dx, dy) > 8)) {
+      const r = el.getBoundingClientRect();
+      const z = zoomRef.current;
+      setZoom({ ...z, x: z.x - dx / r.width / z.s, y: z.y - dy / r.height / z.s });
+      gesture.current.moved = true;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+  }
+  function onUp(e: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.delete(e.pointerId);
+    const g = gesture.current;
+    if (pointers.current.size > 0) return;
+    gesture.current = null;
+    // A pinch or a drag is not a tap.
+    if (!g?.moved) onTap(e);
+  }
+  // Mouse wheel (Ctrl + wheel, or a trackpad pinch) zooms; once zoomed, the wheel alone does.
+  // A native listener: React's is passive, so it could not keep the page from scrolling.
+  const touchEl = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = touchEl.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.altKey && zoomRef.current.s === 1) return;
+      e.preventDefault();
+      const { fx, fy } = frac(e, el);
+      zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
 
   // Touch overlay: single tap = play/pause, double tap on left/right third = ∓5s (like YouTube mobile).
   function onTap(e: React.PointerEvent<HTMLDivElement>) {
@@ -188,6 +287,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
 
   return (
     <div className="video-box">
+      <div className="video-zoom" style={zoom.s > 1 ? { transform: `scale(${zoom.s}) translate(${-zoom.x * 100}%, ${-zoom.y * 100}%)` } : undefined}>
       {source.type === 'youtube' ? (
         <div ref={ytHost} className="video-fill" />
       ) : (
@@ -217,7 +317,10 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
           onError={() => { setLoad('error'); onError?.(); }}
         />
       )}
-      <div className="video-touch" onPointerUp={onTap} />
+      </div>
+      <div className="video-touch" ref={touchEl} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
+        onPointerCancel={(e) => { pointers.current.delete(e.pointerId); gesture.current = null; }} />
+      {zoom.s > 1 && <button className="video-zoom-reset" onClick={() => setZoom({ s: 1, x: 0, y: 0 })} title="Show the whole picture">{zoom.s.toFixed(1)}× · 1×</button>}
       {flash && <div className="video-flash">{flash}</div>}
       {source.type === 'file' && load && (load !== 'loading' || source.remote) && (
         <div className="video-status">

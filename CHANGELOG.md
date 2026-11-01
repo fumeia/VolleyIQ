@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Zoom in the video**
+- Pinch with two fingers on the video (Ctrl + mouse wheel or a trackpad pinch on a computer) to zoom in up to 5×, drag to look around, "1×" to see the whole picture again. Taps still play and pause.
+- Roster from the video: a zoomed-in frame is sent as exactly the part in view, at the video's full resolution; a frame without zoom is sent as four overlapping quarters (an AI model shrinks a whole frame, and the numbers get lost). Up to 12 pictures at once.
+
 **YouTube streams in the app too**
 - A YouTube link no longer starts a download in the app: the match plays the YouTube video, like on the website, and you can tag right away. Downloading is only needed for auto-detection, the AI check and reading shirt numbers: tick "Also download it to this phone" when creating the match, or press "Download the YouTube video" in the Auto tab later (tags keep their times).
 

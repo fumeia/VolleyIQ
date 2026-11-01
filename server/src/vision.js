@@ -144,10 +144,10 @@ export function makeVisionScanner(env = {}, scan = null) {
 }
 
 /** Validate the uploaded images array from the request body. Returns [images, error]. */
-export function cleanImages(body) {
+export function cleanImages(body, max = 4) {
   const list = Array.isArray(body?.images) ? body.images : null;
   if (!list || !list.length) return [null, 'images required: [{ media_type, data }]'];
-  if (list.length > 4) return [null, 'at most 4 pages'];
+  if (list.length > max) return [null, `at most ${max} pictures`];
   const out = [];
   for (const im of list) {
     if (!im || !OK_TYPES.has(im.media_type) || typeof im.data !== 'string') {
@@ -165,7 +165,7 @@ const NUMBERS_SYSTEM = `You look at frames from a volleyball match video and lis
 
 - Teams are told apart by shirt colour. Liberos wear a different colour than their team: put them in their team (the one on the same side of the net, or lined up with it) and mark them as libero.
 - Only numbers you can read with confidence. A number half hidden, blurred or seen from an angle where 6/9, 1/7 or 3/8 could be confused: leave it out.
-- Several frames are of the same match (e.g. the line-up before the game, players on court): combine them, each number once per team.
+- The pictures are parts of frames of the same match: zoomed-in parts, or a frame cut into four overlapping quarters (so a player can be in two pictures). Combine them all, each number once per team.
 - Ignore referees, coaches in plain clothes, the score board and numbers on the floor or walls.`;
 
 const NUMBERS_SCHEMA = {
@@ -208,7 +208,7 @@ export function makeNumberReader(env = {}, read = null) {
     async read(images, { onUsage = null } = {}) {
       const text = await aiComplete(cfg, {
         system: NUMBERS_SYSTEM,
-        text: `List the readable shirt numbers per team in ${images.length === 1 ? 'this frame' : `these ${images.length} frames`}.`,
+        text: `List the readable shirt numbers per team in ${images.length === 1 ? 'this picture' : `these ${images.length} pictures`}.`,
         images,
         maxTokens: 1500,
         schema: NUMBERS_SCHEMA,
