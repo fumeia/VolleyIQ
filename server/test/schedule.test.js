@@ -103,6 +103,9 @@ test('linking a team, its schedule, the opponent and video search', async () => 
   assert.equal(found.state, 'found');
   assert.equal(found.url, 'https://www.youtube.com/watch?v=v2');
   assert.equal(found.candidates.length, 1, 'a clip without the team names is left out');
+  const usage = (await app.inject({ url: '/api/youtube/usage' })).json();
+  assert.deepEqual([usage.enabled, usage.used, usage.limit, usage.searchesLeft], [true, 101, 10000, 98], 'a search costs 101 of the 10,000 daily units');
+  assert.ok(Date.parse(usage.resetsAt) > Date.now());
   const ok = (await app.inject({ method: 'PUT', url: '/api/games/4990/video', payload: { url: found.url, title: 'Bergli - Seetal' } })).json();
   assert.equal(ok.state, 'confirmed');
   assert.equal((await app.inject({ url: `/api/schedule/${first.id}/opponent` })).json().games[1].video.state, 'confirmed');

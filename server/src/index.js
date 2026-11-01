@@ -57,7 +57,7 @@ export async function buildApp(env = process.env, opts = {}) {
 
   // Team schedules from Swiss Volley, other teams' games, videos found on YouTube.
   const youtube = (opts.youtubeKey !== undefined ? opts.youtubeKey : env.YOUTUBE_API_KEY) || null;
-  const schedule = makeSchedule(db, { fetchFn: opts.scheduleFetch ?? fetch, youtubeKey: youtube, log: (m) => app.log.warn(m) });
+  const schedule = makeSchedule(db, { fetchFn: opts.scheduleFetch ?? fetch, youtubeKey: youtube, ytLimit: Number(env.YOUTUBE_DAILY_QUOTA) || 10000, log: (m) => app.log.warn(m) });
   registerSchedule(app, { db, schedule, youtube });
   if (env.NODE_ENV !== 'test') {
     const stop = startScheduleSync(db, schedule, (m) => app.log.warn(m));

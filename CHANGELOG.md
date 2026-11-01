@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**More from the YouTube search**
+- Matches: "Search YouTube for N" searches every played game in the filtered list that has no video and was not searched yet, one after the other (with a stop button), as far as today's quota goes. Found videos show as "possible video" in the list; open a game to check them.
+- Matches: pick the period as a week, any dates (last 7 / 30 days; at most a month without a region) or a region's whole season.
+- About → YouTube video search: searches left today, units used of the 10,000 free ones, and when they start over (9:00 Swiss time). Searches stop by themselves when the quota is used up.
+
 **Testing the auto-detection on any video**
 - "How well did the detection do?" now only judges the parts of the video you tagged. A run always covers the whole video; when only one set was tagged to test it, the detections in the untagged sets used to count as extras. It says how many it left out.
 

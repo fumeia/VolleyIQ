@@ -29,8 +29,10 @@ export interface VideoSuggestion { id: number; url: string; title: string | null
 export interface CenterGame {
   gameId: number; start: string; home: string; away: string; leagueId: number | null; league: string | null; phase: string | null; group: string | null;
   gender: 'f' | 'm' | 'mixed' | null; hall: string | null; city: string | null; result: string | null; sets: string[];
-  videoState: 'confirmed' | 'found' | null; sent?: number; match_id?: number | null;
+  videoState: 'confirmed' | 'found' | null; searched?: boolean; sent?: number; match_id?: number | null;
 }
+/** Today's YouTube quota: units used and left (a search costs 101), and when it starts over. */
+export interface YoutubeUsage { enabled: boolean; used: number; limit: number; left: number; searchesLeft: number; resetsAt: string }
 export interface CenterQuery { region?: string | null; from: string; to: string }
 const centerQs = (q: CenterQuery) => new URLSearchParams({ ...(q.region ? { region: q.region } : {}), from: q.from, to: q.to }).toString();
 /** Any game of a league (other teams' games too). */
@@ -209,6 +211,7 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  youtubeUsage: () => req<YoutubeUsage>('GET', '/api/youtube/usage'),
   center: (q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[]; videoSearch: boolean }>('GET', `/api/center?${centerQs(q)}`),
   sharedCenter: (token: string, q: CenterQuery) => req<{ games: CenterGame[]; regions: { id: string; label: string }[] }>('GET', `/api/share/team/${token}/center?${centerQs(q)}`),
   gameVideo: (gameId: number) => req<{ video: GameVideo | null; suggestions: VideoSuggestion[] }>('GET', `/api/games/${gameId}/video`),

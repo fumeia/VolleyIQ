@@ -12,7 +12,7 @@ function season(date = new Date()) {
   return { from: `${y}-08-01`, to: `${y + 1}-07-31` };
 }
 
-export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () => {} } = {}) {
+export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, ytLimit = 10000, log = () => {} } = {}) {
   const team = (id) => db.prepare('SELECT * FROM teams WHERE id = ?').get(id);
   const cache = {
     get: (key, maxAgeMs) => {
@@ -116,9 +116,30 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
   };
 
   /** Searches YouTube for a game; the best match is suggested until someone confirms or rejects it. */
+  // YouTube's free quota: 10,000 units a day, counted by Google from midnight Pacific time.
+  // A search costs 100 units, reading the found videos' details 1 more.
+  const ytDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const SEARCH_UNITS = 101;
+  function ytUsage() {
+    const used = db.prepare('SELECT units FROM yt_usage WHERE day = ?').get(ytDay())?.units ?? 0;
+    // The next midnight in Los Angeles.
+    let reset = new Date(Math.ceil(Date.now() / 3600000) * 3600000);
+    while (ytDay(reset) === ytDay()) reset = new Date(reset.getTime() + 3600000);
+    return { enabled: !!youtubeKey, used, limit: ytLimit, left: Math.max(0, ytLimit - used), searchesLeft: Math.max(0, Math.floor((ytLimit - used) / SEARCH_UNITS)), resetsAt: reset.toISOString() };
+  }
+  const addUnits = (n) => db.prepare('INSERT INTO yt_usage (day, units) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET units = units + excluded.units').run(ytDay(), n);
+
   async function searchVideo(game) {
     if (!youtubeKey) throw Object.assign(new Error('Video search is not set up on the server (YOUTUBE_API_KEY in .env)'), { status: 503 });
-    const found = await findVideos(game, { key: youtubeKey, fetchFn });
+    if (ytUsage().searchesLeft < 1) throw Object.assign(new Error("Today's YouTube searches are used up (they come back at midnight in California, 9:00 in Switzerland)"), { status: 429 });
+    let found;
+    try {
+      found = await findVideos(game, { key: youtubeKey, fetchFn, onUnits: addUnits });
+    } catch (e) {
+      // Google says the quota is gone (e.g. the key is also used elsewhere): count the day as full.
+      if (/answered 403/.test(e.message)) { addUnits(Math.max(0, ytLimit - ytUsage().used)); throw Object.assign(new Error("YouTube refused the search: today's quota is used up, or the key is not valid"), { status: 429 }); }
+      throw e;
+    }
     const old = videoOf(game.gameId);
     const keepChoice = old?.state === 'confirmed';
     db.prepare(`INSERT INTO game_videos (game_id, candidates, url, title, state, searched_at) VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -179,7 +200,7 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     if (region && !REGIONS.some((r) => r.id === region)) throw Object.assign(new Error('Unknown region'), { status: 400 });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '') || to < from) throw Object.assign(new Error('from and to are needed (YYYY-MM-DD)'), { status: 400 });
     const days = (Date.parse(to) - Date.parse(from)) / 86400000;
-    if (days > (region ? 400 : 15)) throw Object.assign(new Error(region ? 'At most a season at a time' : 'Pick a region to see more than two weeks'), { status: 400 });
+    if (days > (region ? 400 : 31)) throw Object.assign(new Error(region ? 'At most a season at a time' : 'Pick a region to see more than a month'), { status: 400 });
     const key = `center:${region ?? 'all'}:${from}:${to}`;
     const past = to < new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
     const fresh = cache.get(key, past ? 24 * HOURS : HOURS);
@@ -203,7 +224,7 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, log = () 
     }
   }
 
-  return { sync, connect, league, opponentGames, center, videoOf, searchVideo, videoTitle, cache };
+  return { sync, connect, league, opponentGames, center, videoOf, searchVideo, videoTitle, ytUsage, cache };
 }
 
 export function registerSchedule(app, { db, schedule, youtube }) {
@@ -253,17 +274,23 @@ export function registerSchedule(app, { db, schedule, youtube }) {
     return { ok: true };
   });
 
+  // What is left of today's free YouTube quota.
+  app.get('/api/youtube/usage', coach, async () => schedule.ytUsage());
+
   // ---------- match center: every Swiss Volley game, filtered in the page ----------
   const centerQuery = (q) => ({ region: q.region || null, from: q.from, to: q.to });
   app.get('/api/center', coach, async (req, reply) => {
     try {
       const games = await schedule.center(centerQuery(req.query));
       const sent = new Map(db.prepare("SELECT game_id, COUNT(*) AS n FROM video_suggestions WHERE status = 'open' GROUP BY game_id").all().map((r) => [r.game_id, r.n]));
-      const videos = new Map(db.prepare("SELECT game_id, state FROM game_videos WHERE state IN ('confirmed', 'found')").all().map((r) => [r.game_id, r.state]));
+      const videos = new Map(db.prepare('SELECT game_id, state, searched_at FROM game_videos').all().map((r) => [r.game_id, r]));
       const ours = new Map(db.prepare('SELECT game_id, match_id FROM schedule WHERE match_id IS NOT NULL').all().map((r) => [r.game_id, r.match_id]));
       return {
         regions: REGIONS, videoSearch: !!youtube,
-        games: games.map((g) => ({ ...g, videoState: videos.get(g.gameId) ?? null, sent: sent.get(g.gameId) ?? 0, match_id: ours.get(g.gameId) ?? null })),
+        games: games.map((g) => {
+          const v = videos.get(g.gameId);
+          return { ...g, videoState: v && (v.state === 'confirmed' || v.state === 'found') ? v.state : null, searched: !!v?.searched_at, sent: sent.get(g.gameId) ?? 0, match_id: ours.get(g.gameId) ?? null };
+        }),
       };
     } catch (e) {
       return bad(reply, e.message, e.status ?? 502);

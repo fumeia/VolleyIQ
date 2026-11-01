@@ -264,7 +264,7 @@ export function scoreVideo(v, game) {
 }
 
 /** Videos that may show [game] ({ home, away, start }), best first. Needs a YouTube Data API key. */
-export async function findVideos(game, { key, fetchFn = fetch }) {
+export async function findVideos(game, { key, fetchFn = fetch, onUnits = () => {} }) {
   const day = Date.parse(game.start);
   const params = new URLSearchParams({
     part: 'snippet', type: 'video', maxResults: '15', key,
@@ -273,9 +273,11 @@ export async function findVideos(game, { key, fetchFn = fetch }) {
     publishedAfter: new Date(day - 10 * 86400000).toISOString(),
     publishedBefore: new Date(day + 21 * 86400000).toISOString(),
   });
+  onUnits(100);
   const search = JSON.parse(await get(fetchFn, `https://www.googleapis.com/youtube/v3/search?${params}`));
   const ids = (search.items ?? []).map((i) => i.id?.videoId).filter(Boolean);
   if (!ids.length) return [];
+  onUnits(1);
   const details = JSON.parse(await get(fetchFn, `https://www.googleapis.com/youtube/v3/videos?${new URLSearchParams({ part: 'snippet,contentDetails', id: ids.join(','), key })}`));
   return (details.items ?? [])
     .map((v) => ({

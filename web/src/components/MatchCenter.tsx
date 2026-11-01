@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type CenterGame, type CenterQuery, type GameVideo, type VideoSuggestion } from '../lib/api';
+import { api, type CenterGame, type CenterQuery, type GameVideo, type VideoSuggestion, type YoutubeUsage } from '../lib/api';
 import { VideoFinder } from './Schedule';
 import { SuggestVideoForm } from './TeamOverview';
 import { parseYouTubeId } from './VideoPlayer';
 
-type Filters = { region: string; period: 'week' | 'season'; week: string; gender: string; league: string; q: string; status: 'all' | 'played' | 'next'; video: boolean };
+type Filters = { region: string; period: 'week' | 'range' | 'season'; week: string; from: string; to: string; gender: string; league: string; q: string; status: 'all' | 'played' | 'next'; video: boolean };
 const KEY = 'viq:center';
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 /** Monday of the week of [d]. */
@@ -17,7 +17,8 @@ const short = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString(undefi
 const GENDER: Record<string, string> = { f: 'Women', m: 'Men', mixed: 'Mixed' };
 
 function loadFilters(): Filters {
-  const base: Filters = { region: '', period: 'week', week: monday(new Date()), gender: '', league: '', q: '', status: 'all', video: false };
+  const today = iso(new Date());
+  const base: Filters = { region: '', period: 'week', week: monday(new Date()), from: addDays(today, -13), to: today, gender: '', league: '', q: '', status: 'all', video: false };
   try { return { ...base, ...JSON.parse(localStorage.getItem(KEY) ?? '{}'), week: monday(new Date()) }; } catch { return base; }
 }
 
@@ -42,7 +43,9 @@ export function MatchCenter({ token }: { token?: string }) {
     return n;
   });
 
-  const query: CenterQuery = f.period === 'season' && f.region ? { region: f.region, ...season() } : { region: f.region || null, from: f.week, to: addDays(f.week, 6) };
+  const query: CenterQuery = f.period === 'season' && f.region ? { region: f.region, ...season() }
+    : f.period === 'range' ? { region: f.region || null, from: f.from <= f.to ? f.from : f.to, to: f.from <= f.to ? f.to : f.from }
+    : { region: f.region || null, from: f.week, to: addDays(f.week, 6) };
   const load = () => {
     setLoading(true); setError('');
     (token ? api.sharedCenter(token, query).then((r) => ({ ...r, videoSearch: false })) : api.center(query))
@@ -75,7 +78,7 @@ export function MatchCenter({ token }: { token?: string }) {
   const withVideo = (data?.games ?? []).filter((g) => g.videoState === 'confirmed').length;
 
   const regionName = f.region ? data?.regions.find((r) => r.id === f.region)?.label ?? f.region : 'All of Switzerland';
-  const summary = [regionName, f.period === 'season' && f.region ? 'whole season' : `${short(f.week)} – ${short(addDays(f.week, 6))}`,
+  const summary = [regionName, f.period === 'season' && f.region ? 'whole season' : `${short(query.from)} – ${short(query.to)}`,
     f.gender ? GENDER[f.gender] : null, f.league || null, f.status === 'played' ? 'results' : f.status === 'next' ? 'upcoming' : null,
     f.q.trim() ? `“${f.q.trim()}”` : null, f.video ? 'with video' : null].filter(Boolean).join(' · ');
   return (
@@ -94,18 +97,32 @@ export function MatchCenter({ token }: { token?: string }) {
             </select>
           </label>
           <div className="filter"><span>Period</span>
-            {f.period === 'season' && f.region ? (
-              <div className="week-nav"><b>Whole season</b><button className="btn small" onClick={() => set({ period: 'week' })}>By week</button></div>
-            ) : (
+            <div className="seg">
+              <button className={f.period === 'week' ? 'on' : ''} onClick={() => set({ period: 'week' })}>Week</button>
+              <button className={f.period === 'range' ? 'on' : ''} onClick={() => set({ period: 'range' })}>Dates</button>
+              <button className={f.period === 'season' && f.region ? 'on' : ''} disabled={!f.region} title={f.region ? '' : 'Pick a region first'} onClick={() => set({ period: 'season' })}>Season</button>
+            </div>
+          </div>
+          {f.period === 'week' && (
+            <div className="filter"><span>Week</span>
               <div className="week-nav">
                 <button className="btn small" onClick={() => set({ week: addDays(f.week, -7) })} aria-label="Week before">‹</button>
                 <b>{short(f.week)} – {short(addDays(f.week, 6))}</b>
                 <button className="btn small" onClick={() => set({ week: addDays(f.week, 7) })} aria-label="Week after">›</button>
                 {f.week !== monday(new Date()) && <button className="btn-ghost small" onClick={() => set({ week: monday(new Date()) })}>This week</button>}
-                {f.region && <button className="btn-ghost small" onClick={() => set({ period: 'season' })}>Whole season</button>}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+          {f.period === 'range' && (
+            <div className="filter"><span>From – to{f.region ? '' : ' (at most a month without a region)'}</span>
+              <div className="week-nav">
+                <input className="input" type="date" value={f.from} onChange={(e) => e.target.value && set({ from: e.target.value })} />
+                <input className="input" type="date" value={f.to} onChange={(e) => e.target.value && set({ to: e.target.value })} />
+                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -6), to: iso(new Date()) })}>Last 7 days</button>
+                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -29), to: iso(new Date()) })}>Last 30 days</button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="filter-row">
           <div className="filter"><span>Teams</span>
@@ -134,6 +151,8 @@ export function MatchCenter({ token }: { token?: string }) {
         <button className="btn btn-primary filter-done" onClick={() => setOpen(false)}>Show {rows.length} game{rows.length === 1 ? '' : 's'}</button>
       </section>}
 
+      {!token && data?.videoSearch && <BulkSearch games={rows} onFound={(id, state) => setData((d) => d && { ...d, games: d.games.map((g) => (g.gameId === id ? { ...g, ...state } : g)) })} />}
+
       <p className="small muted center-count">
         {loading ? 'Reading Swiss Volley…' : error ? '' : `${rows.length} game${rows.length === 1 ? '' : 's'}${rows.length !== (data?.games.length ?? 0) ? ` of ${data?.games.length}` : ''}`}
       </p>
@@ -151,10 +170,10 @@ export function MatchCenter({ token }: { token?: string }) {
                     <td className="sched-game">
                       <span>{g.home}</span><span className="sched-vs">{g.away}</span>
                       <small className="muted">{[g.league, g.gender ? GENDER[g.gender] : null, g.city].filter(Boolean).join(' · ')}</small>
-                      {(g.videoState === 'confirmed' || g.sent || g.match_id) ? (
+                      {(g.videoState || g.sent || g.match_id) ? (
                         <span className="sched-flags">
                           {g.match_id ? <span className="badge badge-pending">tagged</span> : null}
-                          {g.videoState === 'confirmed' ? <span className="badge">video</span> : null}
+                          {g.videoState === 'confirmed' ? <span className="badge">video</span> : g.videoState === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search, not checked yet">possible video</span> : null}
                           {g.sent ? <span className="badge badge-suggest">{g.sent} video{g.sent === 1 ? '' : 's'} sent</span> : null}
                         </span>
                       ) : null}
@@ -238,6 +257,61 @@ function CenterSheet({ game, token, videoSearch, onClose, onChanged }: {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Search YouTube for many games at once: the played games in the list that have no video and
+ * were not searched yet, one after the other, as far as today's quota goes.
+ */
+function BulkSearch({ games, onFound }: { games: CenterGame[]; onFound: (gameId: number, g: Partial<CenterGame>) => void }) {
+  const [usage, setUsage] = useState<YoutubeUsage | null>(null);
+  const [run, setRun] = useState<{ done: number; total: number; found: number; stop: boolean; error?: string } | null>(null);
+  const stopRef = useRef(false);
+  useEffect(() => { api.youtubeUsage().then(setUsage).catch(() => {}); }, [run?.done === run?.total]);
+  const todo = games.filter((g) => g.result && g.videoState !== 'confirmed' && !g.searched);
+  if (!usage?.enabled) return null;
+  const n = Math.min(todo.length, usage.searchesLeft);
+  async function start() {
+    if (!confirm(`Search YouTube for ${n} game${n === 1 ? '' : 's'}? That uses ${n * 101} of the ${usage!.left.toLocaleString()} units left today.`)) return;
+    stopRef.current = false;
+    const list = todo.slice(0, n);
+    let found = 0;
+    setRun({ done: 0, total: list.length, found: 0, stop: false });
+    for (let i = 0; i < list.length; i++) {
+      if (stopRef.current) break;
+      const g = list[i];
+      try {
+        const v = await api.searchVideo(g.gameId, { home: g.home, away: g.away, start: g.start });
+        if (v.candidates.length) found++;
+        onFound(g.gameId, { searched: true, videoState: v.state === 'confirmed' ? 'confirmed' : v.state === 'found' ? 'found' : null });
+      } catch (e) {
+        setRun({ done: i, total: list.length, found, stop: true, error: e instanceof Error ? e.message : 'Failed' });
+        return;
+      }
+      setRun({ done: i + 1, total: list.length, found, stop: false });
+    }
+    setRun((r) => r && { ...r, stop: true });
+  }
+  return (
+    <div className="bulk-search">
+      {run && !run.stop ? (
+        <>
+          <div className="progress"><div style={{ width: `${(run.done / run.total) * 100}%` }} /></div>
+          <span className="small">Searching {run.done + 1} of {run.total} · possible videos for {run.found}</span>
+          <button className="btn-ghost small" onClick={() => { stopRef.current = true; }}>Stop</button>
+        </>
+      ) : (
+        <>
+          <span className="small grow">
+            {run ? <>Searched {run.done} game{run.done === 1 ? '' : 's'}: possible videos for <b>{run.found}</b> (marked in the list; open a game to check them).{run.error ? <span className="error"> {run.error}</span> : null} </> : null}
+            {todo.length ? `${todo.length} played game${todo.length === 1 ? '' : 's'} in this list without a video search yet.` : 'Every played game in this list was searched.'}
+            {' '}<span className="muted">{usage.searchesLeft} searches left today.</span>
+          </span>
+          {n > 0 && <button className="btn" onClick={start}>Search YouTube for {n}</button>}
+        </>
+      )}
     </div>
   );
 }

@@ -307,6 +307,8 @@ const MIGRATIONS = [
     starts_at TEXT, home TEXT, away TEXT, league TEXT,
     seen_at TEXT NOT NULL DEFAULT (datetime('now'))
   );`,
+  // v25: YouTube API units used per day (Google's day, Pacific time), to show what is left.
+  `CREATE TABLE IF NOT EXISTS yt_usage (day TEXT PRIMARY KEY, units INTEGER NOT NULL DEFAULT 0);`,
 ];
 
 function migrate(db) {

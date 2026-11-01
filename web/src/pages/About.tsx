@@ -1,6 +1,6 @@
 import { loadTheme, saveTheme, type ThemeChoice } from '../lib/theme';
 import { useEffect, useState } from 'react';
-import { api, authToken, isApp, publicBase, serverBase, type AppRelease } from '../lib/api';
+import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type YoutubeUsage } from '../lib/api';
 import { Native } from '../lib/native';
 import { compareVersions } from '../lib/version';
 
@@ -83,6 +83,8 @@ export function AboutPage() {
         {row('Server address', publicBase())}
       </section>
 
+      <YoutubeQuota />
+
       <section className="card">
         <h2 className="section-title">Appearance</h2>
         <div className="segmented">
@@ -157,5 +159,24 @@ export function AboutPage() {
       </section>
 
     </div>
+  );
+}
+
+/** What is left of today's free YouTube searches (for finding match videos). */
+export function YoutubeQuota() {
+  const [u, setU] = useState<YoutubeUsage | null>(null);
+  useEffect(() => { api.youtubeUsage().then(setU).catch(() => {}); }, []);
+  if (!u) return null;
+  return (
+    <section className="card">
+      <h2 className="section-title">YouTube video search</h2>
+      {!u.enabled ? <p className="small muted">Not set up on the server (YOUTUBE_API_KEY in .env).</p> : (
+        <>
+          <div className="row between"><b>{u.searchesLeft} searches left today</b><span className="small muted">{u.used.toLocaleString()} of {u.limit.toLocaleString()} units used</span></div>
+          <div className="progress"><div style={{ width: `${Math.min(100, (u.used / u.limit) * 100)}%` }} /></div>
+          <p className="small muted">Starts over at {new Date(u.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(u.resetsAt).toLocaleDateString()}). A search costs 101 of the 10,000 free units a day. Counted by VolleyIQ: searches with the same key elsewhere are not included.</p>
+        </>
+      )}
+    </section>
   );
 }

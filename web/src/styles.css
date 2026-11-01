@@ -1168,3 +1168,8 @@ button.court-zone:active { background: #2a2f3a; }
 .filter-summary b { color: var(--accent); }
 .filter-done { display: none; }
 @media (max-width: 699px) { .filter-done { display: inline-flex; } }
+
+.bulk-search { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.bulk-search .progress { flex: 1 1 100%; }
+.week-nav input[type=date] { width: auto; min-height: 36px; padding: 4px 8px; }
+.seg button:disabled { opacity: .45; }
