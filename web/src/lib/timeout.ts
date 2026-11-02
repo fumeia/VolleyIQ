@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE, scoreOf } from './actions';
+import { ACTION_BY_CODE, isGap, scoreOf } from './actions';
 import type { Player, VEvent } from './api';
 import type { Rates } from './simulate';
 
@@ -24,12 +24,13 @@ const WINDOW = 10;
 const pct = (a: number, n: number) => `${Math.round((a / n) * 100)}%`;
 const who = (p: Player) => `#${p.number ?? '?'}${p.name && !/^#?\d+$/.test(p.name.trim()) ? ` ${p.name.split(' ')[0]}` : ''}`;
 const isError = (e: VEvent) => scoreOf(e) === 'them' && ACTION_BY_CODE[e.action]?.needsPlayer !== false;
+// The last rallies: untagged points are left out (nothing is known about them).
 
 export function timeoutBrief(events: VEvent[], set: number, players: Player[], season?: Rates | null): Brief {
   const ev = events.filter((e) => e.status === 'confirmed' && (e.set_no ?? 1) === set).sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
   const ends = ev.filter((e) => scoreOf(e));
   const score = { us: ends.filter((e) => scoreOf(e) === 'us').length, them: ends.filter((e) => scoreOf(e) === 'them').length };
-  const last = ends.slice(-WINDOW);
+  const last = ends.filter((e) => !isGap(e)).slice(-WINDOW);
   const count = (f: (e: VEvent) => boolean) => last.filter(f).length;
   const recent = {
     n: last.length, won: count((e) => scoreOf(e) === 'us'), ourErrors: count(isError), theirWinners: count((e) => e.action === 'opp_point'),
@@ -37,6 +38,7 @@ export function timeoutBrief(events: VEvent[], set: number, players: Player[], s
   };
   const sideout = { won: 0, n: 0 }, brk = { won: 0, n: 0 };
   for (let i = 1; i < ends.length; i++) {
+    if (isGap(ends[i]) || isGap(ends[i - 1])) continue;
     const t = scoreOf(ends[i - 1]) === 'us' ? brk : sideout;
     t.n++;
     if (scoreOf(ends[i]) === 'us') t.won++;

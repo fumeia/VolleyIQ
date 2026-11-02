@@ -7,9 +7,11 @@ export type ActionCode =
   | 'kill' | 'ace' | 'block_point'
   | 'set' | 'assist' | 'assist_error' | 'set_error'
   | 'receive' | 'freeball'
-  | 'opp_point' | 'opp_error';
+  | 'opp_point' | 'opp_error'
+  /** A point scored while nobody tagged (live tagging paused): counts for the score only. */
+  | 'gap_us' | 'gap_them';
 
-export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team';
+export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team' | 'gap';
 
 /**
  * Court taps for an action: 'path' = where the ball was played from, then where it
@@ -52,6 +54,8 @@ export const ACTIONS: ActionDef[] = [
   { code: 'receive', label: 'Receive', short: 'Rec', group: 'receive', court: 'path', fromPrompt: 'Where was it received?', toPrompt: 'Where did the pass go?' },
   { code: 'opp_error', label: 'Opponent Error', short: 'Opp Err', group: 'team', needsPlayer: false, score: 'us' },
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },
+  { code: 'gap_us', label: 'Our point (not tagged)', short: 'Pt (gap)', group: 'gap', needsPlayer: false, score: 'us' },
+  { code: 'gap_them', label: 'Their point (not tagged)', short: 'Opp (gap)', group: 'gap', needsPlayer: false, score: 'them' },
 ];
 
 /** Action choices in review, grouped serve, pass, set, attack, defence, block: every player action. */
@@ -130,3 +134,6 @@ export function actionLabel(e: { action: ActionCode; value?: number | null }) {
   if (!def) return e.action;
   return e.action === 'receive' && e.value != null ? `Receive ${e.value}` : def.label;
 }
+
+/** A point scored while nobody tagged: counts for the score, but nothing is known about the rally. */
+export const isGap = (e: { action: ActionCode }) => e.action === 'gap_us' || e.action === 'gap_them';

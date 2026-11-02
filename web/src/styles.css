@@ -1270,3 +1270,14 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .timeout-plan { border-top: 1px solid var(--line); padding-top: 8px; }
 .timeout-plan ul { margin: 4px 0 0; padding-left: 18px; }
 @media (max-width: 600px) { .timeout-grid { gap: 6px; } .timeout-grid div { padding: 6px 8px; } .timeout-grid b { font-size: 17px; } .timeout-btn { padding-inline: 4px; font-size: 12px; } }
+
+/* ---------- pause / resume live tagging ---------- */
+.paused-card { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; border: 1px dashed var(--line); border-radius: 12px; padding: 16px; margin: 8px 0; }
+.pause-row { justify-content: center; }
+.resume-sheet { display: flex; flex-direction: column; gap: 10px; }
+.resume-score { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.resume-score > .small { flex: 1 0 100%; }
+.resume-stepper { display: inline-flex; align-items: center; gap: 4px; }
+.resume-stepper small { min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-stepper .input { width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+.resume-rot { display: flex; flex-direction: column; gap: 6px; }

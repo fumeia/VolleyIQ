@@ -22,6 +22,7 @@ import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { QualityControl } from '../components/QualityControl';
 import { ReadNumbers } from '../components/ReadNumbers';
 import { TimeoutSheet } from '../components/TimeoutSheet';
+import { ResumeSheet } from '../components/ResumeSheet';
 import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
@@ -83,6 +84,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }, [reel?.i, reel?.list]);
   const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [showTimeout, setShowTimeout] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  // Tagging paused (off the bench, on court): kept on this device, so a reload keeps it.
+  const pauseKey = `viq:paused:${match.id}`;
+  const [paused, setPausedState] = useState(() => { try { return localStorage.getItem(pauseKey) === '1'; } catch { return false; } });
+  const setPaused = (v: boolean) => { setPausedState(v); try { if (v) localStorage.setItem(pauseKey, '1'); else localStorage.removeItem(pauseKey); } catch { /* storage unavailable */ } };
   const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
   useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
   const [editing, setEditing] = useState<VEvent | null>(null);
@@ -453,8 +459,14 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn btn-primary small" onClick={() => setSetNo(setNo + 1)}>Start set {setNo + 1} ›</button>
                   </div>
                 )}
-                {pad}
-                {zeroPass && (
+                {paused ? (
+                  <div className="paused-card">
+                    <b>Tagging paused · set {setNo} · {score.us} : {score.them}</b>
+                    <span className="small muted">Back on the bench? Enter the score as it is now and carry on tagging.</span>
+                    <button className="btn btn-primary" onClick={() => setResumeOpen(true)}>Resume</button>
+                  </div>
+                ) : pad}
+                {!paused && zeroPass && (
                   <div className="zero-pass small">
                     <span>Pass 0 by {playerLabel(players, zeroPass) || '?'}: was it their ace?</span>
                     <button className="btn small btn-lost" onClick={() => { const t = getTime(); commit({ action: 'opp_point', value: OPP_POINT_VALUE.ace, t: t == null ? null : t }); }}>Their ace (point)</button>
@@ -466,10 +478,18 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     flip={!!match.calibration && ourHalfAt(match.calibration, getTime() ?? 0) === 'far'}
                     onDone={theyScored} onCancel={() => setTheyOpen(false)} />
                 )}
-                <div className="outcome-bar">
-                  <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
-                  <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
-                </div>
+                {!paused && (
+                  <div className="outcome-bar">
+                    <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
+                    <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
+                  </div>
+                )}
+                {!paused && (
+                  <div className="row wrap pause-row">
+                    <button className="btn-ghost small" onClick={() => setPaused(true)} title="Stop tagging for a while; when you come back, enter the score and carry on">Pause tagging</button>
+                    <button className="btn-ghost small" onClick={() => setResumeOpen(true)} title="Points were missed: enter the score as it is now">Catch up the score</button>
+                  </div>
+                )}
                 {confirmed.length > 0 && (() => {
                   const last = lastAdded(confirmed)!;
                   return (
@@ -604,6 +624,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         />
       )}
 
+      {resumeOpen && (
+        <ResumeSheet match={match} players={players} confirmed={confirmed} setNo={setNo} onClose={() => setResumeOpen(false)}
+          onSave={async (gaps, setNow) => {
+            for (const g of gaps) for (const p of g.points) add({ action: p === 'us' ? 'gap_us' : 'gap_them', set_no: g.set, t: getTime() });
+            setSetNo(setNow);
+            setPaused(false);
+            setResumeOpen(false);
+            const n = gaps.reduce((a, g) => a + g.points.length, 0);
+            flash(n ? `${n} untagged point${n === 1 ? '' : 's'} added` : 'Back to tagging');
+          }} />
+      )}
       {showTimeout && <TimeoutSheet match={match} players={players} events={events} set={setNo} onClose={() => setShowTimeout(false)} />}
       {lineupSet != null && (
         <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}

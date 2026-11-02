@@ -65,3 +65,26 @@ test('time-out card sums up the set', async ({ page, seed, login }) => {
   await expect(card).toContainText('Side-out');
   await expect(card.locator('.timeout-points li').first()).toBeVisible();
 });
+
+test('live tagging pauses and catches up the score', async ({ page, seed, login }) => {
+  await login();
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Live test', opponent: 'Sample VC', team_id: seed.teamId, mode: 'live' } })).json();
+  for (const action of ['kill', 'opp_point']) await page.request.post(`/api/matches/${match.id}/events`, { data: { action, set_no: 1 } });
+  await page.goto(`/m/${match.id}`);
+  await page.getByRole('button', { name: 'Pause tagging' }).click();
+  await expect(page.locator('.paused-card')).toContainText('1 : 1');
+  await page.reload();
+  await expect(page.locator('.paused-card')).toBeVisible();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Resume tagging' });
+  await sheet.getByLabel('Our points').fill('6');
+  await sheet.getByLabel('Their points').fill('4');
+  await sheet.getByRole('button', { name: 'Them', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Resume at 6 : 4' }).click();
+  await expect(page.locator('.scorebox .score')).toHaveText(/6\s*:\s*4/);
+  await expect(page.locator('.paused-card')).toHaveCount(0);
+  // The untagged points are saved: still 6 : 4 after a reload.
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.locator('.scorebox .score')).toHaveText(/6\s*:\s*4/);
+});

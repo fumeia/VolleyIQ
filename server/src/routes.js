@@ -299,8 +299,8 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
 
   // ---------- live score for the public team page ----------
   // A match counts as live while its tags keep coming (the newest under 15 minutes old).
-  const US = new Set(['kill', 'ace', 'block_point', 'opp_error']);
-  const THEM = new Set(['attack_error', 'serve_error', 'dig_error', 'attack_blocked', 'block_error', 'assist_error', 'set_error', 'opp_point']);
+  const US = new Set(['kill', 'ace', 'block_point', 'opp_error', 'gap_us']);
+  const THEM = new Set(['attack_error', 'serve_error', 'dig_error', 'attack_blocked', 'block_error', 'assist_error', 'set_error', 'opp_point', 'gap_them']);
   app.get('/api/share/team/:token/live', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);

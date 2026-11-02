@@ -1,4 +1,4 @@
-import { scoreOf } from './actions';
+import { isGap, scoreOf } from './actions';
 import { rotationStats } from './analysis';
 import type { Match, Player, VEvent } from './api';
 import type { Lineups } from './rotation';
@@ -57,6 +57,8 @@ export function teamRates(events: VEvent[], matches: Pick<Match, 'id' | 'lineups
   for (const list of sets.values()) {
     list.sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
     for (let i = 1; i < list.length; i++) {
+      // Untagged points: their order is made up, so they say nothing about side-out or break.
+      if (isGap(list[i]) || isGap(list[i - 1])) continue;
       const weServed = scoreOf(list[i - 1]) === 'us';
       const won = scoreOf(list[i]) === 'us';
       if (weServed) { srv++; if (won) br++; } else { rec++; if (won) so++; }

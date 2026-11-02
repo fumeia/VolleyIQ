@@ -1,4 +1,4 @@
-import { ACTION_BY_CODE, scoreOf, type ActionCode } from './actions';
+import { ACTION_BY_CODE, isGap, scoreOf, type ActionCode } from './actions';
 import type { VEvent } from './api';
 import { receiveGrade } from './court';
 
@@ -33,7 +33,8 @@ const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) |
 
 export function buildRallies(events: VEvent[]): Rally[] {
   // A block without a touch is not a ball contact: it takes no place in the rally.
-  const confirmed = events.filter((e) => e.status === 'confirmed' && e.action !== 'block_miss');
+  // Points nobody tagged have no rally to rebuild.
+  const confirmed = events.filter((e) => e.status === 'confirmed' && e.action !== 'block_miss' && !isGap(e));
   const bySet = new Map<string, VEvent[]>();
   for (const e of confirmed) {
     // Matches are kept apart in a season: rallies never span two matches.

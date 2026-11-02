@@ -6,6 +6,8 @@ export const ACTIONS = [
   'set', 'assist', 'assist_error', 'set_error',
   'receive', 'freeball',
   'opp_point', 'opp_error',
+  // Points scored while nobody tagged (live tagging paused): count for the score only.
+  'gap_us', 'gap_them',
 ];
 
 export const ROLES = ['OH', 'OPP', 'MB', 'S', 'L', 'DS'];

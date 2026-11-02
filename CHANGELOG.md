@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Pause and resume tagging**
+- Match page → "Pause tagging" when you go on court; the page stays paused (also after a reload). "Resume": enter the score as it is now (and the final score of a set that ended meanwhile), who serves, and with a line-up our rotation now. The points you missed are added as untagged points: they count for the score, the live score on the public link and the official result check, but not for the stats, side-out or break.
+- "Catch up the score" does the same without pausing first, when a few points went by untagged.
+
 **Match simulator**
 - Stats → "Match simulator" (or "Simulate a match" on a scouting report): your team against a scouted team or an average league team, played rally by rally thousands of times from both teams' side-out and break rates (per rotation when the line-ups are entered). Shows the chance to win the match, a set and a tie-break, which starting rotation wins most sets, and what would help most (side-out +5, break points +5, the weakest rotation fixed), as the change in match win chance.
 - With few rallies the rates are pulled towards a typical amateur league (side-out 58%), so one tagged match gives a first estimate that sharpens with every match.

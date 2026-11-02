@@ -19,7 +19,7 @@ const NOISE_COST = 0.5;
 /** Learn only from enough tagged touches (about four sets). */
 export const MIN_TOUCHES = 150;
 
-const NOT_TOUCHES = new Set(['opp_point', 'opp_error', 'block_miss']);
+const NOT_TOUCHES = new Set(['opp_point', 'opp_error', 'block_miss', 'gap_us', 'gap_them']);
 // Actions that end a rally (for the dead time after them).
 const ENDS = new Set(['kill', 'ace', 'block_point', 'attack_error', 'serve_error', 'dig_error', 'block_error', 'attack_blocked',
   'assist_error', 'set_error', 'opp_point', 'opp_error']);
