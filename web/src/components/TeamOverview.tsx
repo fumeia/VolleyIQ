@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { t } from '../lib/i18n';
 import { Link } from 'react-router-dom';
 import { api, type Match, type Player, type ScheduleGame, type VEvent } from '../lib/api';
 import { buildRallies, phaseScoring } from '../lib/sequence';
@@ -32,7 +33,7 @@ export function TeamOverview({ token, base, players, events, matches }: { token:
       const best = [...rows].sort((a, b) => f(b.stats) - f(a.stats))[0];
       return best && f(best.stats) > 0 ? { label, player: best.player, n: f(best.stats) } : null;
     };
-    return [top((s) => s.points, 'Points'), top((s) => s.kills, 'Kills'), top((s) => s.aces, 'Aces'), top((s) => s.blockPoints, 'Blocks')].filter(Boolean) as { label: string; player: Player; n: number }[];
+    return [top((s) => s.points, t('Points')), top((s) => s.kills, t('Kills')), top((s) => s.aces, t('Aces')), top((s) => s.blockPoints, t('Blocks'))].filter(Boolean) as { label: string; player: Player; n: number }[];
   }, [players, events]);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -47,46 +48,46 @@ export function TeamOverview({ token, base, players, events, matches }: { token:
       <div className="dash-main">
         {next && (
           <button className="card next-game" onClick={() => setGame(next)} data-tour="next-game">
-            <span className="kpi-label">Next game</span>
-            <b className="next-vs">{next.side === 'away' ? `at ${next.home}` : `vs ${opp(next)}`}</b>
+            <span className="kpi-label">{t('Next game')}</span>
+            <b className="next-vs">{next.side === 'away' ? t('at {team}', { team: next.home ?? '' }) : t('vs {team}', { team: opp(next) ?? '' })}</b>
             <span>{gameDay(next.starts_at)}, {gameTime(next.starts_at)}{next.hall ? ` · ${next.hall}` : ''}</span>
             {next.league && <small className="muted">{next.league}</small>}
           </button>
         )}
         {games && games.length > 0 && (
           <section className="dash-games" data-tour="games">
-            <h2 className="section-title">Games {videos > 0 && <small className="muted">· {videos} with video</small>}</h2>
+            <h2 className="section-title">{t('Games')} {videos > 0 && <small className="muted">· {t('{n} with video', { n: videos })}</small>}</h2>
             <ScheduleTable games={games} limit={6} onPick={setGame} />
           </section>
         )}
-        {games && games.length === 0 && matches.length === 0 && <p className="muted">Nothing here yet.</p>}
+        {games && games.length === 0 && matches.length === 0 && <p className="muted">{t('Nothing here yet.')}</p>}
       </div>
 
       <aside className="dash-side">
         {played.length > 0 && (
           <section className="card dash-card">
-            <h2 className="section-title">Season</h2>
-            <div className="record"><b className="tone-good">{wins}</b> won <span className="muted">·</span> <b className="tone-bad">{played.length - wins}</b> lost</div>
+            <h2 className="section-title">{t('Season')}</h2>
+            <div className="record"><b className="tone-good">{wins}</b> {t('won')} <span className="muted">·</span> <b className="tone-bad">{played.length - wins}</b> {t('lost')}</div>
             <div className="form-strip" aria-label="Last results">
-              {played.slice(-8).map((g) => <span key={g.id} className={won(g) ? 'w' : 'l'} title={`${opp(g)} ${g.result}`}>{won(g) ? 'W' : 'L'}</span>)}
+              {played.slice(-8).map((g) => <span key={g.id} className={won(g) ? 'w' : 'l'} title={`${opp(g)} ${g.result}`}>{won(g) ? t('W') : t('L')}</span>)}
             </div>
           </section>
         )}
         {events.length > 0 && (
           <section className="card dash-card" data-tour="season-numbers">
-            <h2 className="section-title">From the tagged matches</h2>
+            <h2 className="section-title">{t('From the tagged matches')}</h2>
             <div className="kpis kpis-2">
-              <Kpi label="Side-out" value={pct(ph.sideoutPct)} sub={`${ph.sideout.won}/${ph.sideout.n}`} tone={ph.sideout.n >= 8 ? judge.sideout(ph.sideoutPct) : null} />
-              <Kpi label="Break point" value={pct(ph.breakPct)} sub={`${ph.break.won}/${ph.break.n}`} tone={ph.break.n >= 8 ? judge.break(ph.breakPct) : null} />
-              <Kpi label="Attack eff." value={eff3(team.attackEff)} sub={`${team.attempts} attacks`} tone={team.attempts >= 5 ? judge.eff(team.attackEff) : null} />
-              <Kpi label="Pass avg" value={avg2(team.recAvg)} sub={`${team.receptions} passes`} tone={team.receptions >= 5 ? judge.passAvg(team.recAvg) : null} />
+              <Kpi label={t('Side-out')} value={pct(ph.sideoutPct)} sub={`${ph.sideout.won}/${ph.sideout.n}`} tone={ph.sideout.n >= 8 ? judge.sideout(ph.sideoutPct) : null} />
+              <Kpi label={t('Break point')} value={pct(ph.breakPct)} sub={`${ph.break.won}/${ph.break.n}`} tone={ph.break.n >= 8 ? judge.break(ph.breakPct) : null} />
+              <Kpi label={t('Attack eff.')} value={eff3(team.attackEff)} sub={t('{n} attacks', { n: team.attempts })} tone={team.attempts >= 5 ? judge.eff(team.attackEff) : null} />
+              <Kpi label={t('Pass avg')} value={avg2(team.recAvg)} sub={t('{n} passes', { n: team.receptions })} tone={team.receptions >= 5 ? judge.passAvg(team.recAvg) : null} />
             </div>
-            <Link to={`${base}/stats`} className="small">All stats ›</Link>
+            <Link to={`${base}/stats`} className="small">{t('All stats')} ›</Link>
           </section>
         )}
         {leaders.length > 0 && (
           <section className="card dash-card">
-            <h2 className="section-title">Leaders</h2>
+            <h2 className="section-title">{t('Leaders')}</h2>
             <table className="stat-table leaders">
               <tbody>
                 {leaders.map((l) => (
@@ -102,10 +103,10 @@ export function TeamOverview({ token, base, players, events, matches }: { token:
         )}
         {matches.length > 0 && (
           <section className="card dash-card">
-            <h2 className="section-title">Tagged matches</h2>
+            <h2 className="section-title">{t('Tagged matches')}</h2>
             <ul className="dash-matches">
               {[...matches].reverse().map((m) => (
-                <li key={m.id}><Link to={`${base}/m/${m.id}`}><span>{m.opponent ? `vs ${m.opponent}` : m.label}</span><small className="muted">{m.played_on}</small></Link></li>
+                <li key={m.id}><Link to={`${base}/m/${m.id}`}><span>{m.opponent ? t('vs {team}', { team: m.opponent }) : m.label}</span><small className="muted">{m.played_on}</small></Link></li>
               ))}
             </ul>
           </section>
@@ -126,15 +127,15 @@ function PublicGameSheet({ token, base, game, tagged, onClose }: { token: string
       <div className="sheet game-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head"><b>{game.home} – {game.away}</b><button className="btn-ghost" onClick={onClose} aria-label="Close">✕</button></div>
         <dl className="game-facts">
-          <dt>Date</dt><dd>{gameDay(game.starts_at)}, {gameTime(game.starts_at)}{game.cancelled ? ' (cancelled)' : ''}</dd>
-          {game.result && <><dt>Result</dt><dd><b>{game.result}</b></dd></>}
-          {game.league && <><dt>League</dt><dd>{game.league}</dd></>}
-          {game.hall && <><dt>Hall</dt><dd>{game.hall}{game.address ? <><br /><a href={`https://maps.google.com/?q=${encodeURIComponent(game.address)}`} target="_blank" rel="noreferrer">{game.address}</a></> : null}</dd></>}
+          <dt>{t('Date')}</dt><dd>{gameDay(game.starts_at)}, {gameTime(game.starts_at)}{game.cancelled ? ` (${t('cancelled')})` : ''}</dd>
+          {game.result && <><dt>{t('Result')}</dt><dd><b>{game.result}</b></dd></>}
+          {game.league && <><dt>{t('League')}</dt><dd>{game.league}</dd></>}
+          {game.hall && <><dt>{t('Hall')}</dt><dd>{game.hall}{game.address ? <><br /><a href={`https://maps.google.com/?q=${encodeURIComponent(game.address)}`} target="_blank" rel="noreferrer">{game.address}</a></> : null}</dd></>}
         </dl>
         {tagged && game.match_id && (
           <div className="game-actions">
-            <Link className="btn btn-primary" to={`${base}/m/${game.match_id}`}>Stats of this game</Link>
-            <Link className="btn" to={`${base}/m/${game.match_id}/replays`}>Replays</Link>
+            <Link className="btn btn-primary" to={`${base}/m/${game.match_id}`}>{t('Stats of this game')}</Link>
+            <Link className="btn" to={`${base}/m/${game.match_id}/replays`}>{t('Replays')}</Link>
           </div>
         )}
         {v && (
@@ -168,28 +169,28 @@ export function SuggestVideoForm({ token, gameId, hasVideo }: { token: string; g
       try { localStorage.setItem('viq:jersey', jersey); } catch { /* private mode */ }
       setState('sent');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      setError(err instanceof Error ? err.message : t('Failed'));
       setState('idle');
     }
   }
-  if (state === 'sent') return <p className="small edit-notice">Thanks, the video was sent. It shows here once the team has checked it.</p>;
-  if (!open) return <button className="btn-ghost small sched-more" onClick={() => setOpen(true)}>{hasVideo ? 'Know a better video of this game?' : 'Know a video of this game? Send the link'}</button>;
+  if (state === 'sent') return <p className="small edit-notice">{t('Thanks, the video was sent. It shows here once the team has checked it.')}</p>;
+  if (!open) return <button className="btn-ghost small sched-more" onClick={() => setOpen(true)}>{hasVideo ? t('Know a better video of this game?') : t('Know a video of this game? Send the link')}</button>;
   return (
     <form className="form suggest-video" onSubmit={send}>
-      <label className="field-label">Video link</label>
+      <label className="field-label">{t('Video link')}</label>
       <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" required />
       <div className="row">
         <div className="grow">
-          <label className="field-label">Your shirt number</label>
+          <label className="field-label">{t('Your shirt number')}</label>
           <input className="input" inputMode="numeric" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, '').slice(0, 2))} required />
         </div>
         <div className="grow">
-          <label className="field-label">Note (optional)</label>
+          <label className="field-label">{t('Note (optional)')}</label>
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
         </div>
       </div>
       {error && <p className="error small">{error}</p>}
-      <button className="btn btn-primary" disabled={state === 'sending' || !url.trim() || !jersey}>{state === 'sending' ? 'Sending…' : 'Send'}</button>
+      <button className="btn btn-primary" disabled={state === 'sending' || !url.trim() || !jersey}>{state === 'sending' ? t('Sending…') : t('Send')}</button>
     </form>
   );
 }

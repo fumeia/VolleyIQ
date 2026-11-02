@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { t } from '../../lib/i18n';
 import { GroupedColumns, SERIES } from '../../charts/Charts';
 import type { Match, Player, VEvent } from '../../lib/api';
 import { buildRallies, phaseScoring, SERVES, transitionConversion, winByLength } from '../../lib/sequence';
@@ -7,12 +8,12 @@ import { eff, tally } from '../../lib/trajectory';
 import { AnalysisCharts } from '../AnalysisCharts';
 import { insightsFor } from './insights';
 import { MomentumBlock, SetsTable } from './Momentum';
-import { avg2, eff3, judge, pct, plural, ratio, Val, type Tone } from './ui';
+import { avg2, eff3, judge, pct, ratio, Val, type Tone } from './ui';
 
 export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
   return (
     <div className="kpi">
-      <span className="kpi-label">{label}</span>
+      <span className="kpi-label">{t(label)}</span>
       <span className="kpi-value"><Val tone={tone}>{value}</Val></span>
       {sub && <span className="kpi-sub">{sub}</span>}
     </div>
@@ -34,20 +35,20 @@ export function OverviewSection({ players, events, matches }: { players: Player[
   return (
     <div className="charts">
       <div className="kpis">
-        <Kpi label="Side-out" value={pct(ph.sideoutPct)} sub={`${ph.sideout.won}/${ph.sideout.n} on their serve`} tone={ph.sideout.n >= 8 ? judge.sideout(ph.sideoutPct) : null} />
-        <Kpi label="Break point" value={pct(ph.breakPct)} sub={`${ph.break.won}/${ph.break.n} on our serve`} tone={ph.break.n >= 8 ? judge.break(ph.breakPct) : null} />
+        <Kpi label="Side-out" value={pct(ph.sideoutPct)} sub={t('{a}/{b} on their serve', { a: ph.sideout.won, b: ph.sideout.n })} tone={ph.sideout.n >= 8 ? judge.sideout(ph.sideoutPct) : null} />
+        <Kpi label="Break point" value={pct(ph.breakPct)} sub={t('{a}/{b} on our serve', { a: ph.break.won, b: ph.break.n })} tone={ph.break.n >= 8 ? judge.break(ph.breakPct) : null} />
         <Kpi label="Attack eff." value={eff3(team.attackEff)} sub={`${team.kills}K ${team.attackErrors}E / ${team.attempts}`} tone={team.attempts >= 5 ? judge.eff(team.attackEff) : null} />
-        <Kpi label="Pass avg" value={avg2(team.recAvg)} sub={`${team.receptions} passes`} tone={team.receptions >= 5 ? judge.passAvg(team.recAvg) : null} />
-        <Kpi label="Serve eff." value={eff3(eff(sv))} sub={`${plural(sv.points, 'ace')} · ${plural(sv.errors, 'error')}`} tone={sv.n >= 6 ? judge.eff(eff(sv)) : null} />
-        <Kpi label="Transition" value={pct(tc.killPct)} sub={`kills from ${tc.n} digs`} tone={tc.n >= 8 ? judge.conversion(tc.killPct) : null} />
-        <Kpi label="+/−" value={team.plusMinus > 0 ? `+${team.plusMinus}` : String(team.plusMinus)} sub={`${team.points} points · ${team.errors} errors`} tone={judge.plusMinus(team.plusMinus)} />
+        <Kpi label="Pass avg" value={avg2(team.recAvg)} sub={t('{n} passes', { n: team.receptions })} tone={team.receptions >= 5 ? judge.passAvg(team.recAvg) : null} />
+        <Kpi label="Serve eff." value={eff3(eff(sv))} sub={`${sv.points === 1 ? t('1 ace') : t('{n} aces', { n: sv.points })} · ${sv.errors === 1 ? t('1 error') : t('{n} errors', { n: sv.errors })}`} tone={sv.n >= 6 ? judge.eff(eff(sv)) : null} />
+        <Kpi label="Transition" value={pct(tc.killPct)} sub={t('kills from {n} digs', { n: tc.n })} tone={tc.n >= 8 ? judge.conversion(tc.killPct) : null} />
+        <Kpi label="+/−" value={team.plusMinus > 0 ? `+${team.plusMinus}` : String(team.plusMinus)} sub={`${team.points === 1 ? t('1 point') : t('{n} points', { n: team.points })} · ${team.errors === 1 ? t('1 error') : t('{n} errors', { n: team.errors })}`} tone={judge.plusMinus(team.plusMinus)} />
       </div>
 
       {(good.length > 0 || bad.length > 0) && (
         <section className="findings focus-box">
           <div className="focus-cols">
-            {good.length > 0 && <div><b className="tone-good">▲ What went well</b><ul>{good.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
-            {bad.length > 0 && <div><b className="tone-bad">▼ To work on</b><ul>{bad.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
+            {good.length > 0 && <div><b className="tone-good">▲ {t('What went well')}</b><ul>{good.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
+            {bad.length > 0 && <div><b className="tone-bad">▼ {t('To work on')}</b><ul>{bad.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
           </div>
         </section>
       )}

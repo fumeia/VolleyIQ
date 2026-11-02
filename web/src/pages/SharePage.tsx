@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getLang, publicLanguage, setLang, t } from '../lib/i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PlayerLearning } from '../components/analysis/PlayerLearning';
 import { roleName } from '../components/analysis/PlayersSection';
@@ -13,6 +14,7 @@ import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
 /** Public, read-only match report for teammates: the stats first, the report images on their own tab. */
 export function SharePage() {
+  publicLanguage();
   const { token } = useParams();
   const [data, setData] = useState<MatchBundle | null>(null);
   const [error, setError] = useState(false);
@@ -22,7 +24,7 @@ export function SharePage() {
     api.shared(token!).then(setData).catch(() => setError(true));
   }, [token]);
 
-  if (error) return <div className="center error">This report link is invalid or was revoked.</div>;
+  if (error) return <div className="center error">{t('This report link is invalid or was revoked.')}</div>;
   if (!data) return <div className="center muted">Loading…</div>;
   const m = data.match;
   return (
@@ -30,13 +32,13 @@ export function SharePage() {
       <header className="public-bar">
         <div className="public-inner">
           <span className="brand"><img src="/icon.svg" alt="" /> {m.opponent ? `${m.team_name ?? 'Us'} vs ${m.opponent}` : m.label}</span>
-          <span className="public-sub">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</span>
+          <span className="public-sub">{[m.played_on, m.opponent ? m.label : null].filter(Boolean).join(' · ')}</span><LangSwitch />
         </div>
       </header>
       <nav className="public-nav" data-tour="tabs">
         <div className="public-inner tabs">
-          <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Stats</button>
-          <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>Report images</button>
+          <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>{t('Stats')}</button>
+          <button className={`tab ${view === 'images' ? 'on' : ''}`} onClick={() => setView('images')}>{t('Report images')}</button>
         </div>
       </nav>
       <div className="page share">
@@ -59,6 +61,7 @@ type View = 'overview' | 'stats' | 'trends' | 'players' | 'replays' | 'matches';
  *   Players /s/t/:token/players             everyone, and /p/:player for each learning page
  */
 export function TeamSharePage({ view = 'stats' }: { view?: View }) {
+  publicLanguage();
   const { token, matchId, playerId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<TeamShare | null>(null);
@@ -71,7 +74,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   }, [token]);
   useEffect(() => { window.scrollTo(0, 0); }, [view, matchId, playerId]);
 
-  if (error) return <div className="center error">This link is invalid or was revoked.</div>;
+  if (error) return <div className="center error">{t('This link is invalid or was revoked.')}</div>;
   if (!data) return <div className="center muted">Loading…</div>;
   const base = `/s/t/${token}`;
   const match = matchId ? data.matches.find((m) => m.id === Number(matchId)) ?? null : null;
@@ -86,7 +89,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
     .sort((a, b) => (a.p.number ?? 99) - (b.p.number ?? 99));
   const matchPicker = (to: (id: number | null) => string) => (
     <select className="input" value={match?.id ?? ''} onChange={(e) => navigate(to(e.target.value ? Number(e.target.value) : null))}>
-      <option value="">All matches ({data.matches.length})</option>
+      <option value="">{t('All matches ({n})', { n: data.matches.length })}</option>
       {[...data.matches].reverse().map((m) => <option key={m.id} value={m.id}>{m.played_on ?? ''} {m.opponent ?? m.label}</option>)}
     </select>
   );
@@ -95,17 +98,17 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   if (player) {
     body = (
       <>
-        <Link to={`${base}/players`} className="back-link">← All players</Link>
+        <Link to={`${base}/players`} className="back-link">← {t('All players')}</Link>
         <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={tips ?? !!data.team.show_tips}
           tipsToggle={
             <label className="toggle small" data-tour="tips">
               <input type="checkbox" checked={tips ?? !!data.team.show_tips} onChange={(e) => {
                 setTips(e.target.checked);
                 try { localStorage.setItem('viq:showTips', e.target.checked ? '1' : '0'); } catch { /* private mode */ }
-              }} /> Show practice tips
+              }} /> {t('Show practice tips')}
             </label>
           }
-          actions={<CopyLink label="Copy link" />} />
+          actions={<CopyLink label={t('Copy link')} />} />
       </>
     );
   } else if (tab === 'players') {
@@ -114,7 +117,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
         {active.map(({ p, n }) => (
           <Link key={p.id} to={`${base}/p/${p.id}`} className="card player-link">
             <span className={`num-dot role-${p.role}`}>{p.number ?? '–'}</span>
-            <span className="grow"><b>{p.name}</b><small className="muted">{roleName(p.role)} · {n} touches</small></span>
+            <span className="grow"><b>{p.name}</b><small className="muted">{t(roleName(p.role))} · {t('{n} touches', { n })}</small></span>
             <span className="muted">›</span>
           </Link>
         ))}
@@ -149,17 +152,17 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
       <header className="public-bar">
         <div className="public-inner">
           <Link to={base} className="brand"><img src="/icon.svg" alt="" /> {data.team.name}</Link>
-          <span className="public-sub">{data.matches.length} match{data.matches.length === 1 ? '' : 'es'}</span>
+          <span className="public-sub">{data.matches.length === 1 ? t('1 match') : t('{n} matches', { n: data.matches.length })}</span><LangSwitch />
         </div>
       </header>
       <nav className="public-nav" data-tour="tabs">
         <div className="public-inner tabs">
-          <Link to={base} className={`tab ${tab === 'overview' ? 'on' : ''}`}>Overview</Link>
-          <Link to={statsLink} className={`tab ${tab === 'stats' ? 'on' : ''}`}>Stats</Link>
-          <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>Trends</Link>
-          <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">Players</Link>
-          <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">Replays</Link>
-          <Link to={`${base}/matches`} className={`tab ${tab === 'matches' ? 'on' : ''}`}>All games</Link>
+          <Link to={base} className={`tab ${tab === 'overview' ? 'on' : ''}`}>{t('Overview')}</Link>
+          <Link to={statsLink} className={`tab ${tab === 'stats' ? 'on' : ''}`}>{t('Stats')}</Link>
+          <Link to={`${scope}/trends`} className={`tab ${tab === 'trends' ? 'on' : ''}`}>{t('Trends')}</Link>
+          <Link to={`${base}/players`} className={`tab ${tab === 'players' ? 'on' : ''}`} data-tour="tab-players">{t('Players')}</Link>
+          <Link to={`${scope}/replays`} className={`tab ${tab === 'replays' ? 'on' : ''}`} data-tour="tab-replays">{t('Replays')}</Link>
+          <Link to={`${base}/matches`} className={`tab ${tab === 'matches' ? 'on' : ''}`}>{t('All games')}</Link>
         </div>
       </nav>
       <div className="page share">
@@ -180,5 +183,16 @@ function CopyLink({ label }: { label: string }) {
       if (navigator.share) navigator.share({ url }).catch(() => {});
       else { await navigator.clipboard.writeText(url); alert('Link copied'); }
     }}>{label}</button>
+  );
+}
+
+/** Deutsch / English for the public pages (remembered on the device). */
+function LangSwitch() {
+  const lang = getLang();
+  return (
+    <span className="lang-switch">
+      <button className={lang === 'de' ? 'on' : ''} onClick={() => lang !== 'de' && setLang('de')}>DE</button>
+      <button className={lang === 'en' ? 'on' : ''} onClick={() => lang !== 'en' && setLang('en')}>EN</button>
+    </span>
   );
 }

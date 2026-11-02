@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { t as tr } from '../lib/i18n';
 import { ROLES } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
 import { AttackSection } from './analysis/AttackSection';
@@ -63,7 +64,7 @@ export function StatsView({ players, events, matches, onPlay }: {
 
   const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
   const roles = useMemo(() => roleStats(players, confirmed), [players, confirmed]);
-  if (!confirmed.length) return <p className="muted small">No confirmed tags yet. Start tagging to see stats.</p>;
+  if (!confirmed.length) return <p className="muted small">{tr('No confirmed tags yet. Start tagging to see stats.')}</p>;
 
   const cols = COLUMNS[tab === 'roles' ? 'overview' : tab];
   return (
@@ -72,12 +73,12 @@ export function StatsView({ players, events, matches, onPlay }: {
       {/* All topics visible at once, so none is missed. */}
       <div className="stats-sections" data-tour="sections">
         {SECTIONS.map(([k, label]) => (
-          <button key={k} className={`sec-btn sec-${k} ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)} aria-pressed={section === k}>{label}</button>
+          <button key={k} className={`sec-btn sec-${k} ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)} aria-pressed={section === k}>{tr(label)}</button>
         ))}
       </div>
       <details className="tone-note muted small" data-tour="tone">
-        <summary>How green ▲ / red ▼ are decided</summary>
-        <p>{TONE_NOTE}</p>
+        <summary>{tr('How green ▲ / red ▼ are decided')}</summary>
+        <p>{tr(TONE_NOTE)}</p>
       </details>
 
       {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}

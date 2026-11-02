@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type CenterGame, type CenterQuery, type GameVideo, type VideoSuggestion, type YoutubeUsage } from '../lib/api';
 import { VideoFinder } from './Schedule';
@@ -15,6 +16,7 @@ const season = () => { const d = new Date(); const y = d.getMonth() >= 7 ? d.get
 const dayLabel = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 const short = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const GENDER: Record<string, string> = { f: 'Women', m: 'Men', mixed: 'Mixed' };
+const gender = (g: string) => t(GENDER[g] ?? g);
 
 function loadFilters(): Filters {
   const today = iso(new Date());
@@ -84,80 +86,80 @@ export function MatchCenter({ token }: { token?: string }) {
   // Found by the YouTube search, waiting to be checked.
   const toCheck = (data?.games ?? []).filter((g) => g.videoState === 'found').length;
 
-  const regionName = f.region ? `${f.region.toUpperCase()} · ${data?.regions.find((r) => r.id === f.region)?.label ?? ''}` : 'All of Switzerland';
-  const summary = [regionName, f.period === 'season' && f.region ? 'whole season' : `${short(query.from)} – ${short(query.to)}`,
-    f.gender ? GENDER[f.gender] : null, f.league || null, f.status === 'played' ? 'results' : f.status === 'next' ? 'upcoming' : null,
-    f.q.trim() ? `“${f.q.trim()}”` : null, f.videos === 'check' ? 'videos to check' : f.videos === 'confirmed' ? 'with video' : null].filter(Boolean).join(' · ');
+  const regionName = f.region ? `${f.region.toUpperCase()} · ${data?.regions.find((r) => r.id === f.region)?.label ?? ''}` : t('All of Switzerland');
+  const summary = [regionName, f.period === 'season' && f.region ? t('whole season') : `${short(query.from)} – ${short(query.to)}`,
+    f.gender ? gender(f.gender) : null, f.league || null, f.status === 'played' ? t('results') : f.status === 'next' ? t('upcoming') : null,
+    f.q.trim() ? `“${f.q.trim()}”` : null, f.videos === 'check' ? t('videos to check') : f.videos === 'confirmed' ? t('with video') : null].filter(Boolean).join(' · ');
   return (
     <div className="center-page">
       {!open && (
         <button className="filter-summary" onClick={() => setOpen(true)}>
-          <span className="grow">{summary}</span><b>Filters</b>
+          <span className="grow">{summary}</span><b>{t('Filters')}</b>
         </button>
       )}
       {open && <section className="filter-panel">
         <div className="filter-row">
-          <label className="filter"><span>Region</span>
+          <label className="filter"><span>{t('Region')}</span>
             <select className="input" value={f.region} onChange={(e) => set({ region: e.target.value })}>
-              <option value="">All of Switzerland</option>
+              <option value="">{t('All of Switzerland')}</option>
               {(data?.regions ?? []).map((r) => <option key={r.id} value={r.id}>{r.id.toUpperCase()} · {r.label}</option>)}
             </select>
           </label>
-          <div className="filter"><span>Period</span>
+          <div className="filter"><span>{t('Period')}</span>
             <div className="seg">
-              <button className={f.period === 'week' ? 'on' : ''} onClick={() => set({ period: 'week' })}>Week</button>
-              <button className={f.period === 'range' ? 'on' : ''} onClick={() => set({ period: 'range' })}>Dates</button>
-              <button className={f.period === 'season' && f.region ? 'on' : ''} disabled={!f.region} title={f.region ? '' : 'Pick a region first'} onClick={() => set({ period: 'season' })}>Season</button>
+              <button className={f.period === 'week' ? 'on' : ''} onClick={() => set({ period: 'week' })}>{t('Week')}</button>
+              <button className={f.period === 'range' ? 'on' : ''} onClick={() => set({ period: 'range' })}>{t('Dates')}</button>
+              <button className={f.period === 'season' && f.region ? 'on' : ''} disabled={!f.region} title={f.region ? '' : t('Pick a region first')} onClick={() => set({ period: 'season' })}>{t('Season')}</button>
             </div>
           </div>
           {f.period === 'week' && (
-            <div className="filter"><span>Week</span>
+            <div className="filter"><span>{t('Week')}</span>
               <div className="week-nav">
                 <button className="btn small" onClick={() => set({ week: addDays(f.week, -7) })} aria-label="Week before">‹</button>
                 <b>{short(f.week)} – {short(addDays(f.week, 6))}</b>
                 <button className="btn small" onClick={() => set({ week: addDays(f.week, 7) })} aria-label="Week after">›</button>
-                {f.week !== monday(new Date()) && <button className="btn-ghost small" onClick={() => set({ week: monday(new Date()) })}>This week</button>}
+                {f.week !== monday(new Date()) && <button className="btn-ghost small" onClick={() => set({ week: monday(new Date()) })}>{t('This week')}</button>}
               </div>
             </div>
           )}
           {f.period === 'range' && (
-            <div className="filter"><span>From – to{f.region ? '' : ' (at most a month without a region)'}</span>
+            <div className="filter"><span>{t('From – to')}{f.region ? '' : ` (${t('at most a month without a region')})`}</span>
               <div className="week-nav">
                 <input className="input" type="date" value={f.from} onChange={(e) => e.target.value && set({ from: e.target.value })} />
                 <input className="input" type="date" value={f.to} onChange={(e) => e.target.value && set({ to: e.target.value })} />
-                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -6), to: iso(new Date()) })}>Last 7 days</button>
-                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -29), to: iso(new Date()) })}>Last 30 days</button>
+                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -6), to: iso(new Date()) })}>{t('Last 7 days')}</button>
+                <button className="btn-ghost small" onClick={() => set({ from: addDays(iso(new Date()), -29), to: iso(new Date()) })}>{t('Last 30 days')}</button>
               </div>
             </div>
           )}
         </div>
         <div className="filter-row">
-          <div className="filter"><span>Teams</span>
+          <div className="filter"><span>{t('Teams')}</span>
             <div className="seg">
-              {['', 'f', 'm'].map((g) => <button key={g} className={f.gender === g ? 'on' : ''} onClick={() => set({ gender: g, league: '' })}>{g ? GENDER[g] : 'All'}</button>)}
+              {['', 'f', 'm'].map((g) => <button key={g} className={f.gender === g ? 'on' : ''} onClick={() => set({ gender: g, league: '' })}>{g ? gender(g) : t('All')}</button>)}
             </div>
           </div>
-          <label className="filter"><span>League</span>
+          <label className="filter"><span>{t('League')}</span>
             <select className="input" value={f.league} onChange={(e) => set({ league: e.target.value })}>
-              <option value="">All leagues</option>
+              <option value="">{t('All leagues')}</option>
               {leagues.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
-          <div className="filter"><span>Games</span>
+          <div className="filter"><span>{t('Games')}</span>
             <div className="seg">
-              {(['all', 'played', 'next'] as const).map((s) => <button key={s} className={f.status === s ? 'on' : ''} onClick={() => set({ status: s })}>{s === 'all' ? 'All' : s === 'played' ? 'Results' : 'Upcoming'}</button>)}
+              {(['all', 'played', 'next'] as const).map((s) => <button key={s} className={f.status === s ? 'on' : ''} onClick={() => set({ status: s })}>{s === 'all' ? t('All') : s === 'played' ? t('Results') : t('Upcoming')}</button>)}
             </div>
           </div>
         </div>
         <div className="filter-row">
-          <label className="filter grow"><span>Search</span>
-            <input className="input" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Team, hall or town" />
+          <label className="filter grow"><span>{t('Search')}</span>
+            <input className="input" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder={t('Team, hall or town')} />
           </label>
-          <div className="filter"><span>Videos</span>
+          <div className="filter"><span>{t('Videos')}</span>
             <div className="seg">
-              <button className={!f.videos ? 'on' : ''} onClick={() => set({ videos: '' })}>All games</button>
-              <button className={f.videos === 'check' ? 'on' : ''} onClick={() => set({ videos: 'check', status: 'all' })}>To check{toCheck ? ` (${toCheck})` : ''}</button>
-              <button className={f.videos === 'confirmed' ? 'on' : ''} onClick={() => set({ videos: 'confirmed', status: 'all' })}>With video{withVideo ? ` (${withVideo})` : ''}</button>
+              <button className={!f.videos ? 'on' : ''} onClick={() => set({ videos: '' })}>{t('All games')}</button>
+              <button className={f.videos === 'check' ? 'on' : ''} onClick={() => set({ videos: 'check', status: 'all' })}>{t('To check')}{toCheck ? ` (${toCheck})` : ''}</button>
+              <button className={f.videos === 'confirmed' ? 'on' : ''} onClick={() => set({ videos: 'confirmed', status: 'all' })}>{t('With video')}{withVideo ? ` (${withVideo})` : ''}</button>
             </div>
           </div>
         </div>
@@ -175,7 +177,7 @@ export function MatchCenter({ token }: { token?: string }) {
       {!token && f.videos === 'check' && rows.length > 0 && <p className="small muted">Open a game to look at what the search found, then confirm the right video (or "None of these").</p>}
 
       <p className="small muted center-count">
-        {loading ? 'Reading Swiss Volley…' : error ? '' : `${rows.length} game${rows.length === 1 ? '' : 's'}${rows.length !== (data?.games.length ?? 0) ? ` of ${data?.games.length}` : ''}`}
+        {loading ? t('Reading Swiss Volley…') : error ? '' : `${rows.length === 1 ? t('1 game') : t('{n} games', { n: rows.length })}${rows.length !== (data?.games.length ?? 0) ? ` ${t('of')} ${data?.games.length}` : ''}`}
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -189,12 +191,12 @@ export function MatchCenter({ token }: { token?: string }) {
                   <tr key={g.gameId} onClick={() => setGame(g)}>
                     <td className="center-time">{g.start.slice(11, 16) === '00:00' ? '' : g.start.slice(11, 16)}</td>
                     <td className="sched-game">
-                      <span>{g.home}</span><span className="sched-vs">{g.away}</span>
-                      <small className="muted">{[g.region && !f.region ? g.region.toUpperCase() : null, g.league, g.gender ? GENDER[g.gender] : null, g.city].filter(Boolean).join(' · ')}</small>
+                      <span>{g.home}</span><span className="sched-vs" data-vs={t('vs')}>{g.away}</span>
+                      <small className="muted">{[g.region && !f.region ? g.region.toUpperCase() : null, g.league, g.gender ? gender(g.gender) : null, g.city].filter(Boolean).join(' · ')}</small>
                       {(g.videoState || g.sent || g.match_id) ? (
                         <span className="sched-flags">
-                          {g.match_id ? <span className="badge badge-pending">tagged</span> : null}
-                          {g.videoState === 'confirmed' ? <span className="badge">video</span> : g.videoState === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search, not checked yet">possible video</span> : null}
+                          {g.match_id ? <span className="badge badge-pending">{t('tagged')}</span> : null}
+                          {g.videoState === 'confirmed' ? <span className="badge">{t('video')}</span> : g.videoState === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search, not checked yet">possible video</span> : null}
                           {g.sent ? <span className="badge badge-suggest">{g.sent} video{g.sent === 1 ? '' : 's'} sent</span> : null}
                         </span>
                       ) : null}
@@ -207,8 +209,8 @@ export function MatchCenter({ token }: { token?: string }) {
           </div>
         </section>
       ))}
-      {rows.length > shown && <button className="btn" onClick={() => setShown(shown + 300)}>Show more ({rows.length - shown} left)</button>}
-      {!loading && !error && data && rows.length === 0 && <p className="muted">No games for these filters.</p>}
+      {rows.length > shown && <button className="btn" onClick={() => setShown(shown + 300)}>{t('Show more ({n} left)', { n: rows.length - shown })}</button>}
+      {!loading && !error && data && rows.length === 0 && <p className="muted">{t('No games for these filters.')}</p>}
 
       {game && <CenterSheet game={game} token={token} videoSearch={!!data?.videoSearch} onClose={() => setGame(null)}
         onChanged={(state) => setData((d) => d && { ...d, games: d.games.map((g) => (g.gameId === game.gameId ? { ...g, ...state } : g)) })} />}
@@ -242,20 +244,20 @@ function CenterSheet({ game, token, videoSearch, onClose, onChanged }: {
       <div className="sheet game-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head"><b>{game.home} – {game.away}</b><button className="btn-ghost" onClick={onClose} aria-label="Close">✕</button></div>
         <dl className="game-facts">
-          <dt>Date</dt><dd>{dayLabel(game.start.slice(0, 10))}{game.start.slice(11, 16) !== '00:00' ? `, ${game.start.slice(11, 16)}` : ''}</dd>
-          {game.result && <><dt>Result</dt><dd><b>{game.result}</b>{game.sets.length > 0 && <span className="muted"> ({game.sets.join(', ')})</span>}</dd></>}
-          {game.region && <><dt>Region</dt><dd>{game.region.toUpperCase()}</dd></>}
-          <dt>League</dt><dd>{[game.league, game.gender ? GENDER[game.gender] : null, game.group && game.group !== game.phase ? game.group : game.phase].filter(Boolean).join(' · ')}</dd>
-          {game.hall && <><dt>Hall</dt><dd>{game.hall}{game.city ? `, ${game.city}` : ''}</dd></>}
+          <dt>{t('Date')}</dt><dd>{dayLabel(game.start.slice(0, 10))}{game.start.slice(11, 16) !== '00:00' ? `, ${game.start.slice(11, 16)}` : ''}</dd>
+          {game.result && <><dt>{t('Result')}</dt><dd><b>{game.result}</b>{game.sets.length > 0 && <span className="muted"> ({game.sets.join(', ')})</span>}</dd></>}
+          {game.region && <><dt>{t('Region')}</dt><dd>{game.region.toUpperCase()}</dd></>}
+          <dt>{t('League')}</dt><dd>{[game.league, game.gender ? gender(game.gender) : null, game.group && game.group !== game.phase ? game.group : game.phase].filter(Boolean).join(' · ')}</dd>
+          {game.hall && <><dt>{t('Hall')}</dt><dd>{game.hall}{game.city ? `, ${game.city}` : ''}</dd></>}
         </dl>
         {!token && game.match_id && <Link className="btn btn-primary" to={`/m/${game.match_id}`}>Open the tagged match</Link>}
-        <h3 className="section-title">Video</h3>
+        <h3 className="section-title">{t('Video')}</h3>
         {video === undefined ? <p className="small muted">…</p> : token ? (
           <>
             {confirmed && (yt
               ? <div className="video-box"><iframe className="video-fill" src={`https://www.youtube-nocookie.com/embed/${yt}`} title={confirmed.title ?? 'Video'} allow="fullscreen; picture-in-picture" allowFullScreen /></div>
               : <a href={confirmed.url!} target="_blank" rel="noreferrer">{confirmed.title || confirmed.url}</a>)}
-            {!confirmed && !played && <p className="small muted">Not played yet.</p>}
+            {!confirmed && !played && <p className="small muted">{t('Not played yet.')}</p>}
             {played && <SuggestVideoForm token={token} gameId={game.gameId} hasVideo={!!confirmed} />}
           </>
         ) : (

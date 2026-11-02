@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import type { PlayerHandle } from './VideoPlayer';
 
 /** Playback speeds; YouTube cannot go below 0.25×. */
@@ -32,7 +33,7 @@ export function SpeedControl({ rate, onRate, youtube = false, className = '' }: 
   return (
     <span className="speed-ctl" ref={box}>
       <button className={`${className} slowmo ${rate < 1 ? 'on' : ''}`} aria-pressed={rate < 1} onClick={() => onRate(rate < 1 ? 1 : slowRate)}
-        title={rate < 1 ? 'Back to normal speed' : `Slow motion (${slowRate}×)`}>Slow-mo{rate < 1 ? ` ${rate}×` : ''}</button>
+        title={rate < 1 ? t('Back to normal speed') : `${t('Slow motion')} (${slowRate}×)`}>{t('Slow-mo')}{rate < 1 ? ` ${rate}×` : ''}</button>
       <button className={className} onClick={() => setOpen(!open)} title="Playback speed" aria-expanded={open}>{rate}× ▾</button>
       {open && (
         <span className={`speed-pop ${(box.current?.getBoundingClientRect().left ?? 0) < window.innerWidth / 2 ? 'from-left' : ''}`} role="menu">
@@ -50,8 +51,8 @@ export function FrameStep({ player, className = '' }: { player: React.RefObject<
   const step = (dir: number) => { const p = player.current; if (!p) return; p.pause(); p.seekBy(dir * FRAME); };
   return (
     <>
-      <button className={className} onClick={() => step(-1)} title="One frame back">‹ frame</button>
-      <button className={className} onClick={() => step(1)} title="One frame forward">frame ›</button>
+      <button className={className} onClick={() => step(-1)} title={t('One frame back')}>‹ {t('frame')}</button>
+      <button className={className} onClick={() => step(1)} title={t('One frame forward')}>{t('frame')} ›</button>
     </>
   );
 }

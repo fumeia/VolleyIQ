@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t } from '../lib/i18n';
 import { Link } from 'react-router-dom';
 import { api, type GameVideo, type ScheduleGame } from '../lib/api';
 
@@ -28,28 +29,28 @@ export function ScheduleTable({ games, showTeam = false, limit, onPick }: { game
   return (
     <div className="sched">
       <nav className="tabs">
-        <button className={`tab ${tab === 'next' ? 'on' : ''}`} onClick={() => setTab('next')}>Upcoming <small>{upcoming.length}</small></button>
-        <button className={`tab ${tab === 'played' ? 'on' : ''}`} onClick={() => setTab('played')}>Results <small>{played.length}</small></button>
+        <button className={`tab ${tab === 'next' ? 'on' : ''}`} onClick={() => setTab('next')}>{t('Upcoming')} <small>{upcoming.length}</small></button>
+        <button className={`tab ${tab === 'played' ? 'on' : ''}`} onClick={() => setTab('played')}>{t('Results')} <small>{played.length}</small></button>
       </nav>
-      {rows.length === 0 ? <p className="muted small sched-empty">{tab === 'next' ? 'No more games scheduled.' : 'No games played yet.'}</p> : (
+      {rows.length === 0 ? <p className="muted small sched-empty">{tab === 'next' ? t('No more games scheduled.') : t('No games played yet.')}</p> : (
         <div className="table-wrap">
           <table className="stat-table sched-table">
-            <thead><tr><th>Date</th><th>Game</th><th>{tab === 'next' ? 'Time' : 'Sets'}</th></tr></thead>
+            <thead><tr><th>{t('Date')}</th><th>{t('Game')}</th><th>{tab === 'next' ? t('Time') : t('Sets')}</th></tr></thead>
             <tbody>
               {rows.map((g) => {
                 const o = outcome(g);
                 return (
                   <tr key={g.id} onClick={() => onPick(g)} className={g.cancelled ? 'sched-cancelled' : ''}>
                     <td><b>{gameDay(g.starts_at)}</b>{showTeam && <small className="muted">{g.team_name}</small>}</td>
-                    <td className="sched-game">{name(g, 'home')}<span className="sched-vs">{name(g, 'away')}</span>{g.league && <small className="muted">{g.league}{g.hall ? ` · ${g.hall}` : ''}</small>}
+                    <td className="sched-game">{name(g, 'home')}<span className="sched-vs" data-vs={t('vs')}>{name(g, 'away')}</span>{g.league && <small className="muted">{g.league}{g.hall ? ` · ${g.hall}` : ''}</small>}
                       {(g.suggestions?.length || g.match_id || g.video?.state === 'confirmed' || g.video?.state === 'found') ? (
                         <span className="sched-flags">
-                          {g.match_id ? <span className="badge badge-pending" title="Tagged in VolleyIQ">tagged</span> : null}
-                          {g.video?.state === 'confirmed' ? <span className="badge" title="Has a video">video</span> : g.video?.state === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search: open the game to check">possible video</span> : null}
+                          {g.match_id ? <span className="badge badge-pending" title="Tagged in VolleyIQ">{t('tagged')}</span> : null}
+                          {g.video?.state === 'confirmed' ? <span className="badge" title="Has a video">{t('video')}</span> : g.video?.state === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search: open the game to check">possible video</span> : null}
                           {g.suggestions?.length ? <span className="badge badge-suggest" title="Videos sent by visitors of the public page">{g.suggestions.length} video{g.suggestions.length === 1 ? '' : 's'} sent</span> : null}
                         </span>
                       ) : null}</td>
-                    <td>{g.cancelled ? <span className="muted">cancelled</span> : g.result ? <b className={o === 'won' ? 'tone-good' : o === 'lost' ? 'tone-bad' : ''}>{g.result}</b> : gameTime(g.starts_at)}</td>
+                    <td>{g.cancelled ? <span className="muted">{t('cancelled')}</span> : g.result ? <b className={o === 'won' ? 'tone-good' : o === 'lost' ? 'tone-bad' : ''}>{g.result}</b> : gameTime(g.starts_at)}</td>
 
                   </tr>
                 );
@@ -58,7 +59,7 @@ export function ScheduleTable({ games, showTeam = false, limit, onPick }: { game
           </table>
         </div>
       )}
-      {rows.length < full.length && <button className="btn-ghost small sched-more" onClick={() => setAll(true)}>Show all {full.length}</button>}
+      {rows.length < full.length && <button className="btn-ghost small sched-more" onClick={() => setAll(true)}>{t('Show all {n}', { n: full.length })}</button>}
     </div>
   );
 }

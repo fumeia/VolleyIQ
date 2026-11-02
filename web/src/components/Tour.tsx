@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n';
 import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 
 export interface TourStep {
@@ -48,7 +49,7 @@ export function Tour({ id, steps }: { id: string; steps: TourStep[] }) {
   }, [i]);
 
   if (i == null || !step) {
-    return <button className="tour-open" onClick={() => setI(0)} title="A short tour of this page">? Guide</button>;
+    return <button className="tour-open" onClick={() => setI(0)} title={t('A short tour of this page')}>? {t('Guide')}</button>;
   }
   const last = i === steps.length - 1;
   const pad = 6;
@@ -67,10 +68,10 @@ export function Tour({ id, steps }: { id: string; steps: TourStep[] }) {
         </div>
         <div className="tour-text">{step.text}</div>
         <div className="tour-actions">
-          {!last && <button className="btn-ghost small" onClick={close}>Skip tour</button>}
+          {!last && <button className="btn-ghost small" onClick={close}>{t('Skip tour')}</button>}
           <span className="grow" />
-          {i > 0 && <button className="btn small" onClick={() => setI(i - 1)}>Back</button>}
-          <button className="btn btn-primary small" onClick={() => (last ? close() : setI(i + 1))}>{last ? 'Done' : i === 0 ? 'Show me' : 'Next'}</button>
+          {i > 0 && <button className="btn small" onClick={() => setI(i - 1)}>{t('Back')}</button>}
+          <button className="btn btn-primary small" onClick={() => (last ? close() : setI(i + 1))}>{last ? t('Done') : i === 0 ? t('Show me') : t('Next')}</button>
         </div>
       </div>
     </div>

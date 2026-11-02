@@ -1,5 +1,7 @@
 import { PassGrades } from './PassGrades';
 import type { TourStep } from './Tour';
+import { isGerman } from '../lib/i18n';
+import { matchTourDe, playerTourDe, statsTourDe, teamTourDe } from './ShareToursDe';
 
 /** The guided tours of the public links: the team link, a player's page and a single match. */
 
@@ -32,6 +34,7 @@ const tone: TourStep = {
 };
 
 export function teamTour(team: string): TourStep[] {
+  if (isGerman()) return teamTourDe(team);
   return [
     {
       title: team,
@@ -84,6 +87,7 @@ export function teamTour(team: string): TourStep[] {
 
 /** The Stats tab: season or one match, the topics, how passes are graded, green and red. */
 export function statsTour(): TourStep[] {
+  if (isGerman()) return statsTourDe();
   return [
     {
       target: '[data-tour="match-picker"]',
@@ -101,6 +105,7 @@ export function statsTour(): TourStep[] {
 }
 
 export function playerTour(name: string): TourStep[] {
+  if (isGerman()) return playerTourDe(name);
   return [
     {
       title: `${name}'s page`,
@@ -134,6 +139,7 @@ export function playerTour(name: string): TourStep[] {
 }
 
 export function matchTour(title: string): TourStep[] {
+  if (isGerman()) return matchTourDe(title);
   return [
     {
       title,

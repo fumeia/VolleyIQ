@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Public link in German**
+- The public team and match links follow the browser's language (German for German browsers), with a DE / EN switch in the top bar (remembered on the device). Translated: tabs, Overview, games and results, Replays with corrections and playlists, All games with its filters, the video form, the guided tours, the stats topics, the main numbers and the pass grades. The coach app stays English.
+- Still in English for now: the generated findings ("What went well" items), the chart titles and explanations inside the stats topics, the player pages' strengths and tips, and the report images.
+
 **Clip playlists**
 - In a match's Events tab, select tags (hold one; "All shown" selects the whole filtered list) and pick "Add to playlist…" (or a new one). Playlists can mix matches, e.g. "Our blocked attacks" over the season.
 - Team page → Clip playlists: change the order (↑ ↓), remove clips, rename, delete.

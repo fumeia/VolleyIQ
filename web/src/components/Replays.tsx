@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { ACTION_BY_CODE, SKILLS } from '../lib/actions';
 import { api, type Match, type Player, type Playlist, type VEvent } from '../lib/api';
 import { ourHalfAt } from '../lib/calibration';
@@ -182,10 +183,10 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
 
   const who = (e: VEvent) => {
     const p = players.find((x) => x.id === e.player_id);
-    return p ? `#${p.number ?? '–'} ${p.name.split(' ')[0]}` : e.jersey != null ? `#${e.jersey}` : 'Team';
+    return p ? `#${p.number ?? '–'} ${p.name.split(' ')[0]}` : e.jersey != null ? `#${e.jersey}` : t('Team');
   };
 
-  if (!withTags.length) return <p className="muted">No tagged touches with video times yet.</p>;
+  if (!withTags.length) return <p className="muted">{t('No tagged touches with video times yet.')}</p>;
 
   return (
     <div className="replays">
@@ -196,32 +197,32 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
       </div>
 
       <div className="replay-video" ref={videoBox}>
-        {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} onError={onVideoError} /> : hostedLoading ? <div className="replay-pick"><b>Loading the match video…</b></div> : (
+        {source ? <VideoPlayer key={file ? 'own' : 'team'} ref={player} source={source} onError={onVideoError} /> : hostedLoading ? <div className="replay-pick"><b>{t('Loading the match video…')}</b></div> : (
           <label className="replay-pick">
             <input type="file" accept="video/*" onChange={(e) => pickFile(e.target.files?.[0])} />
-            <b>Choose your copy of the match video</b>
+            <b>{t('Choose your copy of the match video')}</b>
             <span className="small muted">
-              {video?.type === 'hosted' ? 'The team video could not be loaded. ' : ''}
-              It plays here on your device and is not uploaded.{video?.type === 'file' ? <> The video file used for tagging is called <b>{video.name}</b>.</> : ''}
+              {video?.type === 'hosted' ? `${t('The team video could not be loaded.')} ` : ''}
+              {t('It plays here on your device and is not uploaded.')}{video?.type === 'file' ? <> {t('The video file used for tagging is called')} <b>{video.name}</b>.</> : ''}
             </span>
           </label>
         )}
       </div>
       {source && <Timeline player={player} events={all} />}
       {file ? (
-        <p className="small muted replay-file">▶ Your copy: {file.name} · <label className="link">change<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label>
-          {(video?.type === 'hosted' || video?.type === 'youtube') && <> · <button className="link" onClick={() => setFiles((m) => { const n = { ...m }; delete n[matchId!]; return n; })}>back to the team video</button></>}</p>
+        <p className="small muted replay-file">▶ {t('Your copy')}: {file.name} · <label className="link">{t('change')}<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label>
+          {(video?.type === 'hosted' || video?.type === 'youtube') && <> · <button className="link" onClick={() => setFiles((m) => { const n = { ...m }; delete n[matchId!]; return n; })}>{t('back to the team video')}</button></>}</p>
       ) : source && (
-        <p className="small muted replay-file">Video not playing?{' '}
-          {hostedPick && hostedPick.quality !== '480' && available(link).includes('480') && <><button className="link" onClick={() => { setQuality('480'); saveQuality('team', '480'); }}>Try the smaller 480p version</button> or </>}
-          <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? 'use' : 'Use'} your own copy instead<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
+        <p className="small muted replay-file">{t('Video not playing?')}{' '}
+          {hostedPick && hostedPick.quality !== '480' && available(link).includes('480') && <><button className="link" onClick={() => { setQuality('480'); saveQuality('team', '480'); }}>{t('Try the smaller 480p version')}</button> {t('or')} </>}
+          <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? t('use your own copy instead') : t('Use your own copy instead')}<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
       )}
 
       {playlists.length > 0 && (
         <div className="replay-playlists">
-          <span className="small muted">Playlists</span>
+          <span className="small muted">{t('Playlists')}</span>
           <div className="chips">
-            <button className={`chip ${list ? '' : 'on'}`} onClick={() => { setListId(null); setPlayAll(false); }}>All touches</button>
+            <button className={`chip ${list ? '' : 'on'}`} onClick={() => { setListId(null); setPlayAll(false); }}>{t('All touches')}</button>
             {playlists.map((p) => (
               <button key={p.id} className={`chip ${listId === p.id ? 'on' : ''}`} onClick={() => { setListId(p.id); setCur(null); setPlayAll(false); }}>{p.title} <small>{p.items.length}</small></button>
             ))}
@@ -232,28 +233,28 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
       {!list && <div className="replay-filters">
         <div className="chips">
           {['all', ...SKILLS.map((s) => s.label)].map((s) => (
-            <button key={s} className={`chip ${skill === s ? 'on' : ''}`} onClick={() => setSkill(s)}>{s === 'all' ? 'All' : s}</button>
+            <button key={s} className={`chip ${skill === s ? 'on' : ''}`} onClick={() => setSkill(s)}>{s === 'all' ? t('All') : t(s)}</button>
           ))}
         </div>
         <div className="row wrap">
           <select className="input" value={playerId ?? ''} onChange={(e) => setPlayerId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">All players</option>
+            <option value="">{t('All players')}</option>
             {inMatch.map((p) => <option key={p.id} value={p.id}>#{p.number ?? '–'} {p.name}</option>)}
           </select>
           <select className="input" value={set ?? ''} onChange={(e) => setSet(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">All sets</option>
-            {sets.map((s) => <option key={s} value={s}>Set {s}</option>)}
+            <option value="">{t('All sets')}</option>
+            {sets.map((s) => <option key={s} value={s}>{t('Set {n}', { n: s })}</option>)}
           </select>
           <div className="segmented replay-result">
             {(['all', 'points', 'errors'] as const).map((r) => (
-              <button key={r} className={result === r ? 'on' : ''} onClick={() => setResult(r)}>{r === 'all' ? 'All' : r === 'points' ? 'Points' : 'Errors'}</button>
+              <button key={r} className={result === r ? 'on' : ''} onClick={() => setResult(r)}>{r === 'all' ? t('All') : r === 'points' ? t('Points') : t('Errors')}</button>
             ))}
           </div>
         </div>
       </div>}
 
       <div className="replay-bar">
-        <button className="btn btn-primary" disabled={!source || !clips.length} onClick={() => { setPlayAll(true); play(current ?? clips[0]); }}>▶ Play all {clips.length}</button>
+        <button className="btn btn-primary" disabled={!source || !clips.length} onClick={() => { setPlayAll(true); play(current ?? clips[0]); }}>▶ {t('Play all {n}', { n: clips.length })}</button>
         <button className="btn" disabled={!source || idx <= 0} onClick={() => play(clips[idx - 1])}>◀</button>
         <button className="btn" disabled={!source || idx >= clips.length - 1} onClick={() => play(clips[idx + 1])}>▶</button>
         <div className="replay-playback">
@@ -262,15 +263,15 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
           {!file && hostedPick && <QualityControl className="btn" quality={hostedPick.quality} options={available(link)}
             onPick={(q) => { setQuality(q); saveQuality('team', q); }} />}
         </div>
-        <button className="btn-ghost small" onClick={() => setLead((lead + 1) % LEADS.length)}>{LEADS[lead].label} clips</button>
+        <button className="btn-ghost small" onClick={() => setLead((lead + 1) % LEADS.length)}>{t(`${LEADS[lead].label} clips`)}</button>
         <label className="toggle replay-edit-toggle">
           <input type="checkbox" checked={editing} onChange={(e) => setEditing(e.target.checked)} />
-          ✎ Suggest corrections
+          ✎ {t('Suggest corrections')}
         </label>
       </div>
 
       {editing && source && (
-        <button className="btn wide add-touch" onClick={startAdd}>＋ Missing touch? Add one at the current video time</button>
+        <button className="btn wide add-touch" onClick={startAdd}>＋ {t('Missing touch? Add one at the current video time')}</button>
       )}
       {notice && <p className="small edit-notice">{notice} <button className="link" onClick={() => setNotice('')}>OK</button></p>}
       {target && match && (
@@ -285,7 +286,7 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
           onCancel={() => setTarget(null)}
           onSent={() => {
             if (!target.add) { const s = [...sent, target.event.id]; setSent(s); try { localStorage.setItem(sentKey(token), JSON.stringify(s)); } catch { /* private mode */ } }
-            setNotice(target.add ? `✓ Sent: a new touch at ${fmtTime(target.add.t)}.` : '✓ Sent: your correction.');
+            setNotice(target.add ? `✓ ${t('Sent: a new touch at {t}.', { t: fmtTime(target.add.t) })}` : `✓ ${t('Sent: your correction.')}`);
             setTarget(null);
           }} />
       )}
@@ -295,18 +296,18 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
           <li key={e.id} className={editing ? 'with-edit' : ''}>
             {editing && (
               <button className="replay-edit" disabled={!source || sent.includes(e.id)} onClick={() => startEdit(e)} title="Suggest a correction for this touch">
-                {sent.includes(e.id) ? '✓' : '✎'}<small>{sent.includes(e.id) ? 'sent' : 'edit'}</small>
+                {sent.includes(e.id) ? '✓' : '✎'}<small>{sent.includes(e.id) ? t('sent') : t('edit')}</small>
               </button>
             )}
             <button className={`replay-clip ${e.id === cur ? 'on' : ''}`} disabled={!source} onClick={() => { setPlayAll(false); play(e); }}>
               <span className="replay-time">{fmtTime(e.t!)}</span>
               <b>{who(e)}</b>
-              <span className={`replay-act g-${ACTION_BY_CODE[e.action]?.group}`}>{ACTION_BY_CODE[e.action]?.label ?? e.action}{e.action === 'receive' && e.value != null ? ` ${e.value}` : ''}</span>
-              <span className="muted small">Set {e.set_no ?? 1}{sent.includes(e.id) ? ' · ✎ sent' : ''}</span>
+              <span className={`replay-act g-${ACTION_BY_CODE[e.action]?.group}`}>{t(ACTION_BY_CODE[e.action]?.label ?? e.action)}{e.action === 'receive' && e.value != null ? ` ${e.value}` : ''}</span>
+              <span className="muted small">{t('Set {n}', { n: e.set_no ?? 1 })}{sent.includes(e.id) ? ` · ✎ ${t('sent')}` : ''}</span>
             </button>
           </li>
         ))}
-        {!clips.length && <li className="muted small">No touches match these filters.</li>}
+        {!clips.length && <li className="muted small">{t('No touches match these filters.')}</li>}
       </ol>
     </div>
   );

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { t } from '../lib/i18n';
 import { Link, useParams } from 'react-router-dom';
 import { api, type LeagueGame, type ScheduleGame } from '../lib/api';
 import { gameDay, VideoFinder } from '../components/Schedule';
@@ -53,7 +54,7 @@ export function Scout() {
                   <Fragment key={g.gameId}>
                     <tr onClick={() => setOpen(open === g.gameId ? null : g.gameId)} className={open === g.gameId ? 'on' : ''}>
                       <td><b>{gameDay(g.start)}</b></td>
-                      <td className="sched-game"><span className={g.home === opp ? 'sched-us' : ''}>{g.home}</span><span className="sched-vs"><span className={g.away === opp ? 'sched-us' : ''}>{g.away}</span></span>
+                      <td className="sched-game"><span className={g.home === opp ? 'sched-us' : ''}>{g.home}</span><span className="sched-vs" data-vs={t('vs')}><span className={g.away === opp ? 'sched-us' : ''}>{g.away}</span></span>
                         {g.sets.length > 0 && <small className="muted">{g.sets.join(', ')}</small>}
                         {g.video?.state === 'confirmed' && <span className="sched-flags"><span className="badge">video</span></span>}</td>
                       <td>{g.result ? <b className={won(g) ? 'tone-good' : 'tone-bad'}>{g.result}</b> : <span className="muted">{g.start.slice(11, 16)}</span>}</td>

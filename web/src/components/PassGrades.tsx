@@ -1,3 +1,4 @@
+import { t as tr } from '../lib/i18n';
 import { COURT, PASS_TARGET } from '../lib/court';
 
 /**
@@ -23,17 +24,17 @@ export function PassGrades() {
         <rect x={X(0)} y={Y(COURT.net)} width={COURT.width} height={COURT.net} className="pg-lines" />
         <line x1={X(0)} x2={X(COURT.width)} y1={Y(COURT.net - COURT.attackLine)} y2={Y(COURT.net - COURT.attackLine)} className="pg-lines" />
         <line x1={0} x2={W} y1={Y(COURT.net)} y2={Y(COURT.net)} className="pg-net" />
-        <text x={W / 2} y={Y(COURT.net) - 0.35} className="pg-label">NET</text>
+        <text x={W / 2} y={Y(COURT.net) - 0.35} className="pg-label">{tr('NET')}</text>
         <text x={t.x} y={t.y + 0.4} className="pg-num">3</text>
         <text x={t.x - 2.25} y={t.y + 1.2} className="pg-num">2</text>
         <text x={X(1.6)} y={Y(2.2)} className="pg-num">1</text>
         <text x={m / 2} y={H - 0.4} className="pg-num pg-zero">0</text>
       </svg>
       <figcaption className="small">
-        <span><b className="pg-k3">3</b> within 1.5 m of the setter's spot</span>
-        <span><b className="pg-k2">2</b> within 3 m</span>
-        <span><b className="pg-k1">1</b> elsewhere, the set is harder (an overpass too)</span>
-        <span><b className="pg-k0">0</b> out of play, or aced</span>
+        <span><b className="pg-k3">3</b> {tr("within 1.5 m of the setter's spot")}</span>
+        <span><b className="pg-k2">2</b> {tr('within 3 m')}</span>
+        <span><b className="pg-k1">1</b> {tr('elsewhere, the set is harder (an overpass too)')}</span>
+        <span><b className="pg-k0">0</b> {tr('out of play, or aced')}</span>
       </figcaption>
     </figure>
   );

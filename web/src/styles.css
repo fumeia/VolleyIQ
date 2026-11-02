@@ -1078,7 +1078,7 @@ button.court-zone:active { background: #2a2f3a; }
 .sched-table th:nth-child(2), .sched-table td.sched-game { text-align: left; white-space: normal; }
 .sched-game > span { display: block; }
 .sched-game small { display: block; margin-top: 2px; }
-.sched-vs::before { content: 'vs '; color: var(--muted); font-size: 12px; }
+.sched-vs::before { content: attr(data-vs) ' '; color: var(--muted); font-size: 12px; }
 .sched-us { font-weight: 700; }
 .sched-game .sched-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .sched-flags .badge { margin: 0; }
@@ -1102,7 +1102,7 @@ button.court-zone:active { background: #2a2f3a; }
 .sched-table td:first-child, .sched-table th:first-child { width: 1%; padding-right: 14px; }
 @media (min-width: 700px) {
   .sched-game > span { display: inline; }
-  .sched-vs::before { content: ' vs '; }
+  .sched-vs::before { content: ' ' attr(data-vs) ' '; }
 }
 .sched-more { align-self: flex-start; }
 .club-pick { display: flex; flex-direction: column; gap: 6px; }
@@ -1209,3 +1209,6 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .playlist-items li { display: flex; align-items: center; gap: 4px; }
 .playlist-items .btn-ghost { min-height: 28px; padding: 2px 8px; }
 .replay-playlists { display: flex; flex-direction: column; gap: 4px; }
+.lang-switch { display: inline-flex; margin-left: 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 4px; overflow: hidden; }
+.lang-switch button { border: 0; background: transparent; color: var(--brand-muted); font-size: 11.5px; font-weight: 700; padding: 3px 7px; }
+.lang-switch button.on { background: rgba(255,255,255,.18); color: var(--brand-ink); }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
+import { t } from '../lib/i18n';
 import { ACTION_BY_CODE, isNetSpot, wantsSpots, type ActionCode } from '../lib/actions';
 import { api, type Player, type VEvent } from '../lib/api';
 import type { Pt } from '../lib/court';
@@ -82,7 +83,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
 
   /** The step after picking the action: the grade, the spots, or sending. */
   const afterAction = (c: ActionCode): Step => (c === 'receive' ? 'grade' : wantsSpots(c, 'points', 'all') ? (ACTION_BY_CODE[c].court === 'path' ? 'from' : 'to') : 'send');
-  const steps: [Step, string][] = [['who', 'Who'], ['what', 'What'], ...(spots ? [[path ? 'from' : 'to', 'Where'] as [Step, string]] : []), ['send', 'Send']];
+  const steps: [Step, string][] = [['who', t('Who')], ['what', t('What')], ...(spots ? [[path ? 'from' : 'to', t('Where')] as [Step, string]] : []), ['send', t('Send')]];
   const stepOf = (s: Step) => (s === 'grade' ? 'what' : s === 'to' && path ? 'from' : s);
 
   async function send() {
@@ -94,7 +95,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
         : { event_id: event.id, changes, note: note.trim(), jersey: sender! });
       onSent();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not send');
+      setErr(e instanceof Error ? e.message : t('Could not send'));
       setState('error');
     }
   }
@@ -103,7 +104,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
   return (
     <div className="spot-sheet edit-sheet" style={{ top, left: 0 }} role="dialog" aria-label="Suggest a correction">
       <div className="edit-sheet-head">
-        <b>{add ? `New touch · ${fmtTime(add.t)}` : `Edit · ${who(event.player_id)} ${ACTION_BY_CODE[event.action]?.short ?? ''} · ${fmtTime(event.t ?? 0)}`}</b>
+        <b>{add ? `${t('New touch')} · ${fmtTime(add.t)}` : `${t('Edit')} · ${who(event.player_id)} ${t(ACTION_BY_CODE[event.action]?.short ?? '')} · ${fmtTime(event.t ?? 0)}`}</b>
         <span className="edit-sheet-controls">{controls}</span>
         <button className="btn-ghost small" onClick={onCancel}>✕</button>
       </div>
@@ -116,7 +117,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
 
       {step === 'who' && (
         <div className="edit-sheet-body">
-          <span className="small muted">Who played it?</span>
+          <span className="small muted">{t('Who played it?')}</span>
           <div className="pad-grid pad-players small-jerseys">
             {players.map((p) => (
               <button key={p.id} className={`jersey role-${p.role} ${playerId === p.id ? 'is-selected' : ''}`} onClick={() => { setPlayerId(p.id); setStep('what'); }}>
@@ -138,7 +139,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
 
       {step === 'grade' && (
         <div className="edit-sheet-body">
-          <span className="small muted">Pass grade (3 = perfect)</span>
+          <span className="small muted">{t('Pass grade (3 = perfect)')}</span>
           <div className="pad-grid pad-grid-4 receive-quick">
             {[0, 1, 2, 3].map((g) => <button key={g} className={`act act-receive r${g} ${value === g ? 'is-selected' : ''}`} onClick={() => { setValue(g); setStep(spots ? 'to' : 'send'); }}>{g}</button>)}
           </div>
@@ -148,7 +149,7 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
       {spotStep && (
         <>
           <span className="small muted">
-            {(step === 'from' ? def?.fromPrompt : def?.toPrompt) ?? 'Where?'}{path ? ` (${step === 'from' ? 1 : 2}/2)` : ''} · as the camera sees it
+            {t((step === 'from' ? def?.fromPrompt : def?.toPrompt) ?? 'Where?')}{path ? ` (${step === 'from' ? 1 : 2}/2)` : ''} · {t('as the camera sees it')}
           </span>
           <div className="spot-court">
             {isNetSpot(action, step === 'from' || !path)
@@ -159,9 +160,9 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
                   onPick={(p) => { if (step === 'from') { setFrom(p); setStep('to'); } else { setTo(p); setStep('send'); } }} />}
           </div>
           <div className="spot-actions">
-            <button className="btn" onClick={() => setStep(step === 'to' && path ? 'from' : 'what')}>◀ Back</button>
+            <button className="btn" onClick={() => setStep(step === 'to' && path ? 'from' : 'what')}>◀ {t('Back')}</button>
             <button className="btn" onClick={() => setStep(step === 'from' ? 'to' : 'send')}>
-              {(step === 'from' ? shownFrom : shownTo) ? (add ? 'Keep ▶' : 'Keep tagged spot ▶') : 'Skip ▶'}
+              {(step === 'from' ? shownFrom : shownTo) ? (add ? `${t('Keep')} ▶` : `${t('Keep tagged spot')} ▶`) : `${t('Skip')} ▶`}
             </button>
           </div>
         </>
@@ -170,18 +171,18 @@ export function EditSheet({ token, event, add, players, flip, anchor, controls, 
       {step === 'send' && (
         <div className="edit-sheet-body">
           <table className="edit-diff small"><tbody>
-            <tr><td className="muted">Player</td><td>{!add && changes.player_id !== undefined && <s>{who(event.player_id)}</s>} <b>{who(playerId)}</b></td></tr>
-            <tr><td className="muted">Action</td><td>{!add && changes.action !== undefined && <s>{ACTION_BY_CODE[event.action]?.label}</s>} <b>{def?.label}{value != null ? ` ${value}` : ''}</b></td></tr>
-            {(add ? from !== undefined || to !== undefined : moved) && <tr><td className="muted">Court spot</td><td><b>{add ? 'set' : 'changed'}</b></td></tr>}
+            <tr><td className="muted">{t('Player')}</td><td>{!add && changes.player_id !== undefined && <s>{who(event.player_id)}</s>} <b>{who(playerId)}</b></td></tr>
+            <tr><td className="muted">{t('Action')}</td><td>{!add && changes.action !== undefined && <s>{t(ACTION_BY_CODE[event.action]?.label ?? '')}</s>} <b>{t(def?.label ?? '')}{value != null ? ` ${value}` : ''}</b></td></tr>
+            {(add ? from !== undefined || to !== undefined : moved) && <tr><td className="muted">{t('Court spot')}</td><td><b>{add ? t('set') : t('changed')}</b></td></tr>}
           </tbody></table>
-          <label className="field-label">Your shirt number <small className="muted">(required)</small>
+          <label className="field-label">{t('Your shirt number')} <small className="muted">({t('required')})</small>
             <input className="input edit-jersey" inputMode="numeric" maxLength={2} placeholder="#" value={jersey} onChange={(e) => setJersey(e.target.value.replace(/\D/g, ''))} />
           </label>
-          <textarea className="input" rows={2} maxLength={500} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea className="input" rows={2} maxLength={500} placeholder={t('Note (optional)')} value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="btn btn-primary wide" disabled={nothing || sender == null || state === 'sending'} onClick={send}>
-            {state === 'sending' ? 'Sending…' : nothing ? (add ? 'Pick who played it' : 'Nothing changed yet') : sender == null ? 'Enter your shirt number' : '✓ Send'}
+            {state === 'sending' ? t('Sending…') : nothing ? (add ? t('Pick who played it') : t('Nothing changed yet')) : sender == null ? t('Enter your shirt number') : `✓ ${t('Send')}`}
           </button>
-          <p className="small muted">Checked in the app before it changes anything.</p>
+          <p className="small muted">{t('Checked in the app before it changes anything.')}</p>
           {state === 'error' && <p className="small error">{err}</p>}
         </div>
       )}
