@@ -36,6 +36,8 @@ test('scouting report gives a game plan', async ({ page, seed, login }) => {
   await expect(plan).toContainText('How to play them');
   await expect(plan).toContainText('#5');
   await expect(page.getByRole('heading', { name: 'Attackers' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Serve targets' })).toBeVisible();
+  await expect(page.locator('.serve-best').first()).toContainText('#7');
   await page.getByRole('button', { name: 'Save as PDF / print' }).click();
   await expect(page.locator('.print-page')).toBeVisible();
 });

@@ -5,6 +5,7 @@ import { attackContexts, ATTACKS, buildRallies } from './sequence';
 import { statLine, type StatLine } from './stats';
 import { attackOrigin, direction, theirZone, type Direction, type Origin } from './trajectory';
 import type { Lineups } from './rotation';
+import { servePlan, type ServePlan } from './serveTargets';
 
 /**
  * A scouting report on a team from its tagged matches (tagged as that team, e.g. from the
@@ -38,6 +39,8 @@ export interface ScoutingReport {
   servers: ServerRow[];
   rotations: RotationRow[] | null;
   points: ReturnType<typeof pointSources>;
+  /** Where to serve: side-out chance per zone and receiver. */
+  serve: ServePlan;
   /** "How to play them": the strongest few takeaways, in plain words. */
   plan: string[];
 }
@@ -116,7 +119,7 @@ export function scoutingReport(players: Player[], events: VEvent[], matches: Pic
 
   const report: ScoutingReport = {
     matches: new Set(ev.map((e) => e.match_id)).size, sets, rallies: rallies.length,
-    team, receivers, receiveZones: receptionZones(ev), attackers, setter, servers, rotations, points, plan: [],
+    team, receivers, receiveZones: receptionZones(ev), attackers, setter, servers, rotations, points, serve: servePlan(players, ev), plan: [],
   };
   report.plan = gamePlan(report);
   return report;
@@ -127,6 +130,11 @@ export function gamePlan(r: ScoutingReport): string[] {
   const out: string[] = [];
   const { team } = r;
 
+  // Where to serve: the receiver and zone where they side out least.
+  const t = r.serve.best[0];
+  if (t && t.n >= MIN.receiver && t.gain >= 1) {
+    out.push(`Best serve target: ${name(t.player)} in zone ${t.zone}. They side out ${pct(t.sideout)} there (${pct(r.serve.base)} on average): about ${t.gain.toFixed(0)} more points per 25 serves.`);
+  }
   // Who to serve at.
   const weak = r.receivers.filter((x) => x.n >= MIN.receiver);
   if (weak.length >= 2 && team.recAvg != null) {

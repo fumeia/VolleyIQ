@@ -1291,3 +1291,20 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 @media (prefers-reduced-motion: reduce) { .voice-dot.on { animation: none; } }
 .voice-interim { min-height: 22px; font-size: 15px; }
 .voice-line { overflow-wrap: anywhere; }
+
+/* ---------- serve targets ---------- */
+.serve-targets { display: flex; flex-direction: column; gap: 10px; }
+.serve-court { margin: 0; max-width: 420px; }
+.serve-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--line); border: 2px solid var(--text); border-bottom: 0; }
+.serve-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 10px 4px; min-height: 64px;
+  background: color-mix(in srgb, var(--accent) calc(var(--s, 0) * 55%), var(--surface)); color: var(--text); text-align: center;
+}
+.serve-cell b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.serve-cell small { font-size: 11px; color: var(--muted); }
+.serve-cell.thin { background: var(--surface-2); }
+.serve-net { border-top: 4px solid var(--text); text-align: center; font-size: 11px; color: var(--muted); padding-top: 2px; }
+.serve-best { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.serve-best th, .serve-best td { padding: 4px 3px; text-align: right; border-bottom: 1px solid var(--line); }
+.serve-best th:first-child, .serve-best td:first-child { text-align: left; }
+.serve-best th { color: var(--muted); font-weight: 600; }

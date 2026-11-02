@@ -5,6 +5,7 @@ import { api, type Match, type Player, type Team, type VEvent } from '../lib/api
 import { printPage } from '../lib/native';
 import { MIN, scoutingReport, type Distribution, type ScoutingReport as Report } from '../lib/scouting';
 import { breakPct, sideOutPct } from '../lib/analysis';
+import { ServeTargets } from '../components/ServeTargets';
 
 const pct = (v: number | null) => (v == null ? '–' : `${Math.round(v * 100)}%`);
 const eff = (v: number) => `${v > 0.0005 ? '+' : ''}${v.toFixed(3).replace(/^(-?)0\./, '$1.')}`;
@@ -96,6 +97,13 @@ function ScoutingBody({ team, matches, report: r }: { team: Team; matches: Match
           {r.receiveZones.some((z) => z.n) && (
             <p className="print-note">Pass average by zone: {r.receiveZones.filter((z) => z.n).map((z) => `${z.zone}: ${z.value!.toFixed(2)} (${z.n})`).join(' · ')}</p>
           )}
+        </section>
+      )}
+
+      {r.serve.passes > 0 && (
+        <section className="print-table">
+          <h2>Serve targets</h2>
+          <ServeTargets plan={r.serve} />
         </section>
       )}
 

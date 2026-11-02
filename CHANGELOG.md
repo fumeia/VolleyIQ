@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Serve target planner**
+- Scouting report → "Serve targets": their court as seen from our serving line, with their side-out chance per zone (darker = better target), the best receiver-and-zone pairs and every receiver, each with how many points 25 serves there would bring compared with serving anywhere. From their passes (grade and where it was taken) and whether they won those rallies. The best target also goes into "How to play them".
+
 **Voice tagging**
 - Match page → "Voice tagging": say who did what and it becomes tags, live without video or while watching one. "7 pass 2, 1 set, 5 kill", "12 serve error", "our point", "their point", "undo"; in German "7 Annahme 2, 1 Zuspiel, 5 Punkt", "12 Aufschlagfehler", "Punkt für uns", "Punkt Gegner", "zurück". "5 attack, our point" makes the attack a kill. Every phrase shows what was heard and which tags it made.
 - In the Android app it uses the phone's speech recognition (offline when the phone has the German or English speech pack; asks for the microphone once). In a browser: Chrome, Edge or Safari.
