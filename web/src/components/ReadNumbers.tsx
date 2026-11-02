@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { api, type Player } from '../lib/api';
-import { stillFrames } from '../lib/frames';
+import { GRAB_NOTE, grabPictures, grabWay } from '../lib/grab';
 import type { PlayerHandle } from './VideoPlayer';
+
+/** Zoomed in: the part in view as one picture; otherwise four quarters. */
+const g0 = (view: unknown) => (view ? 'view' as const : 'quarters' as const);
 
 type Found = { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] };
 
@@ -22,14 +25,14 @@ export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
   const [off, setOff] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const url = player.current?.fileUrl() ?? null;
+  const way = grabWay(player.current);
   const have = new Set(players.filter((p) => p.active).map((p) => p.number));
   const run = async (label: string, f: () => Promise<void>) => {
     setBusy(label); setError('');
     try { await f(); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(''); }
   };
   if (!teamId) return <p className="small muted">Pick a team for this match first.</p>;
-  if (!url) return <p className="small muted">Needs the video file on this device: YouTube does not let the app read its frames. In the app, download the YouTube video in the Auto tab first.</p>;
+  if (!way) return <p className="small muted">Load the match video first.</p>;
   const time = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   return (
     <div className="read-numbers">
@@ -37,14 +40,12 @@ export function ReadNumbers({ player, teamId, teamName, players, onAdded }: {
         Pause where the shirt numbers can be seen (the line-up before the game, a time-out, players on court). Zoom in on the players
         (two fingers on the video, or Ctrl + mouse wheel) and add the frame: the zoomed part is sent at full resolution. Unzoomed, the frame
         is sent as four quarters. Several frames from different moments read more numbers.
+        {GRAB_NOTE[way] && ` ${GRAB_NOTE[way]}`}
       </p>
       <div className="row wrap">
         <button className="btn" disabled={!!busy || used + (player.current?.view() ? 1 : 4) > MAX} onClick={() => run('frame', async () => {
-          player.current?.pause();
-          const t = player.current?.time() ?? 0;
-          const view = player.current?.view() ?? null;
-          const data = await stillFrames(url, t, view);
-          setFrames((l) => [...l, { t, zoomed: !!view, data }]);
+          const g = await grabPictures(player.current!, [g0(player.current!.view())]);
+          setFrames((l) => [...l, { t: g.t, zoomed: g.zoomed, data: g.data[0] }]);
           setFound(null);
         })}>{busy === 'frame' ? 'Taking the frame…' : 'Add this frame'}</button>
         <span className="small muted">{used}/{MAX} pictures</span>

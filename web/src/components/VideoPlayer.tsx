@@ -12,6 +12,7 @@ export interface PlayerHandle {
   seek(t: number): void;
   seekBy(dt: number): void;
   setRate(r: number): void;
+  rate(): number;
   ready(): boolean;
   /** Width / height of the picture (for overlays on the letterboxed video). */
   aspect(): number | null;
@@ -20,6 +21,10 @@ export interface PlayerHandle {
   /** The part of the video in view when zoomed in, as fractions of the picture (null: all of it). */
   view(): { x: number; y: number; w: number; h: number } | null;
   resetZoom(): void;
+  /** The YouTube video's id (null for a file). */
+  youtubeId(): string | null;
+  /** The box the video is shown in (for a screen capture of an embedded YouTube video). */
+  box(): HTMLElement | null;
 }
 
 interface Props {
@@ -92,6 +97,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
   };
   const ytHost = useRef<HTMLDivElement>(null);
   const yt = useRef<any>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const lastTap = useRef<{ t: number; x: number } | null>(null);
@@ -168,6 +174,8 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
       return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
     },
     resetZoom: () => setZoom({ s: 1, x: 0, y: 0 }),
+    youtubeId: () => (source?.type === 'youtube' ? source.id : null),
+    box: () => boxRef.current,
     play: () => (source?.type === 'youtube' ? yt.current?.playVideo?.() : video.current?.play().catch(() => {})),
     pause: () => (source?.type === 'youtube' ? yt.current?.pauseVideo?.() : video.current?.pause()),
     isPlaying: () => {
@@ -192,6 +200,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
       const now = handle.time();
       if (now != null) handle.seek(now + dt);
     },
+    rate: () => (source?.type === 'youtube' ? yt.current?.getPlaybackRate?.() ?? 1 : video.current?.playbackRate ?? 1),
     setRate: (r: number) => {
       if (source?.type === 'youtube') yt.current?.setPlaybackRate?.(r);
       else if (video.current) video.current.playbackRate = r;
@@ -292,7 +301,7 @@ export const VideoPlayer = forwardRef<PlayerHandle, Props>(function VideoPlayer(
   }
 
   return (
-    <div className="video-box">
+    <div className="video-box" ref={boxRef}>
       <div className="video-zoom" style={zoom.s > 1 ? { transform: `scale(${zoom.s}) translate(${-zoom.x * 100}%, ${-zoom.y * 100}%)` } : undefined}>
       {source.type === 'youtube' ? (
         <div ref={ytHost} className="video-fill" />

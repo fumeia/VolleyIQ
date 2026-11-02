@@ -41,6 +41,8 @@ interface VolleyIQPlugin {
   cancelVideoUpload(o: { matchId: number }): Promise<void>;
   cancelAnalysis(o: { matchId: number }): Promise<void>;
   deleteVideo(o: { uri: string }): Promise<void>;
+  /** One frame of a YouTube video at [t] s, fetched with yt-dlp (base64 JPEG, up to 1080p). */
+  youtubeFrame(o: { url: string; t: number }): Promise<{ data: string; width: number; height: number }>;
   requestNotifications(): Promise<{ granted: boolean }>;
   /** Android's print dialog for the page as it is now (offers Save as PDF). */
   print(o: { name: string }): Promise<void>;

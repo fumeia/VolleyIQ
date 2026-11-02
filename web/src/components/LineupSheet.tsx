@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api, type LineupRead, type Match, type Player } from '../lib/api';
 import { ourHalfAt } from '../lib/calibration';
-import { stillFrames } from '../lib/frames';
+import { GRAB_NOTE, grabPictures, grabWay } from '../lib/grab';
 import type { PlayerHandle } from './VideoPlayer';
 import { orderAt, type Lineup, type Lineups } from '../lib/rotation';
 import { fmtTime } from './TagPad';
@@ -144,7 +144,7 @@ function ReadLineup({ player, match, players, onApply }: {
   const [first, setFirst] = useState(true);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const url = player.current?.fileUrl() ?? null;
+  const way = grabWay(player.current);
   const at = player.current?.time() ?? 0;
   const ours = match.calibration ? ourHalfAt(match.calibration, at) : null;
   const byNumber = (n: number | null) => (n == null ? null : players.find((p) => p.active && p.number === n) ?? null);
@@ -152,11 +152,8 @@ function ReadLineup({ player, match, players, onApply }: {
   async function read() {
     setBusy(true); setError(''); setNote(''); setTeams(null);
     try {
-      player.current?.pause();
-      const t = player.current?.time() ?? 0;
-      const whole = await stillFrames(url!, t, { x: 0, y: 0, w: 1, h: 1 });
-      const parts = await stillFrames(url!, t, null);
-      const r = await api.readLineup([...whole, ...parts].map((data) => ({ media_type: 'image/jpeg', data })));
+      const g = await grabPictures(player.current!, ['whole', 'quarters']);
+      const r = await api.readLineup(g.data.flat().map((data) => ({ media_type: 'image/jpeg', data })));
       setTeams(r.teams);
       if (!r.teams.length) setError('No line-up could be read. Try a frame closer to the serve, with all players in view.');
     } catch (e) {
@@ -186,14 +183,14 @@ function ReadLineup({ player, match, players, onApply }: {
     setTeams(null);
   }
 
-  if (!url) return <p className="small muted">Read the line-up from the video: needs the video file on this device (in the app, download a YouTube video in the Auto tab first).</p>;
+  if (!way) return null;
   return (
     <div className="read-lineup">
       <div className="row wrap">
         <button className="btn" disabled={busy} onClick={read}>{busy ? 'Reading the line-up…' : 'Read from the video'}</button>
         <label className="toggle small"><input type="checkbox" checked={first} onChange={(e) => setFirst(e.target.checked)} /> first serve of the set</label>
       </div>
-      {!teams && !note && <span className="small muted">Pause at the first serve of the set, all players in view (zoom out), then read.</span>}
+      {!teams && !note && <span className="small muted">Pause at the first serve of the set, all players in view (zoom out), then read.{GRAB_NOTE[way] && ` ${GRAB_NOTE[way]}`}</span>}
       {teams && teams.length > 0 && (
         <div className="read-lineup-teams">
           <span className="small">Which team is {match.team_name ?? 'yours'}?</span>

@@ -91,6 +91,25 @@ class VolleyIQPlugin : Plugin() {
         }
     }
 
+    /** One full-resolution frame of a YouTube video at [t] seconds (see YoutubeFrame), as base64 JPEG. */
+    @PluginMethod
+    fun youtubeFrame(call: PluginCall) {
+        val url = call.getString("url") ?: return call.reject("url required")
+        val t = call.getDouble("t") ?: 0.0
+        Thread {
+            try {
+                val bmp = com.volleyiq.app.importer.YoutubeFrame.grab(context, url, t)
+                val out = java.io.ByteArrayOutputStream()
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                val data = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+                call.resolve(JSObject().put("data", data).put("width", bmp.width).put("height", bmp.height))
+                bmp.recycle()
+            } catch (e: Exception) {
+                call.reject("Could not get the picture from YouTube: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }.start()
+    }
+
     @PluginMethod
     fun checkVideo(call: PluginCall) {
         val uri = parse(call.getString("uri") ?: return call.reject("uri required"))
