@@ -99,11 +99,17 @@ class VolleyIQPlugin : Plugin() {
     private var recognizer: android.speech.SpeechRecognizer? = null
     @Volatile private var listening = false
     private var speechLang = "de-CH"
+    /** The phone's offline model first; off again when it has none for the language (error 13). */
+    private var preferOffline = true
+    /** Failures in a row (other than silence): told to the page only when they keep coming. */
+    private var speechFailures = 0
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     @PluginMethod
     fun startListening(call: PluginCall) {
         speechLang = call.getString("lang") ?: "de-CH"
+        preferOffline = true
+        speechFailures = 0
         if (getPermissionState("microphone") != PermissionState.GRANTED) {
             requestPermissionForAlias("microphone", call, "micPermission")
             return
@@ -138,7 +144,7 @@ class VolleyIQPlugin : Plugin() {
             putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, speechLang)
             putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             // Gyms often have no signal: use the phone's offline speech model when it has one.
-            putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
             putExtra(android.speech.RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
         }
         runCatching { recognizer?.startListening(intent) }
@@ -150,6 +156,7 @@ class VolleyIQPlugin : Plugin() {
 
     private val speechListener = object : android.speech.RecognitionListener {
         override fun onResults(results: android.os.Bundle?) {
+            speechFailures = 0
             val text = results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
             if (!text.isNullOrBlank()) notifyListeners("speech", JSObject().put("text", text).put("final", true))
             restartListening()
@@ -160,14 +167,35 @@ class VolleyIQPlugin : Plugin() {
         }
         override fun onError(error: Int) {
             when (error) {
-                // Silence or nothing understood: just listen again.
+                // Silence or nothing understood: just listen again, nothing to report.
                 android.speech.SpeechRecognizer.ERROR_NO_MATCH, android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restartListening()
+                // The language is not on the phone for offline use (13), or not at all in this form (12):
+                // first use online recognition, then the plain language (de-CH -> de-DE).
+                12, 13 -> {
+                    when {
+                        preferOffline -> preferOffline = false
+                        speechLang.contains('-') && speechLang != fallbackLang(speechLang) -> speechLang = fallbackLang(speechLang)
+                        else -> {
+                            listening = false
+                            reportSpeech("Speech recognition for this language is not on this phone. Install it: Android settings, Google, voice typing / speech, languages (German).", listening = false)
+                            return
+                        }
+                    }
+                    restartListening(200)
+                }
                 android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
                     listening = false
-                    notifyListeners("speechState", JSObject().put("listening", false).put("error", "The microphone is not allowed"))
+                    reportSpeech("The microphone is not allowed for VolleyIQ (Android settings, apps, VolleyIQ, permissions).", listening = false)
+                }
+                // Busy, or the client was still closing the last phrase: start over cleanly.
+                android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY, android.speech.SpeechRecognizer.ERROR_CLIENT -> {
+                    runCatching { recognizer?.cancel() }
+                    restartListening(300)
                 }
                 else -> {
-                    notifyListeners("speechState", JSObject().put("listening", true).put("error", "Speech recognition error $error, trying again"))
+                    speechFailures++
+                    // A single network hiccup is not worth a message; three in a row are.
+                    if (speechFailures >= 3) reportSpeech(speechMessage(error))
                     restartListening(800)
                 }
             }
@@ -178,6 +206,25 @@ class VolleyIQPlugin : Plugin() {
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
         override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
+    }
+
+    private fun fallbackLang(lang: String) = when (lang) {
+        "de-CH", "de-AT" -> "de-DE"
+        "en-GB", "en-AU" -> "en-US"
+        else -> lang
+    }
+
+    private fun speechMessage(error: Int) = when (error) {
+        android.speech.SpeechRecognizer.ERROR_NETWORK, android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+            "No connection for speech recognition: install the offline language (Android settings, Google, voice typing) or check the signal."
+        android.speech.SpeechRecognizer.ERROR_AUDIO -> "The microphone is busy (another app recording?)."
+        android.speech.SpeechRecognizer.ERROR_SERVER, 11 -> "The speech service did not answer; trying again."
+        10 -> "Too many requests to the speech service; trying again."
+        else -> "Speech recognition stopped (code $error); trying again."
+    }
+
+    private fun reportSpeech(message: String, listening: Boolean = true) {
+        notifyListeners("speechState", JSObject().put("listening", listening).put("error", message))
     }
 
     @PluginMethod

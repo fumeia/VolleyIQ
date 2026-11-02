@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Fixes**
+- Voice tagging in the app showed "error 13" after a second of silence: the phone has no offline speech model for Swiss German, and Android says so each time listening starts again. It now switches to online recognition by itself (and to standard German if the phone lacks Swiss German), and only says something when it really cannot listen, in words instead of error numbers.
+
 ## v1.1.0 (2026-11-02)
 
 Everything since v1.0.0. The highlights:
