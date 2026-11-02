@@ -40,6 +40,8 @@ export interface DetectorTuning {
   /** What the next run uses. */
   use: { threshold: number; sustainMax: number };
 }
+/** The score of a match being tagged right now. */
+export interface LiveScore { match: { id: number; label: string; opponent: string | null }; sets: { set: number; us: number; them: number; done: boolean }[]; won: number; lost: number; updated: string }
 /** A clip playlist: tags of the team's matches, in order. */
 export interface Playlist { id: number; title: string; created_at?: string; items: number[]; owner_jersey?: number | null; is_public?: boolean }
 /** Nightly backups of the database into the bucket. */
@@ -239,6 +241,7 @@ export const api = {
   deletePlaylist: (id: number) => req<{ ok: boolean }>('DELETE', `/api/playlists/${id}`),
   addToPlaylist: (id: number, eventIds: number[]) => req<Playlist>('POST', `/api/playlists/${id}/items`, { event_ids: eventIds }),
   removeFromPlaylist: (id: number, eventId: number) => req<Playlist>('DELETE', `/api/playlists/${id}/items/${eventId}`),
+  sharedLive: (token: string) => req<{ live: LiveScore | null }>('GET', `/api/share/team/${token}/live`),
   sharedPlaylists: (token: string, jersey?: number | null) => req<Playlist[]>('GET', `/api/share/team/${token}/playlists${jersey != null ? `?jersey=${jersey}` : ''}`),
   createSharedPlaylist: (token: string, p: { title: string; jersey: number; public: boolean }) => req<Playlist>('POST', `/api/share/team/${token}/playlists`, p),
   updateSharedPlaylist: (token: string, id: number, p: { jersey: number; title?: string; public?: boolean }) => req<Playlist>('PATCH', `/api/share/team/${token}/playlists/${id}`, p),

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Live score on the public page**
+- While a match is being tagged (a tag in the last 15 minutes), the public Overview shows it on top: sets won, the current set's score, the finished sets; it refreshes every 15 seconds. When a side has won three sets it says "Final".
+
 **Teammates' playlists**
 - Public link → Replays: with their shirt number, teammates make their own playlists, public (the whole team sees them, with their number) or private (only shown when that number is entered). "Add clips to" puts a ＋ on every clip; in their own playlist ✕ removes one, and they can rename it, switch public / private or delete it. Only the number that made a playlist can change it. A shirt number is not a password: anyone typing #7 sees #7's private playlists.
 - The coach sees all playlists on the team page, with who made them, and can delete any.

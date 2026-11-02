@@ -297,6 +297,36 @@ export function registerRoutes(app, { db, vision, numbers = null, insights, touc
 
   registerPlaylists(app, { db });
 
+  // ---------- live score for the public team page ----------
+  // A match counts as live while its tags keep coming (the newest under 15 minutes old).
+  const US = new Set(['kill', 'ace', 'block_point', 'opp_error']);
+  const THEM = new Set(['attack_error', 'serve_error', 'dig_error', 'attack_blocked', 'block_error', 'assist_error', 'set_error', 'opp_point']);
+  app.get('/api/share/team/:token/live', async (req, reply) => {
+    const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
+    if (!team) return bad(reply, 'Not found', 404);
+    const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
+      WHERE m.team_id = ? AND e.status = 'confirmed' GROUP BY m.id HAVING last >= datetime('now', '-15 minutes') ORDER BY last DESC LIMIT 1`).get(team.id);
+    if (!m) return { live: null };
+    const sets = new Map();
+    for (const e of db.prepare("SELECT action, set_no FROM events WHERE match_id = ? AND status = 'confirmed'").all(m.id)) {
+      const n = e.set_no ?? 1;
+      if (!sets.has(n)) sets.set(n, { set: n, us: 0, them: 0 });
+      if (US.has(e.action)) sets.get(n).us++;
+      else if (THEM.has(e.action)) sets.get(n).them++;
+    }
+    const list = [...sets.values()].sort((a, b) => a.set - b.set);
+    const done = (x) => Math.max(x.us, x.them) >= (x.set === 5 ? 15 : 25) && Math.abs(x.us - x.them) >= 2;
+    return {
+      live: {
+        match: { id: m.id, label: m.label, opponent: m.opponent },
+        sets: list.map((x) => ({ ...x, done: done(x) })),
+        won: list.filter((x) => done(x) && x.us > x.them).length,
+        lost: list.filter((x) => done(x) && x.them > x.us).length,
+        updated: `${m.last.replace(' ', 'T')}Z`,
+      },
+    };
+  });
+
   // ---------- corrections from viewers of the public link ----------
   const EDIT_FIELDS = ['action', 'value', 'player_id', 'x', 'y', 'fx', 'fy'];
   const editRate = new Map();   // ip -> { hour, n }: at most 60 suggestions an hour per address

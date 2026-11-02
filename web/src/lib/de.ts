@@ -26,6 +26,8 @@ export const DE: Record<string, string> = {
   'vs': 'gg.', '{a}/{b} on their serve': '{a}/{b} bei ihrem Aufschlag', '{a}/{b} on our serve': '{a}/{b} bei unserem Aufschlag',
   '1 ace': '1 Ass', '{n} aces': '{n} Asse', '1 error': '1 Fehler', '{n} errors': '{n} Fehler', '1 point': '1 Punkt', '{n} points': '{n} Punkte', 'kills from {n} digs': 'Punkte aus {n} Abwehren',
 
+  'Live': 'Live', 'Final': 'Schluss', 'updated just now': 'gerade aktualisiert', 'updated {n} min ago': 'vor {n} Min. aktualisiert', 'Us': 'Wir',
+
   // schedule table
   'Upcoming': 'Kommende', 'Results': 'Resultate', 'No more games scheduled.': 'Keine weiteren Spiele angesetzt.', 'No games played yet.': 'Noch keine Spiele gespielt.',
   'Game': 'Spiel', 'Time': 'Zeit', 'Sets': 'Sätze', 'tagged': 'erfasst', 'video': 'Video', 'Show all {n}': 'Alle {n} zeigen',

@@ -137,7 +137,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   } else if (tab === 'matches') {
     body = <MatchCenter token={token!} />;
   } else if (tab === 'overview') {
-    body = <TeamOverview token={token!} base={base} players={data.players} events={data.events} matches={data.matches} />;
+    body = <TeamOverview token={token!} base={base} players={data.players} events={data.events} matches={data.matches} teamName={data.team.name} />;
   } else {
     body = (
       <>

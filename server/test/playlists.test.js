@@ -71,3 +71,21 @@ test('teammates make their own playlists on the public link: public or only for 
   assert.equal((await app.inject({ method: 'DELETE', url: `${base}/${mine.id}`, payload: { jersey: 7 } })).statusCode, 200);
   await app.close();
 });
+
+test('live score on the public page while tags come in', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-live-'));
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Herren 2' } })).json();
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  assert.deepEqual((await app.inject({ url: `/api/share/team/${token}/live` })).json(), { live: null });
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'Heim', opponent: 'Volley Nord', team_id: team.id, mode: 'live' } })).json();
+  const tag = (action, set_no) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action, set_no } });
+  for (let i = 0; i < 25; i++) await tag('kill', 1);
+  for (let i = 0; i < 20; i++) await tag('opp_point', 1);
+  await tag('ace', 2); await tag('serve_error', 2); await tag('opp_error', 2); await tag('dig', 2);
+  const live = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
+  assert.equal(live.match.opponent, 'Volley Nord');
+  assert.deepEqual(live.sets.map((x) => [x.set, x.us, x.them, x.done]), [[1, 25, 20, true], [2, 2, 1, false]]);
+  assert.deepEqual([live.won, live.lost], [1, 0]);
+  await app.close();
+});

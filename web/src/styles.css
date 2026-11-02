@@ -1216,3 +1216,15 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .my-playlists { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .my-playlists .row { gap: 6px; }
 .jersey-in { width: 52px !important; min-height: 32px; text-align: center; }
+
+/* ---------- live score ---------- */
+.live-card { border-left: 4px solid var(--err); gap: 6px; }
+.live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--err); }
+.live-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--err); animation: live-blink 1.4s infinite; }
+@keyframes live-blink { 50% { opacity: .25; } }
+.live-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.live-teams b:last-child { text-align: right; }
+.live-sets { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.live-score { font-size: 34px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+.live-score small { font-size: 13px; font-weight: 600; }
+.live-dot.over { color: var(--muted); } .live-dot.over::before { background: var(--muted); animation: none; }

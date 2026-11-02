@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '../lib/i18n';
 import { Link } from 'react-router-dom';
-import { api, type Match, type Player, type ScheduleGame, type VEvent } from '../lib/api';
+import { api, type LiveScore, type Match, type Player, type ScheduleGame, type VEvent } from '../lib/api';
 import { buildRallies, phaseScoring } from '../lib/sequence';
 import { playerStats, teamLine } from '../lib/stats';
 import { Kpi } from './analysis/OverviewSection';
@@ -19,7 +19,7 @@ const won = (g: ScheduleGame) => {
  * The public team page's front page: the next game, upcoming games and results (with their
  * videos), the season so far, the leaders and the tagged matches.
  */
-export function TeamOverview({ token, base, players, events, matches }: { token: string; base: string; players: Player[]; events: VEvent[]; matches: Match[] }) {
+export function TeamOverview({ token, base, players, events, matches, teamName = '' }: { token: string; base: string; players: Player[]; events: VEvent[]; matches: Match[]; teamName?: string }) {
   const [games, setGames] = useState<ScheduleGame[] | null>(null);
   const [game, setGame] = useState<ScheduleGame | null>(null);
   const load = () => api.sharedSchedule(token).then((r) => setGames(r.games)).catch(() => setGames([]));
@@ -46,6 +46,7 @@ export function TeamOverview({ token, base, players, events, matches }: { token:
   return (
     <div className="dash">
       <div className="dash-main">
+        <LiveCard token={token} name={teamName} />
         {next && (
           <button className="card next-game" onClick={() => setGame(next)} data-tour="next-game">
             <span className="kpi-label">{t('Next game')}</span>
@@ -192,5 +193,35 @@ export function SuggestVideoForm({ token, gameId, hasVideo }: { token: string; g
       {error && <p className="error small">{error}</p>}
       <button className="btn btn-primary" disabled={state === 'sending' || !url.trim() || !jersey}>{state === 'sending' ? t('Sending…') : t('Send')}</button>
     </form>
+  );
+}
+
+/** The score of the match being tagged right now (asked again every 15 seconds); nothing when no match is live. */
+function LiveCard({ token, name }: { token: string; name: string }) {
+  const [live, setLive] = useState<LiveScore | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const tick = () => api.sharedLive(token).then((r) => { if (!stop) setLive(r.live); }).catch(() => {});
+    tick();
+    const timer = window.setInterval(tick, 15000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [token]);
+  if (!live) return null;
+  // Three sets won by one side: the game is over (shown for 15 minutes after the last tag).
+  const over = live.won >= 3 || live.lost >= 3;
+  const cur = over ? null : [...live.sets].reverse().find((s) => !s.done) ?? null;
+  const ago = Math.max(0, Math.round((Date.now() - Date.parse(live.updated)) / 60000));
+  return (
+    <section className="card live-card" aria-live="polite">
+      <div className="row between">
+        <span className={over ? 'live-dot over' : 'live-dot'}>{over ? t('Final') : t('Live')}</span>
+        <small className="muted">{ago < 1 ? t('updated just now') : t('updated {n} min ago', { n: ago })}</small>
+      </div>
+      <div className="live-teams"><b>{name || t('Us')}</b><span className="live-sets">{live.won} : {live.lost}</span><b>{live.match.opponent ?? live.match.label}</b></div>
+      {cur && <div className="live-score">{cur.us} : {cur.them} <small className="muted">{t('Set {n}', { n: cur.set })}</small></div>}
+      {live.sets.filter((s) => s.done).length > 0 && (
+        <div className="small muted">{live.sets.filter((s) => s.done).map((s) => `${s.us}:${s.them}`).join(', ')}</div>
+      )}
+    </section>
   );
 }
