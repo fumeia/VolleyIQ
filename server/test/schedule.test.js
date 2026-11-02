@@ -98,6 +98,13 @@ test('linking a team, its schedule, the opponent and video search', async () => 
   await app.inject({ url: `/api/schedule/${first.id}/opponent` });
   assert.equal(calls.length, again, 'the league is kept for a while');
 
+  // The official result of the tagged match (first is game 5001, we were home): set scores as us : them.
+  const off = (await app.inject({ url: `/api/matches/${match.id}/official` })).json();
+  assert.equal(off.linked, true);
+  assert.deepEqual(off.sets, [{ set: 1, us: 25, them: 20 }]);
+  const other = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'x' } })).json();
+  assert.deepEqual((await app.inject({ url: `/api/matches/${other.id}/official` })).json(), { linked: false });
+
   // Videos: the full match is suggested, then confirmed.
   const found = (await app.inject({ method: 'POST', url: '/api/games/4990/video/search', payload: { home: 'STV Bergli', away: 'Volley Seetal', start: '2026-10-11T18:00' } })).json();
   assert.equal(found.state, 'found');

@@ -401,6 +401,25 @@ export function registerSchedule(app, { db, schedule, youtube }) {
     return { video: v?.state === 'confirmed' ? { state: 'confirmed', url: v.url, title: v.title, candidates: [], searched_at: null } : null };
   });
 
+  // ---------- the official result of a tagged match (its Swiss Volley game) ----------
+  // Set scores from the league's games, turned into us : them with the side the team played.
+  app.get('/api/matches/:id/official', coach, async (req, reply) => {
+    const r = db.prepare('SELECT * FROM schedule WHERE match_id = ? ORDER BY id LIMIT 1').get(req.params.id);
+    if (!r) return { linked: false };
+    const game = { home: r.home, away: r.away, side: r.side, start: r.starts_at, league: r.league, result: r.result };
+    if (!r.league_id || !r.result) return { linked: true, game, sets: [] };
+    try {
+      const g = (await schedule.league(r.league_id)).find((x) => x.gameId === r.game_id);
+      const sets = (g?.sets ?? []).map((x, i) => {
+        const [h, a] = x.split(':').map(Number);
+        return { set: i + 1, us: r.side === 'away' ? a : h, them: r.side === 'away' ? h : a };
+      });
+      return { linked: true, game: { ...game, result: g?.result ?? r.result }, sets };
+    } catch (e) {
+      return bad(reply, e.message, 502);
+    }
+  });
+
   // The coach takes a suggested video for the game, or turns it down.
   app.post('/api/video-suggestions/:id', coach, async (req, reply) => {
     const s = db.prepare('SELECT * FROM video_suggestions WHERE id = ?').get(req.params.id);

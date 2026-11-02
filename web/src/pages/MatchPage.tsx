@@ -493,6 +493,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             {tab === 'events' && (
               <div className="row wrap">
+                <OfficialCheck matchId={match.id} confirmed={confirmed} />
                 <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
                 <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
                 <CloudVideoBox match={match} local={local} onChanged={async () => setMatch((await api.match(match.id)).match)}
@@ -988,4 +989,46 @@ function lastAdded(events: VEvent[]): VEvent | undefined {
   const pending = list.filter((x) => x.id < 0);
   if (pending.length) return pending.reduce((a, b) => (b.id < a.id ? b : a));
   return list.reduce<VEvent | undefined>((a, b) => (!a || b.id > a.id ? b : a), undefined);
+}
+
+/**
+ * The tagged score set by set next to the official one from Swiss Volley (for a match linked
+ * to a game of the schedule): where they differ, points are missing or tagged twice.
+ */
+function OfficialCheck({ matchId, confirmed }: { matchId: number; confirmed: VEvent[] }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.official>> | null>(null);
+  useEffect(() => { api.official(matchId).then(setData).catch(() => setData(null)); }, [matchId]);
+  if (!data?.linked) return null;
+  const tagged = scoreBySet(confirmed);
+  const sets = data.sets ?? [];
+  if (!sets.length) {
+    return <div className="card official-check small muted">Official result from Swiss Volley: {data.game?.result ? `${data.game.result} (no set scores yet)` : 'not played or not entered yet'}.</div>;
+  }
+  const rows = sets.map((o) => {
+    const t = tagged.find((x) => x.set === o.set) ?? { set: o.set, us: 0, them: 0 };
+    return { set: o.set, o, t, dUs: o.us - t.us, dThem: o.them - t.them };
+  });
+  const off = rows.filter((r) => r.dUs || r.dThem);
+  const say = (d: number, whose: string) => `${Math.abs(d)} point${Math.abs(d) === 1 ? '' : 's'} for ${whose} ${d > 0 ? 'missing' : 'too many'}`;
+  return (
+    <div className="card official-check">
+      <div className="row between"><b>Tags against the official result</b><small className="muted">Swiss Volley · {data.game?.result}</small></div>
+      <table className="stat-table small">
+        <thead><tr><th>Set</th><th>Official</th><th>Tagged</th><th>Difference</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.set}>
+              <td>Set {r.set}</td>
+              <td>{r.o.us}:{r.o.them}</td>
+              <td>{r.t.us}:{r.t.them}</td>
+              <td className={r.dUs || r.dThem ? 'tone-bad' : 'tone-good'}>
+                {r.dUs || r.dThem ? [r.dUs ? say(r.dUs, 'us') : null, r.dThem ? say(r.dThem, 'them') : null].filter(Boolean).join(', ') : '✓'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <span className="small muted">{off.length === 0 ? 'Every set matches the official score.' : 'A point counts for us from a kill, ace, block point or their error; for them from our errors and their points. Missing points are usually a rally without its last tag.'}</span>
+    </div>
+  );
 }

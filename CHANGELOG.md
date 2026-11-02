@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Tags against the official result**
+- Match page → Events: for a match linked to a Swiss Volley game, the official set scores next to the score from the tags, set by set, with what is off ("3 points for us missing", "1 point for them too many"). Missing points are usually a rally without its last tag.
+
 **Live score on the public page**
 - While a match is being tagged (a tag in the last 15 minutes), the public Overview shows it on top: sets won, the current set's score, the finished sets; it refreshes every 15 seconds. When a side has won three sets it says "Final".
 

@@ -241,6 +241,7 @@ export const api = {
   deletePlaylist: (id: number) => req<{ ok: boolean }>('DELETE', `/api/playlists/${id}`),
   addToPlaylist: (id: number, eventIds: number[]) => req<Playlist>('POST', `/api/playlists/${id}/items`, { event_ids: eventIds }),
   removeFromPlaylist: (id: number, eventId: number) => req<Playlist>('DELETE', `/api/playlists/${id}/items/${eventId}`),
+  official: (matchId: number) => req<{ linked: boolean; game?: { home: string; away: string; side: 'home' | 'away' | null; start: string; league: string | null; result: string | null }; sets?: { set: number; us: number; them: number }[] }>('GET', `/api/matches/${matchId}/official`),
   sharedLive: (token: string) => req<{ live: LiveScore | null }>('GET', `/api/share/team/${token}/live`),
   sharedPlaylists: (token: string, jersey?: number | null) => req<Playlist[]>('GET', `/api/share/team/${token}/playlists${jersey != null ? `?jersey=${jersey}` : ''}`),
   createSharedPlaylist: (token: string, p: { title: string; jersey: number; public: boolean }) => req<Playlist>('POST', `/api/share/team/${token}/playlists`, p),
