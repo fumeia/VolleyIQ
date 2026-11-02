@@ -286,7 +286,7 @@ export const api = {
   insightsEnabled: () => req<{ enabled: boolean }>('GET', '/api/insights/enabled'),
   health: () => req<{ ok: boolean; version?: string }>('GET', '/api/health'),
   about: () => req<{ ai: { scan: boolean; summary: boolean; touches: boolean; model: string | null }; updates: { configured: boolean; repo: string | null } }>('GET', '/api/about'),
-  appUpdate: (channel: 'stable' | 'test') => req<{ configured: boolean; channel?: string; latest: AppRelease | null }>('GET', `/api/app/update?channel=${channel}`),
+  appUpdate: (channel: 'stable' | 'test') => req<{ configured: boolean; channel?: string; latest: AppRelease | null; building?: { title: string; started: string | null; url: string | null } | null }>('GET', `/api/app/update?channel=${channel}`),
   touchCheckEnabled: () => req<{ enabled: boolean; model: string | null }>('GET', '/api/ai/touches/enabled'),
   touchCheck: (body: { images: { media_type: string; data: string }[]; ourSide: 'near' | 'far' | null; roster: { number: number; role: string }[]; examples?: boolean }) =>
     req<{ touches: AiTouch[]; examples?: number }>('POST', '/api/ai/touches', body),

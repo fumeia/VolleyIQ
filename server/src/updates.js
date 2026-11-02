@@ -46,7 +46,24 @@ export function makeUpdates(env = {}, fetchImpl = globalThis.fetch) {
         version = String(r.tag_name ?? '').replace(/^v/, '');
       }
       if (!asset || !version) return null;
-      return { version, name: r.name, notes: String(r.body ?? '').slice(0, 2000), published: r.published_at, size: asset.size, assetId: asset.id };
+      return { version, name: r.name, notes: String(r.body ?? '').slice(0, 60000), published: r.published_at, size: asset.size, assetId: asset.id };
+    },
+    /**
+     * The app build running right now on GitHub, if any ({ title, started, url }): a newer
+     * version is on its way. Null when none runs or GitHub does not tell (a private repository
+     * needs a token that may read Actions).
+     */
+    async building() {
+      if (!repo) return null;
+      try {
+        const res = await fetchImpl(`${API}/repos/${repo}/actions/workflows/android.yml/runs?branch=main&per_page=3`, { headers: headers() });
+        if (!res.ok) return null;
+        const runs = (await res.json()).workflow_runs ?? [];
+        const run = runs.find((x) => x.status !== 'completed');
+        return run ? { title: String(run.display_title ?? '').slice(0, 200), started: run.run_started_at ?? run.created_at ?? null, url: run.html_url ?? null } : null;
+      } catch {
+        return null;
+      }
     },
     /** The APK's bytes as a stream, for one asset of this repository's releases. */
     async download(assetId) {

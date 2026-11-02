@@ -1338,3 +1338,13 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .serve-best th, .serve-best td { padding: 4px 3px; text-align: right; border-bottom: 1px solid var(--line); }
 .serve-best th:first-child, .serve-best td:first-child { text-align: left; }
 .serve-best th { color: var(--muted); font-weight: 600; }
+
+/* ---------- release notes (About → Updates) ---------- */
+.update-building { border-left: 3px solid var(--accent); padding: 4px 0 4px 10px; }
+.update-notes { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.release-notes { font-size: 13.5px; line-height: 1.45; max-height: 60vh; overflow-y: auto; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; }
+.release-notes h3 { font-size: 15px; margin: 12px 0 4px; }
+.release-notes h4 { font-size: 14px; margin: 10px 0 2px; }
+.release-notes ul { margin: 2px 0 4px; padding-left: 18px; }
+.release-notes li { margin: 3px 0; }
+.release-notes p { margin: 4px 0; }

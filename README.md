@@ -111,14 +111,16 @@ repository). See `.env.example`.
 
 ### Making a release
 
-Update `CHANGELOG.md` on `main`, then either open **Actions → Android app → Run workflow**
-on `main` and enter the version (e.g. `1.1.0`), or push a tag:
+Every change goes into `CHANGELOG.md` under `## Unreleased`. Each test build on GitHub lists
+that section ("new since the last release") and its own commit, and the app's About → Updates
+shows the same notes.
 
-```bash
-git tag v1.1.0 && git push origin v1.1.0
-```
+For a release: rename `## Unreleased` to `## v1.2.0 (date)` (with a short list of highlights on
+top), add a new empty `## Unreleased` above it, raise `version` in `web/package.json` and
+`server/package.json`, push to `main`, then open **Actions → Android app → Run workflow** on
+`main` and enter the version (`1.2.0`).
 
-GitHub Actions builds the APK and publishes the release **VolleyIQ v1.1.0** with it (and the tag).
+GitHub Actions builds the APK and publishes the release **VolleyIQ v1.2.0** with it (and the tag), with the version's section of the changelog as its notes.
 
 ## Run the server
 

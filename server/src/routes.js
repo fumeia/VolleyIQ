@@ -965,7 +965,8 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     if (!updates?.configured) return { configured: false, latest: null };
     const channel = req.query?.channel === 'test' ? 'test' : 'stable';
     try {
-      return { configured: true, channel, latest: await updates.latest(channel) };
+      const [latest, building] = await Promise.all([updates.latest(channel), updates.building()]);
+      return { configured: true, channel, latest, building };
     } catch (e) {
       return bad(reply, `Could not ask GitHub for updates: ${String(e?.message ?? e).slice(0, 200)}`, 502);
     }

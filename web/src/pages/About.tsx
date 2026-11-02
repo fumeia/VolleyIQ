@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type BackupStatus, type YoutubeAuto, type YoutubeUsage } from '../lib/api';
 import { Native } from '../lib/native';
 import { compareVersions } from '../lib/version';
+import { ReleaseNotes } from '../components/ReleaseNotes';
 
 type Channel = 'stable' | 'test';
 type AppInfo = Awaited<ReturnType<typeof Native.appInfo>>;
@@ -19,7 +20,8 @@ export function AboutPage() {
   const [server, setServer] = useState<{ version?: string } | null>(null);
   const [about, setAbout] = useState<About | null>(null);
   const [channel, setChannel] = useState<Channel>(loadChannel);
-  const [check, setCheck] = useState<{ state: 'idle' | 'checking' | 'done' | 'error'; latest?: AppRelease | null; configured?: boolean; error?: string }>({ state: 'idle' });
+  const [check, setCheck] = useState<{ state: 'idle' | 'checking' | 'done' | 'error'; latest?: AppRelease | null; configured?: boolean; error?: string; building?: { title: string; started: string | null } | null }>({ state: 'idle' });
+  const [notesOpen, setNotesOpen] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [installError, setInstallError] = useState('');
 
@@ -33,7 +35,7 @@ export function AboutPage() {
     setCheck({ state: 'checking' });
     try {
       const r = await api.appUpdate(ch);
-      setCheck({ state: 'done', latest: r.latest, configured: r.configured });
+      setCheck({ state: 'done', latest: r.latest, configured: r.configured, building: r.building ?? null });
     } catch (e) {
       setCheck({ state: 'error', error: e instanceof Error ? e.message : 'Check failed' });
     }
@@ -137,6 +139,20 @@ export function AboutPage() {
             <p className="small"><span className="tone-good">✓</span> {app ? `You have the newest ${channel === 'stable' ? 'release' : 'test build'} (${installed}).` : `Newest Android app: ${latest.version}.`}
               {!app && <> <a href={`/api/app/apk/${latest.assetId}`}>Download</a></>}</p>
           )
+        )}
+        {check.state === 'done' && check.building && (
+          <p className="small update-building">
+            <b>A newer build is being made right now</b>{check.building.started ? ` (started ${Math.max(1, Math.round((Date.now() - Date.parse(check.building.started)) / 60000))} min ago)` : ''}: {check.building.title}.
+            {' '}It takes about 5 minutes; check again then{channel === 'stable' ? ' (switch to Test builds to get it before the next release)' : ''}.
+          </p>
+        )}
+        {check.state === 'done' && latest?.notes && (
+          <div className="update-notes">
+            <button className="btn-ghost small" onClick={() => setNotesOpen(!notesOpen)} aria-expanded={notesOpen}>
+              {notesOpen ? 'Hide' : newer ? `What's new in ${latest.version}` : `What's in ${latest.version}`}
+            </button>
+            {notesOpen && <ReleaseNotes notes={latest.notes} />}
+          </div>
         )}
         <button className="btn-ghost small" disabled={check.state === 'checking'} onClick={() => checkUpdates()}>↻ Check again</button>
       </section>

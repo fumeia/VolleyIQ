@@ -243,14 +243,17 @@ test('app updates: newest stable and test APK from the GitHub releases, streamed
     calls.push({ url, auth: opts.headers.Authorization });
     if (url.endsWith('/releases/latest')) return { ok: true, status: 200, json: async () => ({ tag_name: 'v1.2.0', name: 'VolleyIQ v1.2.0', body: 'notes', published_at: 'x', assets: [{ id: 5, name: 'VolleyIQ-1.2.0.apk', size: 9 }, { id: 6, name: 'VolleyIQ.apk', size: 9 }] }) };
     if (url.endsWith('/tags/android-latest')) return { ok: true, status: 200, json: async () => ({ tag_name: 'android-latest', assets: [{ id: 7, name: 'VolleyIQ-1.2.1-dev.90.apk', size: 9 }, { id: 8, name: 'VolleyIQ-1.2.1-dev.91.apk', size: 9 }, { id: 9, name: 'VolleyIQ.apk', size: 9 }] }) };
+    if (url.includes('/actions/workflows/android.yml/runs')) return { ok: true, status: 200, json: async () => ({ workflow_runs: [{ status: 'in_progress', display_title: 'Voice tagging', run_started_at: '2026-11-02T10:00:00Z', html_url: 'u' }, { status: 'completed' }] }) };
     if (url.endsWith('/assets/6')) return { ok: true, status: 200, headers: new Headers({ 'content-length': '3' }), body: new Blob(['apk']).stream() };
     return { ok: false, status: 404 };
   };
   const updates = makeUpdates({ UPDATE_REPO: 'me/repo', UPDATE_GITHUB_TOKEN: 't' }, fakeFetch);
   const app = await setup({}, { updates });
-  assert.equal((await app.inject({ url: '/api/health' })).json().version, '1.0.0');
+  assert.match((await app.inject({ url: '/api/health' })).json().version, /^\d+\.\d+\.\d+/);
   const stable = (await app.inject({ url: '/api/app/update' })).json();
-  assert.deepEqual([stable.latest.version, stable.latest.assetId], ['1.2.0', 6]);
+  assert.deepEqual([stable.latest.version, stable.latest.assetId, stable.latest.notes], ['1.2.0', 6, 'notes']);
+  // A build still running on GitHub: a newer version is on its way.
+  assert.deepEqual(stable.building, { title: 'Voice tagging', started: '2026-11-02T10:00:00Z', url: 'u' });
   const test = (await app.inject({ url: '/api/app/update?channel=test' })).json();
   assert.deepEqual([test.latest.version, test.latest.assetId], ['1.2.1-dev.91', 8]);
   const apk = await app.inject({ url: '/api/app/apk/6' });

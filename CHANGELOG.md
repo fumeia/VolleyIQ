@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.1.0 (2026-11-02)
+
+Everything since v1.0.0. The highlights:
+- **Swiss Volley:** your schedule and results, every game in Switzerland in Matches (filter by region, league, date), opponents' pages with their results.
+- **YouTube:** videos of games found by themselves every night, tag straight from YouTube (no download), shirt numbers and line-ups read from a YouTube frame.
+- **Before the match:** scouting report with a game plan, serve targets per zone and receiver, and a match simulator (win chance, best starting rotation, what to train).
+- **During the match:** voice tagging (English and German, also along a video, full-screen video in landscape), pause and resume tagging when you go on court, a time-out card.
+- **Public link:** overview with the live score, German, timeline and playlists in Replays (teammates make their own), suggestions of videos and corrections.
+- **Video:** zoom, a timeline to jump anywhere, keyboard shortcuts on a computer, conversion of uploaded videos at night, nightly backups.
+- **Checks:** tags against the official Swiss Volley result, the auto-detection learns from your tags, browser tests on every change.
+- **Updates:** the app's About page shows what's new in each version, and whether a newer build is still being made.
+
+**Release notes in the app**
+- About → Updates: "What's new in …" shows the release notes of the newest version (the same as on GitHub), and a note when a newer build is still being made, with how long ago it started.
+- Every release and test build on GitHub now lists its changes from this changelog: a release what changed since the last release, a test build what is new since the last release and what that build itself changed.
+
 **Fixes**
 - The tag marks on the timeline were drawn 1400 px wide on phones: the match page could be pushed sideways, and in landscape the video was blown up past the screen with no way back. The marks now fit the bar, and nothing on the match page can make it wider than the screen.
 - Landscape: the match page keeps clear of the camera cut-out and the system bars.

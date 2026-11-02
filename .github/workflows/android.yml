@@ -8,7 +8,7 @@ on:
     # Only main: one build per change (a second branch would race it for the test release).
     branches: [main]
     tags: ["v*"]
-    paths: ["web/**", ".github/workflows/android.yml"]
+    paths: ["web/**", "CHANGELOG.md", ".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       release:
@@ -86,6 +86,38 @@ jobs:
           name: VolleyIQ-apk
           path: VolleyIQ.apk
 
+      # Release notes from CHANGELOG.md: a release gets its own section ("## v1.2.0 …"), or "## Unreleased" when it
+      # has none yet; a test build gets "## Unreleased" (what changed since the last release) and its own commit.
+      - name: Release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          section() { awk -v h="$1" 'index($0, h) == 1 && !f { f = 1; next } f && /^## / { exit } f' CHANGELOG.md; }
+          last=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          if [ "$STABLE" = 1 ]; then
+            notes=$(section "## v$VERSION"); [ -n "$(echo "$notes" | tr -d '[:space:]')" ] || notes=$(section "## Unreleased")
+            {
+              echo "Android app, version $VERSION (about $APK_MB MB). On your phone: tap **VolleyIQ.apk** below, open it, and allow installing from your browser if Android asks."
+              echo "The website and server for this version: \`git checkout v$VERSION\` (see the README to run it)."
+              echo
+              echo "## What's new${last:+ since $last}"
+              echo "$notes"
+            } > notes.md
+          else
+            notes=$(section "## Unreleased")
+            [ -n "$(echo "$notes" | tr -d '[:space:]')" ] || notes="Nothing new since ${last:-the last release} yet."
+            {
+              echo "Test build $VERSION (about $APK_MB MB), from \`${{ github.ref_name }}\` at ${GITHUB_SHA::7}. For a stable version, use the newest \"VolleyIQ v…\" release instead."
+              echo "On your phone: tap **VolleyIQ-$VERSION.apk** below, open it, and allow installing from your browser if Android asks. If Android says the package is invalid, the download was incomplete: download it again."
+              echo
+              echo "**This build:** $(git log -1 --format=%s)"
+              echo
+              echo "## New since ${last:-the last release} (not released yet)"
+              echo "$notes"
+            } > notes.md
+          fi
+          cat notes.md
+
       # Stable release for a version tag: …/releases/latest/download/VolleyIQ.apk always points to it.
       - name: Publish release
         if: env.STABLE == '1'
@@ -98,10 +130,7 @@ jobs:
           files: |
             VolleyIQ.apk
             VolleyIQ-${{ env.VERSION }}.apk
-          body: |
-            Android app, version ${{ env.VERSION }} (about ${{ env.APK_MB }} MB). On your phone: tap **VolleyIQ.apk** below, open it, and allow installing from your browser if Android asks.
-            The website and server for this version: `git checkout v${{ env.VERSION }}` (see the README to run it).
-            What changed: see CHANGELOG.md.
+          body_path: notes.md
 
       # A fixed download link for test builds: Releases → "VolleyIQ test build …" (tag android-latest).
       - name: Publish latest build
@@ -114,10 +143,7 @@ jobs:
           files: |
             VolleyIQ.apk
             VolleyIQ-${{ env.VERSION }}.apk
-          body: |
-            Test build from `${{ github.ref_name }}` (${{ github.sha }}), version ${{ env.VERSION }}, about ${{ env.APK_MB }} MB. For a stable version, use the newest "VolleyIQ v…" release instead.
-            On your phone: tap **VolleyIQ-${{ env.VERSION }}.apk** below, open it, and allow installing from your browser if Android asks.
-            If Android says the package is invalid, the download was incomplete: delete it and download again (it should be about ${{ env.APK_MB }} MB).
+          body_path: notes.md
 
       # Keeps the two newest, so a download of the previous build that is still running isn't cut off either.
       - name: Remove older per-build APKs from the release
