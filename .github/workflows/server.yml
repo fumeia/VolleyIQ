@@ -3,7 +3,7 @@ name: Server
 on:
   push:
     branches: [main, "claude/**"]
-    paths: ["server/**", "web/**", "Dockerfile", "docker-compose.yml", ".github/workflows/server.yml"]
+    paths: ["server/**", "web/**", "e2e/**", "Dockerfile", "docker-compose.yml", ".github/workflows/server.yml"]
   workflow_dispatch:
 
 jobs:
@@ -27,3 +27,35 @@ jobs:
           curl -fsS 127.0.0.1:3080/ | grep -q '<div id="root">'
           test "$(curl -s -o /dev/null -w '%{http_code}' 127.0.0.1:3080/api/teams)" = 401
           docker image ls volleyiq-app
+
+  # The real server and the built web app in a browser (desktop and phone size): login, team,
+  # scouting report, match page, stats, the public link (tabs, German, live score, playlists).
+  browser-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the web app
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Browser tests
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm test
+      - name: Keep the report of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7

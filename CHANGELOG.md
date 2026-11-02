@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**Shirt numbers and line-ups from YouTube**
+- "Read the shirt numbers" and "Read from the video" (line-up) now also work while tagging from the embedded YouTube player. In the app, the picture is fetched from YouTube (one second of the video at up to 1080p, a few seconds' wait). In a browser, it asks to share the tab once per picture and cuts the video out of it, so make the video big first.
+
+**Scouting report**
+- Team page → "Scouting report" (and on an opponent's page from your schedule): from the matches tagged for that team, a short game plan (who to serve at, their main hitters and where they hit, where the setter goes after a good and a bad pass, their toughest server, weakest rotations, unforced errors), with the tables behind it. Each line needs enough touches behind it. Save as PDF / print for the team.
+- On an opponent's page, "Tag this video" now tags the video for the opponent (their team is created from the Swiss Volley name), so it counts for their scouting report.
+
+**Browser tests**
+- 10 tests in a real browser, at desktop and phone size, run on every push: login, team page, scouting report, match page, stats, and the public link (tabs, German, live score, a teammate's playlist, an invalid link).
+
 **Line-ups read from the video**
 - Line-up sheet → "Read from the video": pause at the first serve of a set with all players in view, and the AI reads both teams' shirt numbers and positions 1-6 from the frame. Pick your team (the one on your half is highlighted when the court is marked); the positions fill in from the roster, the libero goes to the libero field, and with "first serve of the set" it also sets who serves first. Numbers not on the roster are listed. Check it against the video before saving. Needs the video file on the device.
 

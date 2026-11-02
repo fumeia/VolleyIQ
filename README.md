@@ -275,3 +275,11 @@ cd web && npm run build && npx cap sync android    # then build the APK with ./g
 | Web | `cd web && npm test` |
 | Worker | `cd worker && python -m pytest tests` |
 | Android | `./gradlew testReleaseUnitTest` (runs in CI) |
+
+## Browser tests
+
+`e2e/` runs the real server on a fresh database (made-up teams) with the built web app in Chromium, at desktop and phone size. They run in CI on every push; locally:
+
+```
+cd web && npm run build && cd ../e2e && npm ci && npx playwright install chromium && npm test
+```
