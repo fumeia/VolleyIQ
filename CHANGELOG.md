@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Video search by itself**
+- Every day after YouTube's quota starts over (9:00), the server searches videos for your linked teams' played games of the last two months, then for the recent games of each team's next two opponents: up to 30 games a day (About → YouTube video search: on/off and 10 to 80 a day), always leaving 10 searches for you. Games without a find are tried once more a few days later (streams come late).
+- Found videos are marked "possible video" in the games lists (Home, team page, Matches).
+
 **Video conversion survives updates**
 - The 720p / 480p conversion now works in 10-minute pieces kept on the server's disk until the end. A restart (a server update, a reboot) goes on with the next piece instead of starting the whole match over; at most the piece in progress is converted again. The pieces are joined without converting again.
 

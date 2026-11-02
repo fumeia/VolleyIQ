@@ -269,3 +269,38 @@ test('shirt numbers from video frames: per team, cleaned, within the AI limits',
   assert.equal((await off.inject({ method: 'POST', url: '/api/numbers/read', payload: { images: [img] } })).statusCode, 503);
   await off.close();
 });
+
+test('nightly video search: your played games first, within the day budget, not twice', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-auto-'));
+  let searches = 0;
+  const fake = async (url) => {
+    const ok = (body) => ({ ok: true, status: 200, text: async () => body });
+    if (url.includes('iCal/schedule/bbbb')) return ok(ICS.replace(/2026/g, String(new Date().getFullYear())).replace(/DTSTART;TZID=Europe\/Zurich:\d{4}10/g, (m) => m));
+    if (url.includes('youtube/v3/search')) { searches++; return ok(JSON.stringify({ items: [{ id: { videoId: 'v9' } }] })); }
+    if (url.includes('youtube/v3/videos')) return ok(JSON.stringify({ items: [{ id: 'v9', snippet: { title: 'VBC Musterdorf - Volley Seetal full game', channelTitle: 'VBC Musterdorf', publishedAt: new Date().toISOString() }, contentDetails: { duration: 'PT1H40M' } }] }));
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { scheduleFetch: fake, youtubeKey: 'KEY' });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Damen 1' } })).json();
+  await app.inject({ method: 'PUT', url: `/api/teams/${team.id}/swissvolley`, payload: { link: 'webcal://volleymanager.volleyball.ch/iCal/schedule/bbbb1111bbbb1111bbbb' } });
+  // The played game is recent (moved to a week ago), the other one is next week.
+  const { default: Database } = await import('better-sqlite3');
+  const db = new Database(path.join(dir, 'volleyiq.db'));
+  const day = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  db.prepare("UPDATE schedule SET starts_at = ? || 'T18:00' WHERE game_id = 5001").run(day(-7));
+  db.prepare("UPDATE schedule SET starts_at = ? || 'T18:00' WHERE game_id = 5002").run(day(7));
+  db.close();
+
+  assert.deepEqual((await app.inject({ url: '/api/youtube/auto' })).json().on, true);
+  const r = (await app.inject({ method: 'POST', url: '/api/youtube/auto' })).json();
+  assert.deepEqual([r.searched, r.found], [1, 1]);
+  assert.equal(searches, 1);
+  assert.equal((await app.inject({ url: '/api/schedule' })).json().games.find((g) => g.game_id === 5001).video.state, 'found');
+  const again = (await app.inject({ method: 'POST', url: '/api/youtube/auto' })).json();
+  assert.equal(again.searched, 0, 'searched games are not searched again');
+  assert.equal((await app.inject({ url: '/api/youtube/auto' })).json().last.searched, 0);
+  await app.inject({ method: 'PUT', url: '/api/youtube/auto', payload: { on: false, perDay: 12 } });
+  assert.deepEqual((await app.inject({ url: '/api/youtube/auto' })).json().perDay, 12);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/youtube/auto' })).json(), null, 'switched off');
+  await app.close();
+});

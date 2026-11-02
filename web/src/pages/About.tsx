@@ -1,6 +1,6 @@
 import { loadTheme, saveTheme, type ThemeChoice } from '../lib/theme';
 import { useEffect, useState } from 'react';
-import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type BackupStatus, type YoutubeUsage } from '../lib/api';
+import { api, authToken, isApp, publicBase, serverBase, type AppRelease, type BackupStatus, type YoutubeAuto, type YoutubeUsage } from '../lib/api';
 import { Native } from '../lib/native';
 import { compareVersions } from '../lib/version';
 
@@ -175,6 +175,7 @@ export function YoutubeQuota() {
         <>
           <div className="row between"><b>{u.searchesLeft} searches left today</b><span className="small muted">{u.used.toLocaleString()} of {u.limit.toLocaleString()} units used</span></div>
           <div className="progress"><div style={{ width: `${Math.min(100, (u.used / u.limit) * 100)}%` }} /></div>
+          <AutoSearch />
           <p className="small muted">Starts over at {new Date(u.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(u.resetsAt).toLocaleDateString()}). A search costs 101 of the 10,000 free units a day. Counted by VolleyIQ: searches with the same key elsewhere are not included.</p>
         </>
       )}
@@ -208,5 +209,29 @@ function BackupCard() {
         </>
       )}
     </section>
+  );
+}
+
+/** Every day after the quota starts over: your teams' played games, then the next opponents' recent games. */
+function AutoSearch() {
+  const [a, setA] = useState<YoutubeAuto | null>(null);
+  useEffect(() => { api.youtubeAuto().then(setA).catch(() => {}); }, []);
+  if (!a) return null;
+  const save = async (s: { on?: boolean; perDay?: number }) => setA({ ...(await api.setYoutubeAuto(s)), last: a.last });
+  return (
+    <div className="auto-search">
+      <label className="toggle small">
+        <input type="checkbox" checked={a.on} onChange={(e) => save({ on: e.target.checked })} />
+        <span>Search by itself every day for{' '}
+          <select className="input slim" value={a.perDay} disabled={!a.on} onChange={(e) => save({ perDay: Number(e.target.value) })}>
+            {[10, 20, 30, 50, 80].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>{' '}games
+          <small className="muted"> (your linked teams' played games, then the next two opponents' recent games; 10 searches a day stay free for you)</small></span>
+      </label>
+      {a.last && (
+        <p className="small muted">Last run {new Date(a.last.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}: {a.last.searched} games searched, possible videos for {a.last.found}
+          {a.last.waiting ? `, ${a.last.waiting} left for the next days` : ''}{a.last.error ? ` (stopped: ${a.last.error})` : ''}. Found videos are marked "possible video" in the games lists (Home, the team page, Matches → To check); open a game to confirm one.</p>
+      )}
+    </div>
   );
 }

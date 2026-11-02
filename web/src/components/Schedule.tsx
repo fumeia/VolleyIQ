@@ -42,10 +42,10 @@ export function ScheduleTable({ games, showTeam = false, limit, onPick }: { game
                   <tr key={g.id} onClick={() => onPick(g)} className={g.cancelled ? 'sched-cancelled' : ''}>
                     <td><b>{gameDay(g.starts_at)}</b>{showTeam && <small className="muted">{g.team_name}</small>}</td>
                     <td className="sched-game">{name(g, 'home')}<span className="sched-vs">{name(g, 'away')}</span>{g.league && <small className="muted">{g.league}{g.hall ? ` · ${g.hall}` : ''}</small>}
-                      {(g.suggestions?.length || g.match_id || g.video?.state === 'confirmed') ? (
+                      {(g.suggestions?.length || g.match_id || g.video?.state === 'confirmed' || g.video?.state === 'found') ? (
                         <span className="sched-flags">
                           {g.match_id ? <span className="badge badge-pending" title="Tagged in VolleyIQ">tagged</span> : null}
-                          {g.video?.state === 'confirmed' ? <span className="badge" title="Has a video">video</span> : null}
+                          {g.video?.state === 'confirmed' ? <span className="badge" title="Has a video">video</span> : g.video?.state === 'found' ? <span className="badge badge-suggest" title="Found by the YouTube search: open the game to check">possible video</span> : null}
                           {g.suggestions?.length ? <span className="badge badge-suggest" title="Videos sent by visitors of the public page">{g.suggestions.length} video{g.suggestions.length === 1 ? '' : 's'} sent</span> : null}
                         </span>
                       ) : null}</td>

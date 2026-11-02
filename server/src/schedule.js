@@ -241,7 +241,63 @@ export function makeSchedule(db, { fetchFn = fetch, youtubeKey = null, ytLimit =
     }
   }
 
-  return { sync, connect, league, opponentGames, center, videoOf, searchVideo, videoTitle, ytUsage, cache };
+  // ---------- the nightly video search for the teams you follow ----------
+  const autoSettings = () => ({ on: true, perDay: 30, ...(cache.get('yt:auto') ?? {}) });
+
+  /** The games worth searching now: your teams' played games, then the next opponents' recent games. */
+  async function autoTargets() {
+    const since = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 16);
+    const now = new Date().toISOString().slice(0, 16);
+    // Not searched yet, or searched without a find at least 3 days ago while the game is recent (streams come late).
+    const due = (gameId, start) => {
+      const v = db.prepare('SELECT state, searched_at FROM game_videos WHERE game_id = ?').get(gameId);
+      if (!v?.searched_at) return !v || v.state === 'none';
+      return v.state === 'none' && Date.now() - Date.parse(`${v.searched_at.replace(' ', 'T')}Z`) > 3 * 86400000 && start > new Date(Date.now() - 21 * 86400000).toISOString();
+    };
+    const out = [];
+    const ours = db.prepare('SELECT * FROM schedule WHERE result IS NOT NULL AND starts_at >= ? AND starts_at <= ? ORDER BY starts_at DESC').all(since, now);
+    for (const g of ours) if (g.home && g.away && due(g.game_id, g.starts_at)) out.push({ gameId: g.game_id, home: g.home, away: g.away, start: g.starts_at });
+    // The next two opponents of every linked team, and their games of the last two months.
+    for (const t of db.prepare('SELECT id FROM teams WHERE sv_ical IS NOT NULL').all()) {
+      const next = db.prepare('SELECT * FROM schedule WHERE team_id = ? AND result IS NULL AND cancelled = 0 AND starts_at >= ? ORDER BY starts_at LIMIT 2').all(t.id, now);
+      for (const n of next) {
+        const opponent = n.side === 'home' ? n.away : n.home;
+        if (!opponent || !n.league_id) continue;
+        const games = await opponentGames(n.league_id, opponent).catch(() => []);
+        for (const g of games) {
+          if (g.result && g.start >= since && due(g.gameId, g.start) && !out.some((x) => x.gameId === g.gameId)) out.push({ gameId: g.gameId, home: g.home, away: g.away, start: g.start });
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Searches up to the day's budget (keeping 10 searches for the coach); records what it did. */
+  async function autoSearch() {
+    const set = autoSettings();
+    if (!youtubeKey || !set.on) return null;
+    const budget = Math.min(set.perDay, ytUsage().searchesLeft - 10);
+    const result = { day: ytDay(), at: new Date().toISOString(), searched: 0, found: 0, waiting: 0 };
+    if (budget > 0) {
+      const targets = await autoTargets();
+      result.waiting = Math.max(0, targets.length - budget);
+      for (const g of targets.slice(0, budget)) {
+        try {
+          const v = await searchVideo(g);
+          result.searched++;
+          if (v?.candidates?.length) result.found++;
+        } catch (e) {
+          result.error = e.message;
+          break;
+        }
+      }
+    }
+    cache.set('yt:auto:last', result);
+    log(`video search: ${result.searched} games searched, possible videos for ${result.found}`);
+    return result;
+  }
+
+  return { sync, connect, league, opponentGames, center, videoOf, searchVideo, videoTitle, ytUsage, autoSettings, autoSearch, cache };
 }
 
 export function registerSchedule(app, { db, schedule, youtube }) {
@@ -293,6 +349,17 @@ export function registerSchedule(app, { db, schedule, youtube }) {
 
   // What is left of today's free YouTube quota.
   app.get('/api/youtube/usage', coach, async () => schedule.ytUsage());
+  // The nightly search for the teams you follow: on/off, how many games a day, and its last run.
+  app.get('/api/youtube/auto', coach, async () => ({ ...schedule.autoSettings(), last: schedule.cache.get('yt:auto:last') }));
+  app.put('/api/youtube/auto', coach, async (req) => {
+    const cur = schedule.autoSettings();
+    const perDay = Number(req.body?.perDay);
+    schedule.cache.set('yt:auto', { on: req.body?.on ?? cur.on, perDay: Number.isInteger(perDay) && perDay >= 1 && perDay <= 90 ? perDay : cur.perDay });
+    return schedule.autoSettings();
+  });
+  app.post('/api/youtube/auto', coach, async (req, reply) => {
+    try { return await schedule.autoSearch(); } catch (e) { return bad(reply, e.message, 502); }
+  });
 
   // ---------- match center: every Swiss Volley game, filtered in the page ----------
   const centerQuery = (q) => ({ region: q.region || null, from: q.from, to: q.to });
@@ -432,6 +499,17 @@ export function registerSchedule(app, { db, schedule, youtube }) {
 
 /** Keeps every linked team's schedule fresh: looks every hour, reads a calendar after 12 hours. */
 export function startScheduleSync(db, schedule, log = console.log) {
+  // The video search runs once a YouTube day (it starts at midnight in California, 9:00 in Switzerland).
+  const ytDayNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  let searching = false;
+  const videoTick = async () => {
+    if (searching || schedule.cache.get('yt:auto:last')?.day === ytDayNow()) return;
+    searching = true;
+    try { await schedule.autoSearch(); } finally { searching = false; }
+  };
+  const vt = setInterval(() => videoTick().catch((e) => log(e)), HOURS);
+  vt.unref?.();
+  setTimeout(() => videoTick().catch(() => {}), 10 * 60 * 1000).unref?.();
   const tick = async () => {
     const due = db.prepare("SELECT id FROM teams WHERE sv_ical IS NOT NULL AND (sv_synced_at IS NULL OR sv_synced_at < datetime('now', '-12 hours'))").all();
     for (const t of due) await schedule.sync(t.id).catch(() => {});
@@ -439,5 +517,5 @@ export function startScheduleSync(db, schedule, log = console.log) {
   const timer = setInterval(() => tick().catch((e) => log(e)), HOURS);
   timer.unref?.();
   setTimeout(() => tick().catch(() => {}), 60_000).unref?.();
-  return () => clearInterval(timer);
+  return () => { clearInterval(timer); clearInterval(vt); };
 }
