@@ -1191,3 +1191,11 @@ button.court-zone:active { background: #2a2f3a; }
 .timeline-marks { position: absolute; left: 0; right: 0; top: 50%; height: 14px; transform: translateY(-50%); z-index: 1; pointer-events: none; }
 .timeline-marks line { stroke: var(--muted); stroke-width: 1.2; vector-effect: non-scaling-stroke; opacity: .55; }
 .timeline-set { position: absolute; top: -2px; transform: translateX(-50%); font-size: 9.5px; font-weight: 700; color: var(--muted); pointer-events: none; z-index: 1; }
+
+/* ---------- keyboard shortcuts (desktop) ---------- */
+.tp-keys { color: var(--muted) !important; font-size: 12px !important; }
+@media (hover: none) { .tp-keys { display: none; } }
+.key-help table { border-collapse: collapse; width: 100%; }
+.key-help td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.key-help td:first-child { white-space: nowrap; width: 1%; }
+kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); }

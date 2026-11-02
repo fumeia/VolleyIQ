@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Keyboard shortcuts (computer)**
+- Type the shirt number to pick the player (1 then 2 = #12; "-" = unknown), then the action letter as before. ↑ ↓ jump a minute, ← → 2 s (Shift: 10 s), , . one frame, [ ] previous / next tag, M slow motion, Backspace undoes the last tag, ? lists every key ("Keys ?" under the video).
+- Fix: "Undo last tag" removed the tag latest in the video instead of the one added last.
+
 **Video search by itself**
 - Every day after YouTube's quota starts over (9:00), the server searches videos for your linked teams' played games of the last two months, then for the recent games of each team's next two opponents: up to 30 games a day (About → YouTube video search: on/off and 10 to 80 a day), always leaving 10 searches for you. Games without a find are tried once more a few days later (streams come late).
 - Found videos are marked "possible video" in the games lists (Home, team page, Matches).

@@ -6,7 +6,7 @@ import { EventList, playerLabel } from '../components/EventList';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { RallyReview } from '../components/RallyReview';
 import { LineupSheet } from '../components/LineupSheet';
-import { DEFAULT_TAG_SETTINGS, fmtTime, TagPad, type TagSettings } from '../components/TagPad';
+import { DEFAULT_TAG_SETTINGS, fmtTime, isTyping, TagPad, type TagSettings } from '../components/TagPad';
 import { AutoPanel } from '../components/AutoPanel';
 import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../components/Calibration';
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
@@ -140,13 +140,41 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     return () => { document.removeEventListener('visibilitychange', onVis); lock?.release().catch(() => {}); };
   }, []);
 
-  // Desktop keyboard transport (the tag pad handles action keys itself).
+  // Desktop keyboard transport (the tag pad handles players and actions itself; ? shows all keys).
+  const [showKeys, setShowKeys] = useState(false);
+  const keyState = useRef({ events, rate, remove, flash: (_: string) => {} });
+  keyState.current = { events, rate, remove, flash: (text: string) => flash(text) };
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
-      if (e.key === ' ') { e.preventDefault(); player.current?.toggle(); }
-      if (e.key === 'ArrowLeft') player.current?.seekBy(e.shiftKey ? -10 : -2);
-      if (e.key === 'ArrowRight') player.current?.seekBy(e.shiftKey ? 10 : 2);
+      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const p = player.current;
+      const k = keyState.current;
+      const tagTimes = () => k.events.filter((x) => x.status === 'confirmed' && x.t != null).map((x) => x.t!).sort((a, b) => a - b);
+      switch (e.key) {
+        case ' ': e.preventDefault(); p?.toggle(); break;
+        case 'ArrowLeft': e.preventDefault(); p?.seekBy(e.shiftKey ? -10 : -2); break;
+        case 'ArrowRight': e.preventDefault(); p?.seekBy(e.shiftKey ? 10 : 2); break;
+        case 'ArrowUp': e.preventDefault(); p?.seekBy(60); break;
+        case 'ArrowDown': e.preventDefault(); p?.seekBy(-60); break;
+        case ',': p?.pause(); p?.seekBy(-1 / 30); break;
+        case '.': p?.pause(); p?.seekBy(1 / 30); break;
+        case ']': { const now = (p?.time() ?? 0) + 0.5; const n = tagTimes().find((t) => t > now); if (n != null) p?.seek(Math.max(0, n - 3)); break; }
+        case '[': { const now = (p?.time() ?? 0) - 3.5; const prev = tagTimes().filter((t) => t < now).pop(); if (prev != null) p?.seek(Math.max(0, prev - 3)); break; }
+        case 'm': case 'M': {
+          const slow = Number(localStorage.getItem('viq:slowRate')) || 0.25;
+          const r = k.rate < 1 ? 1 : slow;
+          setRate(r); p?.setRate(r);
+          break;
+        }
+        case 'Backspace': {
+          const last = lastAdded(k.events);
+          if (last) { e.preventDefault(); k.remove(last); k.flash(`Removed ${actionLabel(last)}`); }
+          break;
+        }
+        case '?': setShowKeys((v) => !v); break;
+        case 'Escape': setShowKeys(false); break;
+        default: break;
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -377,6 +405,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <div className="tp-row2">
                     <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
                     {source?.type === 'file' && <FrameStep player={player} />}
+                    <button className="tp-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts">Keys ?</button>
                     {cloud && <QualityControl className="tp-rate" quality={cloud.quality} options={available(cloudLink)}
                       onPick={(q) => { setQuality(q); saveQuality('coach', q); }} />}
                   </div>
@@ -439,7 +468,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
                 </div>
                 {confirmed.length > 0 && (() => {
-                  const last = confirmed[confirmed.length - 1];
+                  const last = lastAdded(confirmed)!;
                   return (
                     <button className="btn-ghost small" onClick={() => { remove(last); flash(`Removed ${actionLabel(last)}`); }}>
                       ↶ Undo last tag ({playerLabel(players, last)} {actionLabel(last)})
@@ -576,6 +605,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
       )}
 
+      {showKeys && <KeyHelp onClose={() => setShowKeys(false)} />}
       {showSettings && (
         <div className="sheet-backdrop" onClick={() => setShowSettings(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -913,4 +943,49 @@ function VersionsBox({ match, pending, onRestored }: { match: Match; pending: nu
       ))}
     </div>
   );
+}
+
+/** All the keyboard shortcuts of the match page (desktop). */
+function KeyHelp({ onClose }: { onClose: () => void }) {
+  const rows: [string, string][] = [
+    ['Space', 'Play / pause'],
+    ['← →', '2 s back / forward (with Shift: 10 s)'],
+    ['↑ ↓', '1 minute forward / back'],
+    [', .', 'One frame back / forward'],
+    ['[ ]', 'Previous / next tag'],
+    ['M', 'Slow motion on / off'],
+    ['1 – 99', 'Pick the player by shirt number (e.g. 1 then 2 = #12)'],
+    ['-', 'Unknown player'],
+    ['Q W E C R', 'Errors: attack, serve, dig, blocked, block'],
+    ['A S D B F H', 'Attack, serve, dig, free ball, block touch, block without touch'],
+    ['Z X V', 'Kill, ace, block point'],
+    ['G T Y U', 'Set, bump set, bump set error, set error'],
+    ['0 – 3', 'Pass grade (after picking the player)'],
+    ['1 – 6', 'Zone (when asked for a spot), Enter = skip'],
+    ['Esc', 'Cancel the tag'],
+    ['Backspace', 'Undo the last tag'],
+    ['W L N', 'Rally review: we won, they won, not a rally'],
+    ['?', 'This list'],
+  ];
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet key-help" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head"><b>Keyboard shortcuts</b><button className="btn-ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <table className="small">
+          <tbody>{rows.map(([k, v]) => <tr key={k}><td><kbd>{k}</kbd></td><td>{v}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The tag added last (not the last one in the video): tags waiting to upload are the newest
+ * (their temporary ids count down from -1), otherwise the highest id.
+ */
+function lastAdded(events: VEvent[]): VEvent | undefined {
+  const list = events.filter((x) => x.status === 'confirmed');
+  const pending = list.filter((x) => x.id < 0);
+  if (pending.length) return pending.reduce((a, b) => (b.id < a.id ? b : a));
+  return list.reduce<VEvent | undefined>((a, b) => (!a || b.id > a.id ? b : a), undefined);
 }

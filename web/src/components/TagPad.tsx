@@ -63,6 +63,12 @@ interface Draft {
  * where the ball went. The video pauses on the first tap and resumes once the
  * tag is stored, so no keyboard and no separate pause button is needed.
  */
+/** A key typed into a text field or a list is not a shortcut. */
+export const isTyping = (e: KeyboardEvent) => {
+  const el = e.target as HTMLElement | null;
+  return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
+};
+
 export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
@@ -133,10 +139,29 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     if (d?.resume) play?.();
   }
 
-  // Desktop keyboard: same letter layout as VolleyTag (Q/W/E/R, A/S/D/F, Z/X/V, T/Y, 0-3).
+  // Desktop keyboard: type a shirt number to pick the player (e.g. 1 then 2 = #12), "-" = unknown;
+  // then the action letters (same layout as VolleyTag: Q/W/E/R, A/S/D/F, Z/X/V, T/Y, 0-3).
+  const digits = useRef<{ text: string; timer: number | undefined }>({ text: '', timer: undefined });
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!draftRef.current || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!draftRef.current) {
+        if (e.key === '-') { e.preventDefault(); start(null); return; }
+        if (!/^[0-9]$/.test(e.key)) return;
+        const d = digits.current;
+        clearTimeout(d.timer);
+        d.text = (d.text + e.key).slice(-2);
+        const pick = () => {
+          const n = Number(d.text);
+          d.text = '';
+          const p = roster.find((x) => x.number === n);
+          if (p) start(p);
+        };
+        // Two digits, or one digit no longer number has as its start: pick now; otherwise wait a moment for the second.
+        if (d.text.length === 2 || !roster.some((x) => x.number != null && x.number >= 10 && String(x.number).startsWith(d.text))) pick();
+        else d.timer = window.setTimeout(pick, 600);
+        return;
+      }
       if (e.key === 'Escape') return cancel();
       if (draftRef.current.action) {
         const z = Number(e.key);
