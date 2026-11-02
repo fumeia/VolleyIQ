@@ -39,4 +39,16 @@ describe('voice tagging', () => {
     // "7 pass, 1 set": 1 is the setter, not the grade.
     expect(tags('7 pass 1 set 5 attack')).toEqual(['7:receive', '1:set', '5:attack']);
   });
+
+  it('full sentences', () => {
+    expect(tags('Number seven makes a good pass, then one sets and five scores')).toEqual(['7:receive=2', '1:set', '5:kill']);
+    expect(tags('seven passes perfectly')).toEqual(['7:receive=3']);
+    expect(tags('seven pass to')).toEqual(['7:receive=2']);
+    expect(tags('a bad pass by twelve, nine attacks out')).toEqual(['12:receive=1', '9:attack_error']);
+    expect(tags('Sieben nimmt den Ball schlecht an, eins stellt, fünf greift an')).toEqual(['7:receive=1', '1:set', '5:attack']);
+    expect(tags('Zwölf schlägt auf ins Aus')).toEqual(['12:serve_error']);
+    expect(tags('Neun schlägt den Ball ins Netz')).toEqual(['9:attack_error']);
+    expect(tags('eine gute Annahme von sieben')).toEqual(['7:receive=2']);
+    expect(tags('Sieben mit einer perfekten Annahme')).toEqual(['7:receive=3']);
+  });
 });

@@ -27,7 +27,8 @@ export function numberWord(w: string): number | null {
   if (en >= 0) return en;
   const de = NUM_DE.indexOf(w);
   if (de >= 0) return de;
-  if (w === 'ein' || w === 'eine' || w === 'one') return 1;
+  // Not "ein" / "eine": in a sentence that is "a" ("eine Annahme"); players are "eins".
+  if (w === 'one') return 1;
   if (w === 'zwo') return 2;
   if (TENS_EN[w]) return TENS_EN[w];
   const enCompound = w.match(/^(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)-?(one|two|three|four|five|six|seven|eight|nine)$/);
@@ -41,17 +42,32 @@ export function numberWord(w: string): number | null {
 
 /** Action words (lower case, both languages) and the action they mean. */
 const WORDS: [string[], ActionCode][] = [
-  [['kill', 'killed', 'punkt', 'point', 'winner', 'smash'], 'kill'],
-  [['attack', 'attacks', 'hit', 'spike', 'angriff', 'schlag', 'angreifen'], 'attack'],
-  [['ace', 'ass', 'asse'], 'ace'],
-  [['serve', 'serves', 'service', 'aufschlag'], 'serve'],
-  [['pass', 'passes', 'receive', 'reception', 'annahme', 'angenommen', 'empfang'], 'receive'],
-  [['set', 'sets', 'setting', 'zuspiel', 'pass-zuspiel', 'stellen'], 'set'],
-  [['dig', 'digs', 'defence', 'defense', 'abwehr', 'verteidigung'], 'dig'],
-  [['block', 'blocks', 'blocked'], 'block_touch'],
+  [['kill', 'kills', 'killed', 'scores', 'scored', 'punkt', 'point', 'winner', 'smash', 'verwandelt', 'versenkt'], 'kill'],
+  [['attack', 'attacks', 'attacked', 'hit', 'hits', 'spike', 'spikes', 'spiked', 'angriff', 'schlag', 'angreifen', 'greift', 'angegriffen', 'smasht'], 'attack'],
+  [['ace', 'aces', 'ass', 'asse'], 'ace'],
+  [['serve', 'serves', 'served', 'serving', 'service', 'aufschlag', 'aufschläge', 'serviert'], 'serve'],
+  [['pass', 'passes', 'passed', 'receive', 'receives', 'received', 'reception', 'annahme', 'nimmt', 'angenommen', 'empfang'], 'receive'],
+  [['set', 'sets', 'setting', 'zuspiel', 'stellt', 'zugespielt', 'spielt'], 'set'],
+  [['dig', 'digs', 'dug', 'defence', 'defense', 'abwehr', 'verteidigung', 'verteidigt', 'wehrt', 'abgewehrt'], 'dig'],
+  [['block', 'blocks', 'blocked', 'blockt', 'blockiert'], 'block_touch'],
   [['freeball', 'free'], 'freeball'],
   [['bagger', 'bump'], 'assist'],
 ];
+/** A pass grade word, with German endings ("perfekten", "schlechte"). */
+function gradeOf(w: string): number | null {
+  if (GRADE_WORDS[w] != null) return GRADE_WORDS[w];
+  if (/^perfekt(e|er|en|es|em)?$/.test(w)) return 3;
+  if (/^gut(e|er|en|es|em)?$/.test(w)) return 2;
+  if (/^(schlecht|schwach)(e|er|en|es|em)?$/.test(w)) return 1;
+  return null;
+}
+
+/** Pass grades said as words, before or after the pass ("good pass", "Annahme schlecht"). */
+const GRADE_WORDS: Record<string, number> = {
+  perfect: 3, perfectly: 3, perfekt: 3, perfekte: 3, perfekter: 3, excellent: 3,
+  good: 2, well: 2, gut: 2, gute: 2, guter: 2, guten: 2, okay: 2, ok: 2,
+  bad: 1, poor: 1, poorly: 1, badly: 1, schlecht: 1, schlechte: 1, schlechter: 1, schwach: 1, schwache: 1,
+};
 const ERROR_WORDS = ['error', 'fault', 'out', 'net', 'fehler', 'aus', 'netz', 'falsch'];
 const ERROR_OF: Partial<Record<ActionCode, ActionCode>> = {
   attack: 'attack_error', kill: 'attack_error', serve: 'serve_error', ace: 'serve_error', set: 'set_error', assist: 'assist_error',
@@ -88,6 +104,7 @@ export function parseVoice(text: string): VoiceCommand[] {
   const out: VoiceCommand[] = [];
   let jersey: number | null = null;
   let cur: Extract<VoiceCommand, { kind: 'tag' }> | null = null;
+  let pendingGrade: number | null = null;
 
   for (let i = 0; i < w.length; i++) {
     const x = w[i], next = w[i + 1];
@@ -104,12 +121,15 @@ export function parseVoice(text: string): VoiceCommand[] {
     }
     if (x === 'punkt' && next === 'gegner') { out.push({ kind: 'lost', heard: 'punkt gegner' }); i++; cur = null; jersey = null; continue; }
 
-    const n = numberWord(x);
+    // Speech engines write a spoken "two" after a pass as "to" or "too".
+    const open = cur as Extract<VoiceCommand, { kind: 'tag' }> | null;
+    const n: number | null = (x === 'to' || x === 'too') && open?.action === 'receive' && open.value == null ? 2 : numberWord(x);
     if (n != null) {
       // A pass grade (0-3) right after a pass, unless a player who goes on to do something ("7 pass, 1 set").
       if (cur?.action === 'receive' && cur.value == null && n <= 3 && !(next && actionOf(next))) { cur.value = n; cur.heard += ` ${x}`; continue; }
       jersey = n;
       cur = null;
+      pendingGrade = null;
       continue;
     }
     if (ERROR_WORDS.includes(x)) {
@@ -126,11 +146,26 @@ export function parseVoice(text: string): VoiceCommand[] {
       if (cur?.action === 'block_touch') { cur.action = 'block_point'; cur.heard += ` ${x}`; continue; }
       if (cur?.action === 'attack') { cur.action = 'kill'; cur.heard += ` ${x}`; continue; }
     }
-    const a = actionOf(x);
+    // "schlägt auf" is a serve, "schlägt" alone an attack.
+    let a = actionOf(x);
+    if (x === 'schlägt') { a = next === 'auf' ? 'serve' : 'attack'; if (next === 'auf') i++; }
     if (a) {
       if (x === 'free' && next === 'ball') i++;
-      cur = { kind: 'tag', jersey, action: a, value: null, heard: jersey != null ? `${jersey} ${x}` : x };
+      // The same touch said twice ("passes … a good pass"): keep one.
+      if (cur && cur.action === a && cur.jersey === jersey) continue;
+      cur = { kind: 'tag', jersey, action: a, value: a === 'receive' ? pendingGrade : null, heard: jersey != null ? `${jersey} ${x}` : x };
+      pendingGrade = null;
       out.push(cur);
+      continue;
+    }
+    const grade = gradeOf(x);
+    if (grade != null) {
+      if (cur?.action === 'receive') { cur.value = grade; cur.heard += ` ${x}`; } else pendingGrade = grade;
+      continue;
+    }
+    // "a pass by seven" / "Annahme von sieben": the player after the touch.
+    if ((x === 'by' || x === 'from' || x === 'von') && cur && cur.jersey == null && next != null && numberWord(next) != null) {
+      cur.jersey = numberWord(next); cur.heard = `${cur.jersey} ${cur.heard}`; i++;
       continue;
     }
   }

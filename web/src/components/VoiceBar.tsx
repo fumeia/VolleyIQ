@@ -9,7 +9,7 @@ const LANG_KEY = 'viq:voice-lang';
 const HOLD_KEY = 'viq:voice-hold';
 /** Seconds between a touch and starting to say it. */
 const SPEECH_LAG = 1;
-const LANGS = [{ code: 'de-CH', label: 'DE' }, { code: 'en-US', label: 'EN' }];
+const LANGS = [{ code: 'de-DE', label: 'DE' }, { code: 'en-US', label: 'EN' }];
 const POINT: Partial<Record<ActionCode, ActionCode>> = { attack: 'kill', serve: 'ace', block_touch: 'block_point' };
 
 /**
@@ -44,7 +44,14 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
     if (ph?.playing && !player?.current?.isPlaying()) player?.current?.play();
     return ph;
   };
-  const [lang, setLang] = useState(() => { try { return localStorage.getItem(LANG_KEY) ?? (navigator.language.startsWith('de') ? 'de-CH' : 'en-US'); } catch { return 'de-CH'; } });
+  // Standard German or English (an earlier "de-CH" choice becomes standard German).
+  const [lang, setLang] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved) return saved.startsWith('de') ? 'de-DE' : 'en-US';
+      return navigator.language.startsWith('de') ? 'de-DE' : 'en-US';
+    } catch { return 'de-DE'; }
+  });
   const [state, setState] = useState<{ listening: boolean; error?: string }>({ listening: false });
   const [interim, setInterim] = useState('');
   const [log, setLog] = useState<{ text: string; done: string[] }[]>([]);
@@ -117,7 +124,7 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
         <span className="voice-now">
           {interim ? <span className="voice-interim">{interim}</span>
             : lastLine ? <span className="small">«{lastLine.text}» {lastLine.done.length ? <b>→ {lastLine.done.join(', ')}</b> : <span className="error">not understood</span>}</span>
-            : <span className="muted small">{lang.startsWith('de') ? '«7 Annahme 2, 1 Zuspiel, 5 Punkt» · «Punkt Gegner» · «zurück»' : '"7 pass 2, 1 set, 5 kill" · "their point" · "undo"'}</span>}
+            : <span className="muted small">{lang.startsWith('de') ? '«7 Annahme 2, 1 Zuspiel, 5 Punkt» · «Sieben nimmt gut an» · «Punkt Gegner» · «zurück»' : '"7 pass 2, 1 set, 5 kill" · "their point" · "undo"'}</span>}
         </span>
         {!state.listening && <button className="btn small" onClick={() => start()}>Start</button>}
         {onTogglePanel && <button className="btn-ghost small voice-panel-btn" onClick={onTogglePanel}>{panelHidden ? 'Panel' : 'Bigger video'}</button>}

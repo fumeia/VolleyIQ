@@ -98,7 +98,7 @@ class VolleyIQPlugin : Plugin() {
 
     private var recognizer: android.speech.SpeechRecognizer? = null
     @Volatile private var listening = false
-    private var speechLang = "de-CH"
+    private var speechLang = "de-DE"
     /** The phone's offline model first; off again when it has none for the language (error 13). */
     private var preferOffline = true
     /** Failures in a row (other than silence): told to the page only when they keep coming. */
@@ -107,7 +107,7 @@ class VolleyIQPlugin : Plugin() {
 
     @PluginMethod
     fun startListening(call: PluginCall) {
-        speechLang = call.getString("lang") ?: "de-CH"
+        speechLang = call.getString("lang") ?: "de-DE"
         preferOffline = true
         speechFailures = 0
         if (getPermissionState("microphone") != PermissionState.GRANTED) {

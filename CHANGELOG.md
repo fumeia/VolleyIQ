@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Voice tagging: full sentences, standard German**
+- Whole sentences work, not just keywords: "Number seven makes a good pass, one sets, five scores", "a bad pass by twelve", "Sieben nimmt den Ball schlecht an, eins stellt, fünf greift an", "Zwölf schlägt auf ins Aus", "eine gute Annahme von sieben". Verbs (passes, sets, attacks, serves, digs; nimmt an, stellt, greift an, schlägt auf, wehrt ab) and pass grades as words (perfect / good / bad, perfekt / gut / schlecht) are understood; other words are skipped. "eine" / "ein" are no longer taken for player #1.
+- DE is now standard German (and EN English); Swiss German is no longer used.
+
 **Fixes**
 - Voice tagging in the app showed "error 13" after a second of silence: the phone has no offline speech model for Swiss German, and Android says so each time listening starts again. It now switches to online recognition by itself (and to standard German if the phone lacks Swiss German), and only says something when it really cannot listen, in words instead of error numbers.
 
