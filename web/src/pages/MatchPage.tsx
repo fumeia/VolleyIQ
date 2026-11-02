@@ -602,7 +602,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       )}
 
       {lineupSet != null && (
-        <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)}
+        <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
           onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
       )}
 

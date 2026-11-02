@@ -65,7 +65,7 @@ function cleanEvent(body) {
   }, null];
 }
 
-export function registerRoutes(app, { db, vision, numbers = null, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined, transcodeHours = null }) {
+export function registerRoutes(app, { db, vision, numbers = null, lineupReader = null, insights, touches, aiDailyLimit = 400, updates = null, budget = null, aiMonthlyBudget = null, aiCurrency = '$', storage = null, storageFetch = undefined, transcodeHours = null }) {
   const q = {
     teams: db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM players p WHERE p.team_id = t.id AND p.active = 1) AS player_count
                        FROM teams t ORDER BY t.name`),
@@ -524,6 +524,20 @@ export function registerRoutes(app, { db, vision, numbers = null, insights, touc
     } catch (e) {
       req.log?.error({ err: e }, 'number reading failed');
       return bad(reply, `Could not read the numbers: ${String(e?.message ?? e).slice(0, 160)}`, 502);
+    }
+  });
+
+  // The line-up of both teams at a serve, from a frame (whole frame first, then its parts).
+  app.post('/api/lineup/read', coach, async (req, reply) => {
+    if (!lineupReader?.enabled) return bad(reply, 'Reading line-ups is not set up on this server (needs an AI backend: LiteLLM or Anthropic).', 503);
+    const [images, err] = cleanImages(req.body, 6);
+    if (err) return bad(reply, err);
+    if (!aiAllowed()) return bad(reply, `Daily AI limit reached (${aiDailyLimit} checks). Raise AI_DAILY_LIMIT in .env if needed.`, 429);
+    try {
+      return await lineupReader.read(images, { onUsage: usage('lineup', lineupReader.model, images.length) });
+    } catch (e) {
+      req.log?.error({ err: e }, 'line-up reading failed');
+      return bad(reply, `Could not read the line-up: ${String(e?.message ?? e).slice(0, 160)}`, 502);
     }
   });
 

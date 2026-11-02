@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Line-ups read from the video**
+- Line-up sheet → "Read from the video": pause at the first serve of a set with all players in view, and the AI reads both teams' shirt numbers and positions 1-6 from the frame. Pick your team (the one on your half is highlighted when the court is marked); the positions fill in from the roster, the libero goes to the libero field, and with "first serve of the set" it also sets who serves first. Numbers not on the roster are listed. Check it against the video before saving. Needs the video file on the device.
+
 **Tags against the official result**
 - Match page → Events: for a match linked to a Swiss Volley game, the official set scores next to the score from the tags, set by set, with what is off ("3 points for us missing", "1 point for them too many"). Missing points are usually a rally without its last tag.
 

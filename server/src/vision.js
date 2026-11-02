@@ -236,3 +236,83 @@ export function cleanNumbers(data) {
   }).filter((t) => t.numbers.length);
   return { teams: teams.slice(0, 4) };
 }
+
+// ---------- the line-up at a serve, from a frame ----------
+
+const LINEUP_SYSTEM = `You look at a frame from a volleyball match video taken at a serve (the first picture is the whole frame, the next ones are its parts in detail) and say, for each team, which shirt number stands in which rotation position.
+
+- Teams are told apart by shirt colour; a libero wears a different colour than the team: count them with the team on their side of the net and mark libero.
+- Rotation positions are seen from each team's own side, facing the net: 1 = back right (the server when that team serves), 2 = front right, 3 = front middle, 4 = front left, 5 = back left, 6 = back middle. For the team on the far side of the net, the camera's left is that team's right.
+- At a serve the players may overlap a little or stand stacked; give the most likely position. A number you cannot read: null for that player (still give the position if clear).
+- Mark which team is serving (a player behind the baseline with the ball).
+- Ignore referees, coaches, substitutes and people off court.`;
+
+const LINEUP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    teams: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          shirt: { type: 'string' },
+          side: { type: ['string', 'null'], enum: ['near', 'far', null], description: 'near = the camera side of the net' },
+          serving: { type: 'boolean' },
+          players: {
+            type: 'array',
+            items: {
+              type: 'object', additionalProperties: false,
+              properties: { number: { type: ['integer', 'null'] }, position: { type: ['integer', 'null'], minimum: 1, maximum: 6 }, libero: { type: 'boolean' } },
+              required: ['number', 'position', 'libero'],
+            },
+          },
+        },
+        required: ['shirt', 'side', 'serving', 'players'],
+      },
+    },
+  },
+  required: ['teams'],
+};
+
+/** Only sensible entries: positions 1-6 once each per team, numbers 0-99; teams without players left out. */
+export function cleanLineup(data) {
+  const teams = (Array.isArray(data?.teams) ? data.teams : []).map((t) => {
+    const taken = new Set();
+    const players = [];
+    for (const p of Array.isArray(t?.players) ? t.players : []) {
+      const number = Number.isInteger(p?.number) && p.number >= 0 && p.number <= 99 ? p.number : null;
+      let position = Number.isInteger(p?.position) && p.position >= 1 && p.position <= 6 ? p.position : null;
+      if (position != null && taken.has(position)) position = null;
+      if (position != null) taken.add(position);
+      if (number != null || position != null) players.push({ number, position, libero: !!p?.libero });
+    }
+    return { shirt: String(t?.shirt ?? '').slice(0, 60) || 'unknown', side: t?.side === 'near' || t?.side === 'far' ? t.side : null, serving: !!t?.serving, players };
+  }).filter((t) => t.players.length);
+  return { teams: teams.slice(0, 2) };
+}
+
+/** Reads the line-up of both teams at a serve (null config: disabled). */
+export function makeLineupReader(env = {}, read = null) {
+  const cfg = aiConfig(env, 'scan');
+  const model = cfg?.model ?? (env.VISION_MODEL || 'claude-opus-5-5');
+  if (read) return { enabled: true, model, read };
+  if (!cfg) return { enabled: false, model, read: async () => { throw new Error('disabled'); } };
+  return {
+    enabled: true,
+    model,
+    async read(images, { onUsage = null } = {}) {
+      const text = await aiComplete(cfg, {
+        system: LINEUP_SYSTEM,
+        text: 'Who stands in which rotation position, per team, at this serve?',
+        images,
+        maxTokens: 1500,
+        schema: LINEUP_SCHEMA,
+        jsonHint: '{"teams":[{"shirt":"white","side":"near","serving":true,"players":[{"number":7,"position":1,"libero":false}]}]}',
+        onUsage,
+      });
+      return cleanLineup(parseJson(text));
+    },
+  };
+}

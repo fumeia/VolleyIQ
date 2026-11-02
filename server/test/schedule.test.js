@@ -311,3 +311,20 @@ test('nightly video search: your played games first, within the day budget, not 
   assert.equal((await app.inject({ method: 'POST', url: '/api/youtube/auto' })).json(), null, 'switched off');
   await app.close();
 });
+
+test('line-up at a serve from a frame: cleaned per team', async () => {
+  const { cleanLineup, makeLineupReader } = await import('../src/vision.js');
+  assert.deepEqual(cleanLineup({ teams: [
+    { shirt: 'blue', side: 'near', serving: true, players: [{ number: 7, position: 1, libero: false }, { number: 9, position: 1, libero: false }, { number: 3, position: 9, libero: false }, { number: 5, position: 4, libero: true }] },
+    { shirt: 'red', side: 'sideways', serving: false, players: [] },
+  ] }), { teams: [{ shirt: 'blue', side: 'near', serving: true, players: [
+    { number: 7, position: 1, libero: false }, { number: 9, position: null, libero: false }, { number: 3, position: null, libero: false }, { number: 5, position: 4, libero: true }] }] });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-lu-'));
+  const lineupReader = makeLineupReader({}, async (images) => ({ teams: [{ shirt: 'white', side: 'far', serving: false, players: [{ number: 4, position: 2, libero: false }] }], n: images.length }));
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') }, { lineupReader });
+  const img = { media_type: 'image/jpeg', data: 'AAAA' };
+  const r = (await app.inject({ method: 'POST', url: '/api/lineup/read', payload: { images: [img, img, img, img, img] } })).json();
+  assert.equal(r.n, 5);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/lineup/read', payload: { images: Array(7).fill(img) } })).statusCode, 400);
+  await app.close();
+});

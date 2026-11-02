@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import type { Match, Player } from '../lib/api';
+import { api, type LineupRead, type Match, type Player } from '../lib/api';
+import { ourHalfAt } from '../lib/calibration';
+import { stillFrames } from '../lib/frames';
+import type { PlayerHandle } from './VideoPlayer';
 import { orderAt, type Lineup, type Lineups } from '../lib/rotation';
 import { fmtTime } from './TagPad';
 
@@ -11,13 +14,15 @@ interface Props {
   getTime: () => number | null;
   onSave: (lineups: Lineups) => Promise<void>;
   onClose: () => void;
+  /** The video, to read the line-up from a frame at a serve. */
+  player?: React.RefObject<PlayerHandle | null>;
 }
 
 // Court positions as seen from behind our baseline: front row 4-3-2 at the net, back row 5-6-1.
 const GRID = [4, 3, 2, 5, 6, 1];
 
 /** Starting six per set (position 1 = server), libero and who serves first. */
-export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose }: Props) {
+export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose, player }: Props) {
   const [all, setAll] = useState<Lineups>(() => match.lineups ?? {});
   const [set, setSet] = useState(initialSet);
   const [slot, setSlot] = useState<number | null>(1);
@@ -57,6 +62,7 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
           ))}
         </div>
         {!all[String(set)] && set > 1 && all[String(set - 1)] && <span className="small muted">Copied from set {set - 1}; change what differs.</span>}
+        {player && <ReadLineup player={player} match={match} players={players} onApply={(l) => put({ ...cur, ...l })} />}
         <div className="lineup-court">
           <span className="lineup-net">NET</span>
           {GRID.map((pos) => (
@@ -121,6 +127,86 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
           <button className="btn btn-primary" onClick={async () => { await onSave({ ...all, [String(set)]: cur }); onClose(); }}>Save line-up</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Reads the line-up from the frame on screen (at the first serve of a set): the whole frame
+ * and its four quarters go to the AI, which says who stands where for both teams. Our team
+ * is the one on our half of the court marking; the result fills the set's line-up to check.
+ */
+function ReadLineup({ player, match, players, onApply }: {
+  player: React.RefObject<PlayerHandle | null>; match: Match; players: Player[]; onApply: (l: Partial<Lineup>) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [teams, setTeams] = useState<LineupRead[] | null>(null);
+  const [first, setFirst] = useState(true);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const url = player.current?.fileUrl() ?? null;
+  const at = player.current?.time() ?? 0;
+  const ours = match.calibration ? ourHalfAt(match.calibration, at) : null;
+  const byNumber = (n: number | null) => (n == null ? null : players.find((p) => p.active && p.number === n) ?? null);
+
+  async function read() {
+    setBusy(true); setError(''); setNote(''); setTeams(null);
+    try {
+      player.current?.pause();
+      const t = player.current?.time() ?? 0;
+      const whole = await stillFrames(url!, t, { x: 0, y: 0, w: 1, h: 1 });
+      const parts = await stillFrames(url!, t, null);
+      const r = await api.readLineup([...whole, ...parts].map((data) => ({ media_type: 'image/jpeg', data })));
+      setTeams(r.teams);
+      if (!r.teams.length) setError('No line-up could be read. Try a frame closer to the serve, with all players in view.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    } finally { setBusy(false); }
+  }
+
+  function apply(team: LineupRead) {
+    const order: (number | null)[] = [null, null, null, null, null, null];
+    let libero: number | null | undefined;
+    const missing: number[] = [];
+    for (const p of team.players) {
+      const pl = byNumber(p.number);
+      if (p.number != null && !pl) missing.push(p.number);
+      if (!pl) continue;
+      // The libero stands in for a middle in the back row: the line-up keeps that spot for the player it replaces.
+      if (p.libero) { libero = pl.id; continue; }
+      if (p.position) order[p.position - 1] = pl.id;
+    }
+    onApply({ order, ...(libero !== undefined ? { libero } : {}), ...(first ? { weServeFirst: team.serving } : {}) });
+    const empty = order.filter((x) => x == null).length;
+    setNote([
+      empty ? `${empty} position${empty === 1 ? '' : 's'} still empty${libero ? ' (one is where the libero stood: put the player the libero replaced there)' : ''}.` : 'All six filled in.',
+      missing.length ? `Not on the roster: ${missing.map((n) => `#${n}`).join(', ')}.` : '',
+      'Check it against the video before saving.',
+    ].filter(Boolean).join(' '));
+    setTeams(null);
+  }
+
+  if (!url) return <p className="small muted">Read the line-up from the video: needs the video file on this device (in the app, download a YouTube video in the Auto tab first).</p>;
+  return (
+    <div className="read-lineup">
+      <div className="row wrap">
+        <button className="btn" disabled={busy} onClick={read}>{busy ? 'Reading the line-up…' : 'Read from the video'}</button>
+        <label className="toggle small"><input type="checkbox" checked={first} onChange={(e) => setFirst(e.target.checked)} /> first serve of the set</label>
+      </div>
+      {!teams && !note && <span className="small muted">Pause at the first serve of the set, all players in view (zoom out), then read.</span>}
+      {teams && teams.length > 0 && (
+        <div className="read-lineup-teams">
+          <span className="small">Which team is {match.team_name ?? 'yours'}?</span>
+          {teams.map((t, i) => (
+            <button key={i} className={`btn ${t.side && t.side === ours ? 'btn-primary' : ''}`} onClick={() => apply(t)}>
+              {t.shirt}{t.side ? ` · ${t.side} side` : ''}{t.serving ? ' · serving' : ''}
+              <small> ({t.players.filter((p) => p.position).sort((a, b) => a.position! - b.position!).map((p) => `${p.position}: ${p.number ?? '?'}`).join(', ')})</small>
+            </button>
+          ))}
+        </div>
+      )}
+      {note && <span className="small">{note}</span>}
+      {error && <span className="small error">{error}</span>}
     </div>
   );
 }

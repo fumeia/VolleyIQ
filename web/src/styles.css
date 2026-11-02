@@ -1228,3 +1228,7 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .live-score { font-size: 34px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
 .live-score small { font-size: 13px; font-weight: 600; }
 .live-dot.over { color: var(--muted); } .live-dot.over::before { background: var(--muted); animation: none; }
+
+.read-lineup { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
+.read-lineup-teams { display: flex; flex-direction: column; gap: 6px; }
+.read-lineup-teams .btn { justify-content: flex-start; text-align: left; flex-wrap: wrap; }

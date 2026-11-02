@@ -33,6 +33,8 @@ export interface CenterGame {
   region?: string;
   videoState: 'confirmed' | 'found' | null; searched?: boolean; sent?: number; match_id?: number | null;
 }
+/** A team's line-up read from a frame at a serve: positions 1-6 from the team's own side. */
+export interface LineupRead { shirt: string; side: 'near' | 'far' | null; serving: boolean; players: { number: number | null; position: number | null; libero: boolean }[] }
 /** The detector's thresholds, learned from the tagged matches (how the defaults and the best do on them). */
 export interface TuningResult { threshold: number; sustainMax: number; truth: number; found: number; recall: number; noise: number; noisePerMin: number; score: number }
 export interface DetectorTuning {
@@ -232,6 +234,7 @@ export const api = {
   scheduleMatch: (id: number, matchId: number | null) => req<ScheduleGame>('PUT', `/api/schedule/${id}/match`, { match_id: matchId }),
   opponentGames: (id: number) => req<{ opponent: string; games: LeagueGame[] }>('GET', `/api/schedule/${id}/opponent`),
   searchVideo: (gameId: number, g: { home: string; away: string; start: string }) => req<GameVideo>('POST', `/api/games/${gameId}/video/search`, g),
+  readLineup: (images: { media_type: string; data: string }[]) => req<{ teams: LineupRead[] }>('POST', '/api/lineup/read', { images }),
   readNumbers: (images: { media_type: string; data: string }[]) => req<{ teams: { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] }[] }>('POST', '/api/numbers/read', { images }),
   detector: () => req<DetectorTuning>('GET', '/api/detector'),
   setDetectorOff: (off: boolean) => req<{ ok: boolean }>('PUT', '/api/detector', { off }),
