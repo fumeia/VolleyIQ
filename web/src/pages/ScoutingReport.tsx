@@ -33,6 +33,7 @@ export function ScoutingReport() {
         <h1>Scouting: {data.team.name}</h1>
         <div className="row">
           <Link className="btn-ghost small" to={`/teams/${data.team.id}`}>Team page</Link>
+          <Link className="btn-ghost small" to={`/simulate?vs=${data.team.id}`}>Simulate a match</Link>
           {report.rallies > 0 && <button className="btn small" onClick={() => setPrinting(true)}>Save as PDF / print</button>}
         </div>
       </header>

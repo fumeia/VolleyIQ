@@ -13,6 +13,7 @@ import { SharePage, TeamSharePage } from './pages/SharePage';
 import { TeamPage } from './pages/TeamPage';
 import { Teams } from './pages/Teams';
 import { ScoutingReport } from './pages/ScoutingReport';
+import { Simulator } from './pages/Simulator';
 import { Scout } from './pages/Scout';
 import { MatchCenter } from './components/MatchCenter';
 
@@ -82,6 +83,7 @@ export function App() {
           <Route path="/teams" element={<Teams />} />
           <Route path="/teams/:id" element={<TeamPage />} />
           <Route path="/teams/:id/scouting" element={<ScoutingReport />} />
+          <Route path="/simulate" element={<Simulator />} />
           <Route path="/new" element={<NewMatch />} />
           <Route path="/m/:id" element={<MatchPage />} />
           <Route path="/reports" element={<Reports />} />

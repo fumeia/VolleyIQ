@@ -21,6 +21,7 @@ import { EditsPanel } from '../components/EditsPanel';
 import { FrameStep, SpeedControl } from '../components/SpeedControl';
 import { QualityControl } from '../components/QualityControl';
 import { ReadNumbers } from '../components/ReadNumbers';
+import { TimeoutSheet } from '../components/TimeoutSheet';
 import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
@@ -81,6 +82,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     return () => clearTimeout(timer);
   }, [reel?.i, reel?.list]);
   const [lineupSet, setLineupSet] = useState<number | null>(null);
+  const [showTimeout, setShowTimeout] = useState(false);
   const [reviewMode, setReviewMode] = useState<'rally' | 'touch'>(() => (localStorage.getItem('viq:reviewMode') === 'touch' ? 'touch' : 'rally'));
   useEffect(() => { try { localStorage.setItem('viq:reviewMode', reviewMode); } catch { /* private mode */ } }, [reviewMode]);
   const [editing, setEditing] = useState<VEvent | null>(null);
@@ -363,6 +365,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <button className="set-btn" onClick={() => setSetNo((s) => Math.min(5, s + 1))}>›</button>
           <span className="score">{score.us}<i>:</i>{score.them}</span>
         </div>
+        <button className="btn-ghost small timeout-btn" onClick={() => setShowTimeout(true)} title="What to say at a time-out">Time-out</button>
         <button className="btn-ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><Icon name="gear" /></button>
         <MoreMenu />
       </header>
@@ -601,6 +604,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         />
       )}
 
+      {showTimeout && <TimeoutSheet match={match} players={players} events={events} set={setNo} onClose={() => setShowTimeout(false)} />}
       {lineupSet != null && (
         <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
           onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />

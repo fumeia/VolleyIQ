@@ -45,3 +45,23 @@ test('stats page opens for the team', async ({ page, login }) => {
   await expect(page.getByRole('option', { name: 'Testers Nord' })).toBeAttached();
   await expect(page.getByText('9–5 after 14 rallies').first()).toBeVisible();
 });
+
+test('match simulator gives a win chance and what helps most', async ({ page, seed, login }) => {
+  await login();
+  await page.goto(`/simulate?us=${seed.teamId}`);
+  await expect(page.locator('.sim-team').first()).toContainText('rallies');
+  await page.getByRole('button', { name: 'Simulate the match' }).click();
+  await expect(page.locator('.sim-kpis')).toContainText('Match');
+  await expect(page.locator('.sim-kpis b').first()).toHaveText(/^\d+%$/);
+  await expect(page.getByRole('heading', { name: 'What helps most' })).toBeVisible();
+});
+
+test('time-out card sums up the set', async ({ page, seed, login }) => {
+  await login();
+  await page.goto(`/m/${seed.matchId}`);
+  await page.getByRole('button', { name: 'Time-out' }).click();
+  const card = page.getByRole('dialog', { name: 'Time-out' });
+  await expect(card).toContainText('set 1 · 9 : 5');
+  await expect(card).toContainText('Side-out');
+  await expect(card.locator('.timeout-points li').first()).toBeVisible();
+});

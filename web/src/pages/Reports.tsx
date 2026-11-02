@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { StatsView } from '../components/StatsView';
 import { PrintReport } from '../components/PrintReport';
 import { api, publicBase, type Match, type Player, type Team, type VEvent } from '../lib/api';
@@ -53,7 +54,7 @@ export function Reports() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Stats</h1>{teamId != null && <PublicLink teamId={teamId} token={token} setToken={setToken} />}</header>
+      <header className="page-head"><h1>Stats</h1><Link className="btn-ghost small" to="/simulate">Match simulator</Link>{teamId != null && <PublicLink teamId={teamId} token={token} setToken={setToken} />}</header>
       <div className="row wrap">
         <select className="input" value={teamId ?? ''} onChange={(e) => setTeamId(Number(e.target.value))}>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

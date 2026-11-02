@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Match simulator**
+- Stats → "Match simulator" (or "Simulate a match" on a scouting report): your team against a scouted team or an average league team, played rally by rally thousands of times from both teams' side-out and break rates (per rotation when the line-ups are entered). Shows the chance to win the match, a set and a tie-break, which starting rotation wins most sets, and what would help most (side-out +5, break points +5, the weakest rotation fixed), as the change in match win chance.
+- With few rallies the rates are pulled towards a typical amateur league (side-out 58%), so one tagged match gives a first estimate that sharpens with every match.
+
+**Time-out card**
+- Match page → "Time-out": the set so far, to read out in 30 seconds. The last 10 rallies (how the points came and went), side-out and break this set against your season, who is hot and who struggles (attack and pass), a few talking points, and the opponent's game plan when they were scouted.
+
 **Shirt numbers and line-ups from YouTube**
 - "Read the shirt numbers" and "Read from the video" (line-up) now also work while tagging from the embedded YouTube player. In the app, the picture is fetched from YouTube (one second of the video at up to 1080p, a few seconds' wait). In a browser, it asks to share the tab once per picture and cuts the video out of it, so make the video big first.
 
