@@ -1,5 +1,15 @@
 import { expect, test } from './fixtures';
 import { PASSWORD } from '../setup';
+import type { Page } from '@playwright/test';
+
+/** A live match of a team of its own (with a copy of the roster), so it does not show up in the other tests' team. */
+async function liveMatch(page: Page, label: string) {
+  const team = await (await page.request.post('/api/teams', { data: { name: `${label} team ${Date.now()}` } })).json();
+  for (const [name, number] of [['Alex Probe', 1], ['Kim Muster', 5], ['Noa Beispiel', 7]] as const) {
+    await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role: 'OH' } });
+  }
+  return (await page.request.post('/api/matches', { data: { label, opponent: 'Sample VC', team_id: team.id, mode: 'live' } })).json();
+}
 
 test('wrong password is refused, the right one logs in', async ({ page }) => {
   await page.goto('/');
@@ -42,6 +52,7 @@ test('stats page opens for the team', async ({ page, login }) => {
   await login();
   await page.goto('/reports');
   await expect(page.getByRole('heading', { name: 'Stats' })).toBeVisible();
+  await page.locator('select').first().selectOption({ label: 'Testers Nord' });
   await expect(page.getByRole('option', { name: 'Testers Nord' })).toBeAttached();
   await expect(page.getByText('9–5 after 14 rallies').first()).toBeVisible();
 });
@@ -66,9 +77,9 @@ test('time-out card sums up the set', async ({ page, seed, login }) => {
   await expect(card.locator('.timeout-points li').first()).toBeVisible();
 });
 
-test('live tagging pauses and catches up the score', async ({ page, seed, login }) => {
+test('live tagging pauses and catches up the score', async ({ page, login }) => {
   await login();
-  const match = await (await page.request.post('/api/matches', { data: { label: 'Live test', opponent: 'Sample VC', team_id: seed.teamId, mode: 'live' } })).json();
+  const match = await liveMatch(page, 'Live test');
   for (const action of ['kill', 'opp_point']) await page.request.post(`/api/matches/${match.id}/events`, { data: { action, set_no: 1 } });
   await page.goto(`/m/${match.id}`);
   await page.getByRole('button', { name: 'Pause tagging' }).click();
@@ -87,4 +98,31 @@ test('live tagging pauses and catches up the score', async ({ page, seed, login 
   await page.waitForTimeout(500);
   await page.reload();
   await expect(page.locator('.scorebox .score')).toHaveText(/6\s*:\s*4/);
+});
+
+test('voice tagging turns a spoken rally into tags', async ({ page, login }) => {
+  await login();
+  // A stand-in for the browser's speech recognition: window.say(text) "hears" a phrase.
+  await page.addInitScript(() => {
+    class FakeRecognition {
+      lang = ''; continuous = false; interimResults = false;
+      onresult: ((e: unknown) => void) | null = null; onerror = null; onend = null;
+      start() { (window as unknown as { say: (t: string) => void }).say = (t: string) => this.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript: t }], { isFinal: true })] }); }
+      stop() {} abort() {}
+    }
+    Object.assign(window, { webkitSpeechRecognition: FakeRecognition, SpeechRecognition: FakeRecognition });
+  });
+  const match = await liveMatch(page, 'Voice test');
+  await page.goto(`/m/${match.id}`);
+  await page.getByRole('button', { name: 'Voice tagging' }).click();
+  await expect(page.locator('.voice-bar')).toContainText('Listening');
+  await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('7 pass 2, 1 set, 5 attack, our point'));
+  await expect(page.locator('.voice-line').first()).toContainText('#5 Kill');
+  await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*0/);
+  await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('Punkt Gegner'));
+  await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*1/);
+  await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('undo'));
+  await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*0/);
+  await page.getByRole('button', { name: 'Events' }).click();
+  for (const t of [/#7 Noa\s*Receive 2/, /#1 Alex\s*Set/, /#5 Kim\s*Kill/]) await expect(page.locator('.ws-content')).toContainText(t);
 });

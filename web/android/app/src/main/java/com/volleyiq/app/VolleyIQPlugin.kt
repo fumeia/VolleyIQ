@@ -44,7 +44,10 @@ import java.util.concurrent.TimeUnit
 /** Bridge between the web UI and the phone: video files, link imports, background analysis. */
 @CapacitorPlugin(
     name = "VolleyIQ",
-    permissions = [Permission(alias = "notifications", strings = [Manifest.permission.POST_NOTIFICATIONS])],
+    permissions = [
+        Permission(alias = "notifications", strings = [Manifest.permission.POST_NOTIFICATIONS]),
+        Permission(alias = "microphone", strings = [Manifest.permission.RECORD_AUDIO]),
+    ],
 )
 class VolleyIQPlugin : Plugin() {
 
@@ -89,6 +92,102 @@ class VolleyIQPlugin : Plugin() {
                 call.reject(e.message ?: "Printing is not available")
             }
         }
+    }
+
+    // ---------- voice tagging: Android's speech recognizer, restarted after every phrase ----------
+
+    private var recognizer: android.speech.SpeechRecognizer? = null
+    @Volatile private var listening = false
+    private var speechLang = "de-CH"
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    @PluginMethod
+    fun startListening(call: PluginCall) {
+        speechLang = call.getString("lang") ?: "de-CH"
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAlias("microphone", call, "micPermission")
+            return
+        }
+        beginListening(call)
+    }
+
+    @PermissionCallback
+    private fun micPermission(call: PluginCall) {
+        if (getPermissionState("microphone") == PermissionState.GRANTED) beginListening(call)
+        else call.reject("The microphone is not allowed for VolleyIQ")
+    }
+
+    private fun beginListening(call: PluginCall) {
+        main.post {
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(context)) {
+                call.reject("This phone has no speech recognition (install or enable Google speech services)")
+                return@post
+            }
+            listening = true
+            recognizer?.destroy()
+            recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(context).apply { setRecognitionListener(speechListener) }
+            listenOnce()
+            call.resolve()
+        }
+    }
+
+    private fun listenOnce() {
+        if (!listening) return
+        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, speechLang)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Gyms often have no signal: use the phone's offline speech model when it has one.
+            putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(android.speech.RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+        }
+        runCatching { recognizer?.startListening(intent) }
+    }
+
+    private fun restartListening(delayMs: Long = 0) {
+        if (listening) main.postDelayed({ listenOnce() }, delayMs)
+    }
+
+    private val speechListener = object : android.speech.RecognitionListener {
+        override fun onResults(results: android.os.Bundle?) {
+            val text = results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+            if (!text.isNullOrBlank()) notifyListeners("speech", JSObject().put("text", text).put("final", true))
+            restartListening()
+        }
+        override fun onPartialResults(partial: android.os.Bundle?) {
+            val text = partial?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+            if (!text.isNullOrBlank()) notifyListeners("speech", JSObject().put("text", text).put("final", false))
+        }
+        override fun onError(error: Int) {
+            when (error) {
+                // Silence or nothing understood: just listen again.
+                android.speech.SpeechRecognizer.ERROR_NO_MATCH, android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restartListening()
+                android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
+                    listening = false
+                    notifyListeners("speechState", JSObject().put("listening", false).put("error", "The microphone is not allowed"))
+                }
+                else -> {
+                    notifyListeners("speechState", JSObject().put("listening", true).put("error", "Speech recognition error $error, trying again"))
+                    restartListening(800)
+                }
+            }
+        }
+        override fun onReadyForSpeech(params: android.os.Bundle?) { notifyListeners("speechState", JSObject().put("listening", true)) }
+        override fun onBeginningOfSpeech() {}
+        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBufferReceived(buffer: ByteArray?) {}
+        override fun onEndOfSpeech() {}
+        override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
+    }
+
+    @PluginMethod
+    fun stopListening(call: PluginCall) {
+        listening = false
+        main.post {
+            runCatching { recognizer?.cancel(); recognizer?.destroy() }
+            recognizer = null
+        }
+        call.resolve()
     }
 
     /** One full-resolution frame of a YouTube video at [t] seconds (see YoutubeFrame), as base64 JPEG. */

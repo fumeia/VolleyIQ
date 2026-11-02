@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Voice tagging**
+- Match page → "Voice tagging": say who did what and it becomes tags, live without video or while watching one. "7 pass 2, 1 set, 5 kill", "12 serve error", "our point", "their point", "undo"; in German "7 Annahme 2, 1 Zuspiel, 5 Punkt", "12 Aufschlagfehler", "Punkt für uns", "Punkt Gegner", "zurück". "5 attack, our point" makes the attack a kill. Every phrase shows what was heard and which tags it made.
+- In the Android app it uses the phone's speech recognition (offline when the phone has the German or English speech pack; asks for the microphone once). In a browser: Chrome, Edge or Safari.
+
 **Pause and resume tagging**
 - Match page → "Pause tagging" when you go on court; the page stays paused (also after a reload). "Resume": enter the score as it is now (and the final score of a set that ended meanwhile), who serves, and with a line-up our rotation now. The points you missed are added as untagged points: they count for the score, the live score on the public link and the official result check, but not for the stats, side-out or break.
 - "Catch up the score" does the same without pausing first, when a few points went by untagged.

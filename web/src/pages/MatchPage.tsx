@@ -23,6 +23,7 @@ import { QualityControl } from '../components/QualityControl';
 import { ReadNumbers } from '../components/ReadNumbers';
 import { TimeoutSheet } from '../components/TimeoutSheet';
 import { ResumeSheet } from '../components/ResumeSheet';
+import { VoiceBar } from '../components/VoiceBar';
 import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
@@ -85,6 +86,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [showTimeout, setShowTimeout] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [voice, setVoice] = useState(false);
   // Tagging paused (off the bench, on court): kept on this device, so a reload keeps it.
   const pauseKey = `viq:paused:${match.id}`;
   const [paused, setPausedState] = useState(() => { try { return localStorage.getItem(pauseKey) === '1'; } catch { return false; } });
@@ -484,8 +486,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
                   </div>
                 )}
+                {!paused && voice && (
+                  <VoiceBar players={players} onClose={() => setVoice(false)}
+                    onTag={(e) => { const t = getTime(); commit({ ...e, t: t == null ? null : t }); }}
+                    onWon={() => settle(true)}
+                    onLost={() => { const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
+                    onUndo={() => { const last = lastAdded(eventsRef.current.filter((e) => e.status === 'confirmed')); if (last) { remove(last); flash(`Removed ${actionLabel(last)}`); } }} />
+                )}
                 {!paused && (
                   <div className="row wrap pause-row">
+                    {!voice && <button className="btn-ghost small" onClick={() => setVoice(true)} title="Tag by speaking: 7 pass 2, 1 set, 5 kill">Voice tagging</button>}
                     <button className="btn-ghost small" onClick={() => setPaused(true)} title="Stop tagging for a while; when you come back, enter the score and carry on">Pause tagging</button>
                     <button className="btn-ghost small" onClick={() => setResumeOpen(true)} title="Points were missed: enter the score as it is now">Catch up the score</button>
                   </div>

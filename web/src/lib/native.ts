@@ -50,6 +50,11 @@ interface VolleyIQPlugin {
   /** Downloads the APK at [url] (with the login token) as a background job, then opens Android's installer. */
   installUpdate(o: { url: string; token: string | null }): Promise<void>;
   addListener(event: 'updateProgress', cb: (p: { done: number; total: number }) => void): Promise<{ remove: () => void }>;
+  /** Voice tagging: Android's speech recognizer, listening until stopListening. */
+  startListening(o: { lang: string }): Promise<void>;
+  stopListening(): Promise<void>;
+  addListener(event: 'speech', cb: (r: { text: string; final: boolean }) => void): Promise<{ remove: () => void }>;
+  addListener(event: 'speechState', cb: (s: { listening: boolean; error?: string }) => void): Promise<{ remove: () => void }>;
 }
 
 export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');

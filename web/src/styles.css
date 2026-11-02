@@ -1281,3 +1281,13 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .resume-stepper small { min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-stepper .input { width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
 .resume-rot { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- voice tagging ---------- */
+.voice-bar { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; background: var(--surface); }
+.voice-head { align-items: center; gap: 8px; }
+.voice-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.voice-dot.on { background: #c23030; animation: voice-pulse 1.2s ease-in-out infinite; }
+@keyframes voice-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .voice-dot.on { animation: none; } }
+.voice-interim { min-height: 22px; font-size: 15px; }
+.voice-line { overflow-wrap: anywhere; }
