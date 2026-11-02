@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Fixes**
+- The tag marks on the timeline were drawn 1400 px wide on phones: the match page could be pushed sideways, and in landscape the video was blown up past the screen with no way back. The marks now fit the bar, and nothing on the match page can make it wider than the screen.
+- Landscape: the match page keeps clear of the camera cut-out and the system bars.
+
 **Voice tagging along a video**
 - Voice tagging now runs as a strip at the bottom of the screen and keeps listening whatever tab is open. Along a video (YouTube or a file), each spoken tag gets the time you started speaking, a second earlier, and the next touches of the phrase follow 0.8 s apart; the video carries on if the phone's speech recognition stopped it. "More": language, "Pause the video while I speak", and the last phrases with what they became.
 - Landscape: with voice on, the video takes the screen (header, buttons and tagging panel step aside; the timeline stays, the score is in the strip). Tap the video to play or pause, double-tap a side to jump 5 s. "Panel" brings everything back.

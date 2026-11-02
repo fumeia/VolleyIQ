@@ -194,7 +194,9 @@ a.list-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--li
 .tab .dot { background: var(--accent); color: var(--accent-ink); border-radius: 99px; padding: 1px 6px; font-weight: 700; }
 
 /* ---------- match workspace ---------- */
-.workspace { display: flex; flex-direction: column; min-height: 100dvh; }
+.workspace { display: flex; flex-direction: column; min-height: 100dvh; overflow-x: clip; }
+/* Nothing inside may push the columns wider than the screen. */
+.ws-video, .ws-panel { min-width: 0; }
 .ws-head {
   position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: 6px;
   padding: calc(6px + env(safe-area-inset-top)) 8px 6px; background: var(--surface); border-bottom: 1px solid var(--line);
@@ -228,7 +230,8 @@ a.list-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--li
 
 /* Landscape phone / tablet / desktop: video left, tagging right, both fill the screen. */
 @media (orientation: landscape) and (min-width: 640px) {
-  .workspace { position: fixed; inset: 0; }
+  /* Landscape phones: keep clear of the camera cut-out and the system bars at the sides. */
+  .workspace { position: fixed; inset: 0; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
   .workspace:not(.is-live) .ws-body { flex-direction: row; min-height: 0; }
   .workspace:not(.is-live) .ws-video { position: relative; top: 0; flex: 1.35; display: flex; flex-direction: column; justify-content: center; }
   .workspace:not(.is-live) .ws-panel { flex: 1; overflow-y: auto; min-width: 320px; max-width: 560px; }
@@ -1186,9 +1189,10 @@ button.court-zone:active { background: #2a2f3a; }
 /* ---------- timeline under the video ---------- */
 .timeline { display: flex; align-items: center; gap: 8px; padding: 4px 10px 2px; background: var(--surface); }
 .timeline-time { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 44px; text-align: center; }
-.timeline-track { position: relative; flex: 1; height: 34px; display: flex; align-items: center; }
+.timeline-track { position: relative; flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; }
 .timeline-track input[type=range] { position: relative; z-index: 2; width: 100%; margin: 0; background: transparent; accent-color: var(--accent); height: 34px; }
-.timeline-marks { position: absolute; left: 0; right: 0; top: 50%; height: 14px; transform: translateY(-50%); z-index: 1; pointer-events: none; }
+/* An SVG is sized like an image: without a width it takes its viewBox shape (1400 px wide here), not left/right. */
+.timeline-marks { position: absolute; left: 0; right: 0; width: 100%; top: 50%; height: 14px; transform: translateY(-50%); z-index: 1; pointer-events: none; }
 .timeline-marks line { stroke: var(--muted); stroke-width: 1.2; vector-effect: non-scaling-stroke; opacity: .55; }
 .timeline-set { position: absolute; top: -2px; transform: translateX(-50%); font-size: 9.5px; font-weight: 700; color: var(--muted); pointer-events: none; z-index: 1; }
 
@@ -1312,7 +1316,7 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
   .workspace.voice-big:not(.is-live) .ws-head,
   .workspace.voice-big:not(.is-live) .transport { display: none; }
   /* The video as big as the height allows, at its own shape; the timeline below it. */
-  .workspace.voice-big:not(.is-live) .ws-video { justify-content: flex-start; }
+  .workspace.voice-big:not(.is-live) .ws-video { justify-content: flex-start; padding-top: env(safe-area-inset-top); }
   .workspace.voice-big:not(.is-live) .video-box { width: min(100%, calc((100dvh - 96px) * 16 / 9)); max-height: none; margin: 0 auto; }
   .workspace.voice-big:not(.is-live) .video-wrap { width: 100%; }
   .voice-bar { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
