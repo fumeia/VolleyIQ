@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
 import { api, type ClubTeamChoice, type Match, type Player, type Playlist, type ScheduleGame, type Team, type VEvent } from '../lib/api';
 import { actionLabel } from '../lib/actions';
@@ -42,6 +42,7 @@ export function TeamPage() {
           </form>
         )}
         <div className="row">
+          <Link className="btn-ghost small" to={`/teams/${team.id}/scouting`}>Scouting report</Link>
           <button className="btn-ghost small" onClick={async () => {
             const data = await api.teamReport(team.id);
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

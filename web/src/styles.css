@@ -1232,3 +1232,11 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .read-lineup { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
 .read-lineup-teams { display: flex; flex-direction: column; gap: 6px; }
 .read-lineup-teams .btn { justify-content: flex-start; text-align: left; flex-wrap: wrap; }
+
+/* ---------- scouting report ---------- */
+.scout-report { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 18px; max-width: 760px; }
+.scout-plan { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0 14px; }
+.scout-plan h2 { font-size: 16px; margin: 0 0 6px; }
+.scout-plan ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.scout-report .print-table { overflow-x: auto; }
+@media (max-width: 600px) { .scout-report { padding: 14px 10px; } }
