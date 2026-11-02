@@ -45,6 +45,12 @@ export const DE: Record<string, string> = {
   'Slow-mo': 'Zeitlupe', 'Slow motion': 'Zeitlupe', 'Back to normal speed': 'Zurück zur normalen Geschwindigkeit', 'frame': 'Bild',
   'One frame back': 'Ein Bild zurück', 'One frame forward': 'Ein Bild vorwärts',
 
+  'private': 'privat', 'Your own playlists: your shirt number': 'Eigene Playlists: deine Trikotnummer', 'Name of the playlist': 'Name der Playlist',
+  'Show it to the whole team? (Cancel = only for you)': 'Für das ganze Team sichtbar? (Abbrechen = nur für dich)', 'New playlist': 'Neue Playlist',
+  'Add clips to': 'Clips hinzufügen zu', 'Public · make private': 'Öffentlich · privat machen', 'Private · make public': 'Privat · öffentlich machen',
+  'New name': 'Neuer Name', 'Rename': 'Umbenennen', 'Delete the playlist?': 'Playlist löschen?', 'Delete': 'Löschen', 'Add to {name}': 'Zu {name} hinzufügen',
+  'in it': 'drin', 'add': 'hinzu', 'Remove from the playlist': 'Aus der Playlist entfernen', 'remove': 'entfernen',
+
   // correction sheet
   'Who': 'Wer', 'What': 'Was', 'Where': 'Wo', 'Could not send': 'Konnte nicht senden', 'New touch': 'Neuer Ballkontakt', 'Edit': 'Ändern',
   'Who played it?': 'Wer hat ihn gespielt?', 'Pass grade (3 = perfect)': 'Annahme-Note (3 = perfekt)', 'as the camera sees it': 'so wie die Kamera es sieht',

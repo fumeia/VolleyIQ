@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Teammates' playlists**
+- Public link → Replays: with their shirt number, teammates make their own playlists, public (the whole team sees them, with their number) or private (only shown when that number is entered). "Add clips to" puts a ＋ on every clip; in their own playlist ✕ removes one, and they can rename it, switch public / private or delete it. Only the number that made a playlist can change it. A shirt number is not a password: anyone typing #7 sees #7's private playlists.
+- The coach sees all playlists on the team page, with who made them, and can delete any.
+
 **Public link in German**
 - The public team and match links follow the browser's language (German for German browsers), with a DE / EN switch in the top bar (remembered on the device). Translated: tabs, Overview, games and results, Replays with corrections and playlists, All games with its filters, the video form, the guided tours, the stats topics, the main numbers and the pass grades. The coach app stays English.
 - Still in English for now: the generated findings ("What went well" items), the chart titles and explanations inside the stats topics, the player pages' strengths and tips, and the report images.

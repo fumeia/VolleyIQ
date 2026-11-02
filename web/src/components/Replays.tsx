@@ -35,7 +35,7 @@ const loadSent = (token: string): number[] => { try { return JSON.parse(localSto
  * who spots a wrong tag can send a correction; it is applied only when it is accepted
  * in the app.
  */
-export function Replays({ token, matches, players, events, initialMatch, playlists = [] }: Props) {
+export function Replays({ token, matches, players, events, initialMatch, playlists: shared = [] }: Props) {
   const withTags = matches.filter((m) => events.some((e) => e.match_id === m.id && e.t != null));
   const [matchId, setMatchId] = useState<number | null>(initialMatch ?? withTags[withTags.length - 1]?.id ?? null);
   const match = matches.find((m) => m.id === matchId) ?? null;
@@ -93,7 +93,20 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
   const inMatch = players.filter((p) => all.some((e) => e.player_id === p.id)).sort((a, b) => (a.number ?? 99) - (b.number ?? 99));
   // A playlist: its tags in its order, from any match (the video follows the clip's match).
   const [listId, setListId] = useState<number | null>(null);
+  // Teammates' own playlists: with their shirt number they see their private ones too, and can make and change their own.
+  const [jersey, setJerseyState] = useState<number | null>(() => { try { const v = localStorage.getItem('viq:jersey'); return v && /^\d{1,2}$/.test(v) ? Number(v) : null; } catch { return null; } });
+  const setJersey = (n: number | null) => { setJerseyState(n); try { if (n == null) localStorage.removeItem('viq:jersey'); else localStorage.setItem('viq:jersey', String(n)); } catch { /* private mode */ } };
+  const [playlists, setPlaylists] = useState<Playlist[]>(shared);
+  const reloadLists = () => api.sharedPlaylists(token, jersey).then(setPlaylists).catch(() => {});
+  useEffect(() => { reloadLists(); }, [jersey]);
+  const putList = (p: Playlist) => setPlaylists((l) => (l.some((x) => x.id === p.id) ? l.map((x) => (x.id === p.id ? p : x)) : [...l, p]));
+  const mineLists = playlists.filter((p) => jersey != null && p.owner_jersey === jersey);
+  const [collectId, setCollectId] = useState<number | null>(null);
+  const collect = mineLists.find((p) => p.id === collectId) ?? null;
   const list = playlists.find((p) => p.id === listId) ?? null;
+  const ownList = !!list && jersey != null && list.owner_jersey === jersey;
+  const [plError, setPlError] = useState('');
+  const plRun = async (f: () => Promise<unknown>) => { setPlError(''); try { await f(); } catch (e) { setPlError(e instanceof Error ? e.message : t('Failed')); } };
   const listClips = useMemo(() => (list ? list.items.map((id) => events.find((e) => e.id === id)).filter((e): e is VEvent => !!e && e.t != null) : null), [list, events]);
   const clips = listClips ?? all.filter((e) => {
     const def = ACTION_BY_CODE[e.action];
@@ -218,17 +231,59 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
           <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? t('use your own copy instead') : t('Use your own copy instead')}<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
       )}
 
-      {playlists.length > 0 && (
-        <div className="replay-playlists">
-          <span className="small muted">{t('Playlists')}</span>
-          <div className="chips">
-            <button className={`chip ${list ? '' : 'on'}`} onClick={() => { setListId(null); setPlayAll(false); }}>{t('All touches')}</button>
-            {playlists.map((p) => (
-              <button key={p.id} className={`chip ${listId === p.id ? 'on' : ''}`} onClick={() => { setListId(p.id); setCur(null); setPlayAll(false); }}>{p.title} <small>{p.items.length}</small></button>
-            ))}
-          </div>
+      <div className="replay-playlists">
+        <span className="small muted">{t('Playlists')}</span>
+        <div className="chips">
+          <button className={`chip ${list ? '' : 'on'}`} onClick={() => { setListId(null); setPlayAll(false); }}>{t('All touches')}</button>
+          {playlists.map((p) => (
+            <button key={p.id} className={`chip ${listId === p.id ? 'on' : ''}`} onClick={() => { setListId(p.id); setCur(null); setPlayAll(false); }}>
+              {p.title} <small>{p.items.length}{p.owner_jersey != null ? ` · #${p.owner_jersey}` : ''}{p.is_public === false ? ` · ${t('private')}` : ''}</small>
+            </button>
+          ))}
         </div>
-      )}
+        <div className="my-playlists small">
+          {jersey == null ? (
+            <form className="row wrap" onSubmit={(e) => { e.preventDefault(); const v = Number((e.currentTarget.elements.namedItem('j') as HTMLInputElement).value); if (Number.isInteger(v) && v >= 0 && v <= 99) setJersey(v); }}>
+              <span className="muted">{t('Your own playlists: your shirt number')}</span>
+              <input name="j" className="input slim jersey-in" inputMode="numeric" maxLength={2} />
+              <button className="btn small">OK</button>
+            </form>
+          ) : (
+            <>
+              <span className="muted">#{jersey} <button className="link" onClick={() => { setJersey(null); setCollectId(null); }}>{t('change')}</button></span>
+              <button className="btn small" onClick={() => plRun(async () => {
+                const title = prompt(t('Name of the playlist'))?.trim();
+                if (!title) return;
+                const isPublic = confirm(t('Show it to the whole team? (Cancel = only for you)'));
+                const p = await api.createSharedPlaylist(token, { title, jersey, public: isPublic });
+                putList(p); setCollectId(p.id);
+              })}>＋ {t('New playlist')}</button>
+              {mineLists.length > 0 && !ownList && (
+                <label className="row">{t('Add clips to')}
+                  <select className="input slim" value={collectId ?? ''} onChange={(e) => setCollectId(e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">–</option>
+                    {mineLists.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                </label>
+              )}
+              {ownList && list && (
+                <span className="row wrap">
+                  <button className="btn small" onClick={() => plRun(async () => putList(await api.updateSharedPlaylist(token, list.id, { jersey, public: !list.is_public })))}>
+                    {list.is_public ? t('Public · make private') : t('Private · make public')}
+                  </button>
+                  <button className="btn-ghost small" onClick={() => plRun(async () => { const title = prompt(t('New name'), list.title)?.trim(); if (title) putList(await api.updateSharedPlaylist(token, list.id, { jersey, title })); })}>{t('Rename')}</button>
+                  <button className="btn-ghost small danger" onClick={() => plRun(async () => {
+                    if (!confirm(t('Delete the playlist?'))) return;
+                    await api.deleteSharedPlaylist(token, list.id, jersey);
+                    setPlaylists((l) => l.filter((x) => x.id !== list.id)); setListId(null);
+                  })}>{t('Delete')}</button>
+                </span>
+              )}
+            </>
+          )}
+          {plError && <span className="error">{plError}</span>}
+        </div>
+      </div>
 
       {!list && <div className="replay-filters">
         <div className="chips">
@@ -293,7 +348,17 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
 
       <ol className="replay-list">
         {clips.map((e) => (
-          <li key={e.id} className={editing ? 'with-edit' : ''}>
+          <li key={e.id} className={editing || (collect && !list) || ownList ? 'with-edit' : ''}>
+            {collect && !list && jersey != null && (
+              <button className="replay-edit" disabled={collect.items.includes(e.id)} title={t('Add to {name}', { name: collect.title })}
+                onClick={() => plRun(async () => putList(await api.addSharedItems(token, collect.id, jersey, [e.id])))}>
+                {collect.items.includes(e.id) ? '✓' : '＋'}<small>{collect.items.includes(e.id) ? t('in it') : t('add')}</small>
+              </button>
+            )}
+            {ownList && list && jersey != null && (
+              <button className="replay-edit" title={t('Remove from the playlist')}
+                onClick={() => plRun(async () => putList(await api.removeSharedItem(token, list.id, jersey, e.id)))}>✕<small>{t('remove')}</small></button>
+            )}
             {editing && (
               <button className="replay-edit" disabled={!source || sent.includes(e.id)} onClick={() => startEdit(e)} title="Suggest a correction for this touch">
                 {sent.includes(e.id) ? '✓' : '✎'}<small>{sent.includes(e.id) ? t('sent') : t('edit')}</small>

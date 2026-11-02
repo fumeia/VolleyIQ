@@ -261,7 +261,7 @@ function PlaylistsBox({ teamId }: { teamId: number }) {
           {lists.map((p) => (
             <li key={p.id} className="playlist">
               <div className="row between">
-                <button className="link-like grow" onClick={() => setOpen(open === p.id ? null : p.id)}><b>{p.title}</b> <small className="muted">{p.items.length} clip{p.items.length === 1 ? '' : 's'}</small></button>
+                <button className="link-like grow" onClick={() => setOpen(open === p.id ? null : p.id)}><b>{p.title}</b> <small className="muted">{p.items.length} clip{p.items.length === 1 ? '' : 's'}{p.owner_jersey != null ? ` · made by #${p.owner_jersey}` : ''}{p.is_public === false ? ' · private' : ''}</small></button>
                 <button className="btn-ghost small" onClick={async () => { const t = prompt('New name', p.title)?.trim(); if (t) put(await api.updatePlaylist(p.id, { title: t })); }}>Rename</button>
                 <button className="btn-ghost small danger" onClick={async () => { if (confirm(`Delete the playlist "${p.title}"? The tags stay.`)) { await api.deletePlaylist(p.id); setLists((l) => l!.filter((x) => x.id !== p.id)); } }}>Delete</button>
               </div>

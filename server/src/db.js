@@ -326,6 +326,12 @@ const MIGRATIONS = [
     position INTEGER NOT NULL,
     PRIMARY KEY (playlist_id, event_id)
   );`,
+  // v28: playlists of teammates (made on the public link with their shirt number), public or private.
+  (db) => {
+    const cols = db.prepare('PRAGMA table_info(playlists)').all().map((c) => c.name);
+    if (!cols.includes('owner_jersey')) db.exec('ALTER TABLE playlists ADD COLUMN owner_jersey INTEGER');
+    if (!cols.includes('is_public')) db.exec('ALTER TABLE playlists ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1');
+  },
 ];
 
 function migrate(db) {

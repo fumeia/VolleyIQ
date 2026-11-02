@@ -41,7 +41,7 @@ export interface DetectorTuning {
   use: { threshold: number; sustainMax: number };
 }
 /** A clip playlist: tags of the team's matches, in order. */
-export interface Playlist { id: number; title: string; created_at?: string; items: number[] }
+export interface Playlist { id: number; title: string; created_at?: string; items: number[]; owner_jersey?: number | null; is_public?: boolean }
 /** Nightly backups of the database into the bucket. */
 export interface BackupStatus {
   enabled: boolean;
@@ -239,6 +239,12 @@ export const api = {
   deletePlaylist: (id: number) => req<{ ok: boolean }>('DELETE', `/api/playlists/${id}`),
   addToPlaylist: (id: number, eventIds: number[]) => req<Playlist>('POST', `/api/playlists/${id}/items`, { event_ids: eventIds }),
   removeFromPlaylist: (id: number, eventId: number) => req<Playlist>('DELETE', `/api/playlists/${id}/items/${eventId}`),
+  sharedPlaylists: (token: string, jersey?: number | null) => req<Playlist[]>('GET', `/api/share/team/${token}/playlists${jersey != null ? `?jersey=${jersey}` : ''}`),
+  createSharedPlaylist: (token: string, p: { title: string; jersey: number; public: boolean }) => req<Playlist>('POST', `/api/share/team/${token}/playlists`, p),
+  updateSharedPlaylist: (token: string, id: number, p: { jersey: number; title?: string; public?: boolean }) => req<Playlist>('PATCH', `/api/share/team/${token}/playlists/${id}`, p),
+  deleteSharedPlaylist: (token: string, id: number, jersey: number) => req<{ ok: boolean }>('DELETE', `/api/share/team/${token}/playlists/${id}`, { jersey }),
+  addSharedItems: (token: string, id: number, jersey: number, eventIds: number[]) => req<Playlist>('POST', `/api/share/team/${token}/playlists/${id}/items`, { jersey, event_ids: eventIds }),
+  removeSharedItem: (token: string, id: number, jersey: number, eventId: number) => req<Playlist>('DELETE', `/api/share/team/${token}/playlists/${id}/items/${eventId}`, { jersey }),
   backupStatus: () => req<BackupStatus>('GET', '/api/backup'),
   backupNow: () => req<{ ok: boolean; at: string; key: string; bytes: number }>('POST', '/api/backup'),
   youtubeAuto: () => req<YoutubeAuto>('GET', '/api/youtube/auto'),
