@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { actionLabel, ACTION_BY_CODE } from '../lib/actions';
-import type { Player, VEvent } from '../lib/api';
+import { api, type Player, type Playlist, type VEvent } from '../lib/api';
 import { findIssues } from '../lib/quality';
 import { fmtTime } from './TagPad';
 
@@ -19,6 +19,8 @@ interface Props {
   filterable?: boolean;
   /** Play the listed (filtered) events one after another as short clips. */
   onPlayAll?: (list: VEvent[]) => void;
+  /** The match's team: selected events can be added to its clip playlists. */
+  playlistTeam?: number | null;
 }
 
 const KINDS: { label: string; codes: string[] }[] = [
@@ -51,7 +53,7 @@ const SORTS: { v: Sort; label: string }[] = [
 // rank them above saved ones when sorting by what was added last.
 const addedKey = (e: VEvent) => (e.id < 0 ? 1e12 - e.id : e.id);
 
-export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, onSetMany, filterable, onPlayAll }: Props) {
+export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, onSetMany, filterable, onPlayAll, playlistTeam }: Props) {
   const [fSet, setFSet] = useState<number | null>(null);
   const [fPlayer, setFPlayer] = useState<number | null>(null);
   const [fKind, setFKind] = useState<string | null>(null);
@@ -139,6 +141,8 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
               {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Set {n}</option>)}
             </select>
           )}
+          <button className="btn small" onClick={() => setSelected(new Set(shown.map((e) => e.id)))} title="Select every event in the list">All shown</button>
+          {playlistTeam != null && <AddToPlaylist teamId={playlistTeam} events={picked} />}
           <button className="btn small btn-danger" disabled={!picked.length || busy} onClick={async () => {
             setBusy(true);
             try { await onDeleteMany(picked); setSelected(null); } finally { setBusy(false); }
@@ -180,6 +184,37 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
         );
       })}
       </ul>
+    </>
+  );
+}
+
+/** Adds the selected events to one of the team's clip playlists (or a new one). */
+function AddToPlaylist({ teamId, events }: { teamId: number; events: VEvent[] }) {
+  const [lists, setLists] = useState<Playlist[] | null>(null);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api.playlists(teamId).then(setLists).catch(() => setLists([])); }, [teamId]);
+  return (
+    <>
+      <select className="input small-select" value="" disabled={!events.length || !lists} title="Add the selected events to a clip playlist (shown on the public link)"
+        onChange={async (e) => {
+          const v = e.target.value;
+          if (!v) return;
+          let pl = lists!.find((x) => String(x.id) === v);
+          if (v === 'new') {
+            const title = prompt('Name of the new playlist (e.g. Our blocked attacks)')?.trim();
+            if (!title) return;
+            pl = await api.createPlaylist(teamId, title);
+          }
+          if (!pl) return;
+          const r = await api.addToPlaylist(pl.id, events.map((x) => x.id));
+          setMsg(`Added to "${r.title}" (${r.items.length} clips).`);
+          setLists((l) => (l ?? []).filter((x) => x.id !== r.id).concat(r).sort((a, b) => a.id - b.id));
+        }}>
+        <option value="">Add to playlist…</option>
+        {lists?.map((p) => <option key={p.id} value={p.id}>{p.title} ({p.items.length})</option>)}
+        <option value="new">New playlist…</option>
+      </select>
+      {msg && <span className="small muted">{msg}</span>}
     </>
   );
 }

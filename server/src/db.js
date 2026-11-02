@@ -313,6 +313,19 @@ const MIGRATIONS = [
   (db) => {
     if (!db.prepare('PRAGMA table_info(detection_runs)').all().some((c) => c.name === 'candidates')) db.exec('ALTER TABLE detection_runs ADD COLUMN candidates TEXT');
   },
+  // v27: clip playlists (tags from any of the team's matches, in order), shown on the public link.
+  `CREATE TABLE IF NOT EXISTS playlists (
+    id INTEGER PRIMARY KEY,
+    team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS playlist_items (
+    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, event_id)
+  );`,
 ];
 
 function migrate(db) {

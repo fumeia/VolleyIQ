@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROLES, type RoleCode } from '../lib/actions';
-import { api, type ClubTeamChoice, type Player, type ScheduleGame, type Team } from '../lib/api';
+import { api, type ClubTeamChoice, type Match, type Player, type Playlist, type ScheduleGame, type Team, type VEvent } from '../lib/api';
+import { actionLabel } from '../lib/actions';
 import { GameSheet, ScheduleTable } from '../components/Schedule';
 import { parseRoster } from '../lib/roster';
 import { anonymousExport } from '../lib/anonymize';
@@ -77,6 +78,7 @@ export function TeamPage() {
       {!!team.show_tips && <p className="tips-warning small">⚠ These tips are pre-written suggestions, drafted with AI when VolleyIQ was built, and picked automatically from the tagged touches. Nothing is generated live, and they are not a coach's assessment.</p>}
 
       <SwissVolleyBox team={team} onChanged={load} />
+      <PlaylistsBox teamId={team.id} />
 
       <h2 className="section-title">Roster</h2>
       <form className="roster-form" onSubmit={async (e) => {
@@ -229,6 +231,56 @@ function SwissVolleyBox({ team, onChanged }: { team: Team; onChanged: () => void
         </>
       )}
       {error && <span className="small error">{error}</span>}
+    </section>
+  );
+}
+
+/** The team's clip playlists (shown in Replays on the public link): order, remove, rename, delete. */
+function PlaylistsBox({ teamId }: { teamId: number }) {
+  const [lists, setLists] = useState<Playlist[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [data, setData] = useState<{ events: VEvent[]; matches: Match[]; players: Player[] } | null>(null);
+  useEffect(() => { api.playlists(teamId).then(setLists).catch(() => setLists([])); }, [teamId]);
+  useEffect(() => { if (open != null && !data) api.teamReport(teamId).then(setData).catch(() => {}); }, [open]);
+  if (!lists) return null;
+  const put = (p: Playlist) => setLists((l) => l!.map((x) => (x.id === p.id ? p : x)));
+  const label = (id: number) => {
+    const e = data?.events.find((x) => x.id === id);
+    if (!e) return `Tag ${id}`;
+    const m = data!.matches.find((x) => x.id === e.match_id);
+    const p = data!.players.find((x) => x.id === e.player_id);
+    return `${m?.played_on ?? ''} ${m?.opponent ? `vs ${m.opponent}` : m?.label ?? ''} · ${p ? `#${p.number ?? '–'} ${p.name}` : 'Team'} · ${actionLabel(e)}`;
+  };
+  return (
+    <section className="card playlists-box">
+      <b>Clip playlists</b>
+      {lists.length === 0 ? (
+        <span className="small muted">None yet. In a match's Events tab, select tags (hold one, or "All shown" after filtering) and pick "Add to playlist…". Playlists play in Replays on the public link.</span>
+      ) : (
+        <ul className="list">
+          {lists.map((p) => (
+            <li key={p.id} className="playlist">
+              <div className="row between">
+                <button className="link-like grow" onClick={() => setOpen(open === p.id ? null : p.id)}><b>{p.title}</b> <small className="muted">{p.items.length} clip{p.items.length === 1 ? '' : 's'}</small></button>
+                <button className="btn-ghost small" onClick={async () => { const t = prompt('New name', p.title)?.trim(); if (t) put(await api.updatePlaylist(p.id, { title: t })); }}>Rename</button>
+                <button className="btn-ghost small danger" onClick={async () => { if (confirm(`Delete the playlist "${p.title}"? The tags stay.`)) { await api.deletePlaylist(p.id); setLists((l) => l!.filter((x) => x.id !== p.id)); } }}>Delete</button>
+              </div>
+              {open === p.id && (
+                <ol className="playlist-items small">
+                  {p.items.map((id, i) => (
+                    <li key={id}>
+                      <span className="grow">{label(id)}</span>
+                      <button className="btn-ghost small" disabled={i === 0} aria-label="Earlier" onClick={async () => { const o = [...p.items]; [o[i - 1], o[i]] = [o[i], o[i - 1]]; put(await api.updatePlaylist(p.id, { order: o })); }}>↑</button>
+                      <button className="btn-ghost small" disabled={i === p.items.length - 1} aria-label="Later" onClick={async () => { const o = [...p.items]; [o[i + 1], o[i]] = [o[i], o[i + 1]]; put(await api.updatePlaylist(p.id, { order: o })); }}>↓</button>
+                      <button className="btn-ghost small" aria-label="Remove" onClick={async () => put(await api.removeFromPlaylist(p.id, id))}>✕</button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

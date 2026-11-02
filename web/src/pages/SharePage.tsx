@@ -8,7 +8,7 @@ import { Tour } from '../components/Tour';
 import { matchTour, playerTour, statsTour, teamTour } from '../components/ShareTours';
 import { TeamOverview } from '../components/TeamOverview';
 import { MatchCenter } from '../components/MatchCenter';
-import { api, type MatchBundle, type Match, type Player, type Team, type VEvent } from '../lib/api';
+import { api, type MatchBundle, type Match, type Player, type Playlist, type Team, type VEvent } from '../lib/api';
 import { MatchReportView, SeasonReportView } from '../report/ReportViews';
 
 /** Public, read-only match report for teammates: the stats first, the report images on their own tab. */
@@ -49,7 +49,7 @@ export function SharePage() {
   );
 }
 
-type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] };
+type TeamShare = { team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[]; playlists?: Playlist[] };
 type View = 'overview' | 'stats' | 'trends' | 'players' | 'replays' | 'matches';
 
 /**
@@ -121,7 +121,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
       </div>
     );
   } else if (tab === 'replays') {
-    body = <Replays token={token!} matches={data.matches} players={data.players} events={data.events} initialMatch={match?.id ?? null} />;
+    body = <Replays token={token!} matches={data.matches} players={data.players} events={data.events} initialMatch={match?.id ?? null} playlists={data.playlists ?? []} />;
   } else if (tab === 'trends') {
     body = (
       <>

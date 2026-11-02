@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ACTION_BY_CODE, SKILLS } from '../lib/actions';
-import { api, type Match, type Player, type VEvent } from '../lib/api';
+import { api, type Match, type Player, type Playlist, type VEvent } from '../lib/api';
 import { ourHalfAt } from '../lib/calibration';
 import { EditSheet } from './EditSheet';
 import { fmtTime } from './TagPad';
@@ -17,6 +17,8 @@ interface Props {
   events: VEvent[];
   /** The match picked elsewhere on the page, if any. */
   initialMatch: number | null;
+  /** The team's clip playlists (tags from several matches, in order). */
+  playlists?: Playlist[];
 }
 
 /** Seconds of video before and after each tagged touch. */
@@ -32,7 +34,7 @@ const loadSent = (token: string): number[] => { try { return JSON.parse(localSto
  * who spots a wrong tag can send a correction; it is applied only when it is accepted
  * in the app.
  */
-export function Replays({ token, matches, players, events, initialMatch }: Props) {
+export function Replays({ token, matches, players, events, initialMatch, playlists = [] }: Props) {
   const withTags = matches.filter((m) => events.some((e) => e.match_id === m.id && e.t != null));
   const [matchId, setMatchId] = useState<number | null>(initialMatch ?? withTags[withTags.length - 1]?.id ?? null);
   const match = matches.find((m) => m.id === matchId) ?? null;
@@ -88,7 +90,11 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
     .sort((a, b) => a.t! - b.t!), [events, matchId]);
   const sets = [...new Set(all.map((e) => e.set_no ?? 1))].sort((a, b) => a - b);
   const inMatch = players.filter((p) => all.some((e) => e.player_id === p.id)).sort((a, b) => (a.number ?? 99) - (b.number ?? 99));
-  const clips = all.filter((e) => {
+  // A playlist: its tags in its order, from any match (the video follows the clip's match).
+  const [listId, setListId] = useState<number | null>(null);
+  const list = playlists.find((p) => p.id === listId) ?? null;
+  const listClips = useMemo(() => (list ? list.items.map((id) => events.find((e) => e.id === id)).filter((e): e is VEvent => !!e && e.t != null) : null), [list, events]);
+  const clips = listClips ?? all.filter((e) => {
     const def = ACTION_BY_CODE[e.action];
     if (skill !== 'all' && !SKILLS.find((s) => s.label === skill)?.codes.includes(e.action)) return false;
     if (result === 'points' && def?.score !== 'us') return false;
@@ -100,9 +106,23 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
   const idx = clips.findIndex((e) => e.id === cur);
   const current = idx >= 0 ? clips[idx] : null;
 
+  // A clip of another match: switch the match first, then play it once that video is ready.
+  const pending = useRef<VEvent | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const e = pending.current;
+      const p = player.current;
+      if (!e || e.match_id !== matchId || !p?.ready() || p.duration() == null) return;
+      pending.current = null;
+      play(e);
+    }, 300);
+    return () => clearInterval(timer);
+  });
+
   function play(e: VEvent) {
     const p = player.current;
     setCur(e.id);
+    if (e.match_id !== matchId) { pending.current = e; setMatchId(e.match_id); return; }
     if (!p) return;
     p.seek(Math.max(0, e.t! - LEADS[lead].before));
     p.setRate(rate);
@@ -197,7 +217,19 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
           <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? 'use' : 'Use'} your own copy instead<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
       )}
 
-      <div className="replay-filters">
+      {playlists.length > 0 && (
+        <div className="replay-playlists">
+          <span className="small muted">Playlists</span>
+          <div className="chips">
+            <button className={`chip ${list ? '' : 'on'}`} onClick={() => { setListId(null); setPlayAll(false); }}>All touches</button>
+            {playlists.map((p) => (
+              <button key={p.id} className={`chip ${listId === p.id ? 'on' : ''}`} onClick={() => { setListId(p.id); setCur(null); setPlayAll(false); }}>{p.title} <small>{p.items.length}</small></button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!list && <div className="replay-filters">
         <div className="chips">
           {['all', ...SKILLS.map((s) => s.label)].map((s) => (
             <button key={s} className={`chip ${skill === s ? 'on' : ''}`} onClick={() => setSkill(s)}>{s === 'all' ? 'All' : s}</button>
@@ -218,7 +250,7 @@ export function Replays({ token, matches, players, events, initialMatch }: Props
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
       <div className="replay-bar">
         <button className="btn btn-primary" disabled={!source || !clips.length} onClick={() => { setPlayAll(true); play(current ?? clips[0]); }}>▶ Play all {clips.length}</button>

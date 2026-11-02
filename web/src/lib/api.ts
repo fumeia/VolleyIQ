@@ -40,6 +40,8 @@ export interface DetectorTuning {
   /** What the next run uses. */
   use: { threshold: number; sustainMax: number };
 }
+/** A clip playlist: tags of the team's matches, in order. */
+export interface Playlist { id: number; title: string; created_at?: string; items: number[] }
 /** Nightly backups of the database into the bucket. */
 export interface BackupStatus {
   enabled: boolean;
@@ -231,6 +233,12 @@ export const api = {
   readNumbers: (images: { media_type: string; data: string }[]) => req<{ teams: { shirt: string; side: string | null; numbers: { number: number; libero: boolean }[] }[] }>('POST', '/api/numbers/read', { images }),
   detector: () => req<DetectorTuning>('GET', '/api/detector'),
   setDetectorOff: (off: boolean) => req<{ ok: boolean }>('PUT', '/api/detector', { off }),
+  playlists: (teamId: number) => req<Playlist[]>('GET', `/api/teams/${teamId}/playlists`),
+  createPlaylist: (teamId: number, title: string) => req<Playlist>('POST', `/api/teams/${teamId}/playlists`, { title }),
+  updatePlaylist: (id: number, p: { title?: string; order?: number[] }) => req<Playlist>('PATCH', `/api/playlists/${id}`, p),
+  deletePlaylist: (id: number) => req<{ ok: boolean }>('DELETE', `/api/playlists/${id}`),
+  addToPlaylist: (id: number, eventIds: number[]) => req<Playlist>('POST', `/api/playlists/${id}/items`, { event_ids: eventIds }),
+  removeFromPlaylist: (id: number, eventId: number) => req<Playlist>('DELETE', `/api/playlists/${id}/items/${eventId}`),
   backupStatus: () => req<BackupStatus>('GET', '/api/backup'),
   backupNow: () => req<{ ok: boolean; at: string; key: string; bytes: number }>('POST', '/api/backup'),
   youtubeAuto: () => req<YoutubeAuto>('GET', '/api/youtube/auto'),
@@ -253,7 +261,7 @@ export const api = {
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
   shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`),
   shareTeam: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/teams/${id}/share`, { revoke }),
-  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/share/team/${token}`),
+  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[]; playlists?: Playlist[] }>('GET', `/api/share/team/${token}`),
 
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),

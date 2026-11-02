@@ -1199,3 +1199,13 @@ button.court-zone:active { background: #2a2f3a; }
 .key-help td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .key-help td:first-child { white-space: nowrap; width: 1%; }
 kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); }
+
+/* ---------- clip playlists ---------- */
+.playlists-box .list { gap: 4px; }
+.playlist { border-bottom: 1px solid var(--line); padding: 4px 0; }
+.playlist:last-child { border-bottom: 0; }
+.playlist .link-like { text-align: left; background: none; border: 0; padding: 6px 0; color: var(--text); }
+.playlist-items { margin: 4px 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 2px; }
+.playlist-items li { display: flex; align-items: center; gap: 4px; }
+.playlist-items .btn-ghost { min-height: 28px; padding: 2px 8px; }
+.replay-playlists { display: flex; flex-direction: column; gap: 4px; }

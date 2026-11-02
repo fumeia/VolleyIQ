@@ -6,6 +6,7 @@ import { cleanSheet } from './sheet.js';
 import { abortUpload, completeUpload, createUpload, deleteObject, presign } from './s3.js';
 import { cleanImages } from './vision.js';
 import { DEFAULTS as DETECTOR_DEFAULTS, tuneFromDb } from './tuning.js';
+import { registerPlaylists, teamPlaylists } from './playlists.js';
 
 function bad(reply, msg, code = 400) {
   return reply.code(code).send({ error: msg });
@@ -291,8 +292,10 @@ export function registerRoutes(app, { db, vision, numbers = null, insights, touc
     const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
-    return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events };
+    return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events, playlists: teamPlaylists(db, team.id).filter((p) => p.items.length) };
   });
+
+  registerPlaylists(app, { db });
 
   // ---------- corrections from viewers of the public link ----------
   const EDIT_FIELDS = ['action', 'value', 'player_id', 'x', 'y', 'fx', 'fy'];
@@ -390,7 +393,7 @@ export function registerRoutes(app, { db, vision, numbers = null, insights, touc
     const matches = db.prepare('SELECT * FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id);
     const events = db.prepare(`SELECT e.* FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id).map(({ ai: _ai, ...e }) => e);
-    return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events };
+    return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events, playlists: teamPlaylists(db, team.id).filter((p) => p.items.length) };
   });
 
   // ---------- events ----------

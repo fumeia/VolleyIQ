@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Clip playlists**
+- In a match's Events tab, select tags (hold one; "All shown" selects the whole filtered list) and pick "Add to playlist…" (or a new one). Playlists can mix matches, e.g. "Our blocked attacks" over the season.
+- Team page → Clip playlists: change the order (↑ ↓), remove clips, rename, delete.
+- Public link → Replays: the playlists above the clips; a playlist plays in its order and switches to the right match's video by itself.
+
 **Keyboard shortcuts (computer)**
 - Type the shirt number to pick the player (1 then 2 = #12; "-" = unknown), then the action letter as before. ↑ ↓ jump a minute, ← → 2 s (Shift: 10 s), , . one frame, [ ] previous / next tag, M slow motion, Backspace undoes the last tag, ? lists every key ("Keys ?" under the video).
 - Fix: "Undo last tag" removed the tag latest in the video instead of the one added last.
