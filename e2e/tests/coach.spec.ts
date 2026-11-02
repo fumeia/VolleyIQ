@@ -117,9 +117,9 @@ test('voice tagging turns a spoken rally into tags', async ({ page, login }) => 
   const match = await liveMatch(page, 'Voice test');
   await page.goto(`/m/${match.id}`);
   await page.getByRole('button', { name: 'Voice tagging' }).click();
-  await expect(page.locator('.voice-bar')).toContainText('Listening');
+  await expect(page.locator('.voice-dot.on')).toBeVisible();
   await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('7 pass 2, 1 set, 5 attack, our point'));
-  await expect(page.locator('.voice-line').first()).toContainText('#5 Kill');
+  await expect(page.locator('.voice-now')).toContainText('#5 Kill');
   await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*0/);
   await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('Punkt Gegner'));
   await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*1/);
@@ -127,4 +127,28 @@ test('voice tagging turns a spoken rally into tags', async ({ page, login }) => 
   await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*0/);
   await page.getByRole('button', { name: 'Events' }).click();
   for (const t of [/#7 Noa\s*Receive 2/, /#1 Alex\s*Set/, /#5 Kim\s*Kill/]) await expect(page.locator('.ws-content')).toContainText(t);
+});
+
+test('voice tagging along a video in landscape gives the video the screen', async ({ page, seed, login }) => {
+  await login();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.addInitScript(() => {
+    class FakeRecognition { lang = ''; continuous = false; interimResults = false; onresult = null; onerror = null; onend = null; start() {} stop() {} abort() {} }
+    Object.assign(window, { webkitSpeechRecognition: FakeRecognition, SpeechRecognition: FakeRecognition });
+  });
+  await page.goto(`/m/${seed.matchId}`);
+  await page.getByRole('button', { name: 'Voice tagging' }).click();
+  await expect(page.locator('.voice-bar')).toBeVisible();
+  await expect(page.locator('.ws-panel')).toBeHidden();
+  await expect(page.locator('.ws-head')).toBeHidden();
+  await expect(page.locator('.voice-score')).toHaveText(/S1 \d+:\d+/);
+  // The video takes the height (all but the timeline and the voice strip), at 16:9.
+  const box = await page.locator('.video-box').boundingBox();
+  expect(box!.height).toBeGreaterThan(280);
+  expect(Math.abs(box!.width / box!.height - 16 / 9)).toBeLessThan(0.05);
+  // The panel comes back on request, and voice keeps listening.
+  await page.locator('.voice-bar').getByRole('button', { name: 'Panel' }).click();
+  await expect(page.locator('.ws-panel')).toBeVisible();
+  await expect(page.locator('.ws-head')).toBeVisible();
+  await expect(page.locator('.voice-dot.on')).toBeVisible();
 });

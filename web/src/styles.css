@@ -1283,14 +1283,40 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .resume-rot { display: flex; flex-direction: column; gap: 6px; }
 
 /* ---------- voice tagging ---------- */
-.voice-bar { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; background: var(--surface); }
-.voice-head { align-items: center; gap: 8px; }
-.voice-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+/* A strip at the bottom of the screen, listening whatever tab is open. */
+.voice-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 16px rgba(0,0,0,.12); max-height: 50dvh; overflow-y: auto;
+}
+.voice-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.voice-now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-bar.open .voice-now { white-space: normal; }
+.voice-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
 .voice-dot.on { background: #c23030; animation: voice-pulse 1.2s ease-in-out infinite; }
 @keyframes voice-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .voice-dot.on { animation: none; } }
-.voice-interim { min-height: 22px; font-size: 15px; }
+.voice-interim { font-size: 15px; }
+.voice-more { display: flex; flex-direction: column; gap: 6px; }
 .voice-line { overflow-wrap: anywhere; }
+.voice-panel-btn { display: none; }
+.voice-score { display: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Room for the strip below the page. */
+.workspace.voice-on .ws-panel { padding-bottom: 64px; }
+@media (orientation: landscape) and (min-width: 640px) {
+  .workspace.voice-on .ws-body { padding-bottom: 52px; }
+  .workspace.voice-on:not(.is-live) .voice-panel-btn { display: inline-flex; }
+  .workspace.voice-big:not(.is-live) .voice-score { display: inline; }
+  /* Bigger video: the tagging panel steps aside, the video takes the width. */
+  .workspace.voice-big:not(.is-live) .ws-panel,
+  .workspace.voice-big:not(.is-live) .ws-head,
+  .workspace.voice-big:not(.is-live) .transport { display: none; }
+  /* The video as big as the height allows, at its own shape; the timeline below it. */
+  .workspace.voice-big:not(.is-live) .ws-video { justify-content: flex-start; }
+  .workspace.voice-big:not(.is-live) .video-box { width: min(100%, calc((100dvh - 96px) * 16 / 9)); max-height: none; margin: 0 auto; }
+  .workspace.voice-big:not(.is-live) .video-wrap { width: 100%; }
+  .voice-bar { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+}
 
 /* ---------- serve targets ---------- */
 .serve-targets { display: flex; flex-direction: column; gap: 10px; }

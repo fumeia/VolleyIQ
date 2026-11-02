@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Voice tagging along a video**
+- Voice tagging now runs as a strip at the bottom of the screen and keeps listening whatever tab is open. Along a video (YouTube or a file), each spoken tag gets the time you started speaking, a second earlier, and the next touches of the phrase follow 0.8 s apart; the video carries on if the phone's speech recognition stopped it. "More": language, "Pause the video while I speak", and the last phrases with what they became.
+- Landscape: with voice on, the video takes the screen (header, buttons and tagging panel step aside; the timeline stays, the score is in the strip). Tap the video to play or pause, double-tap a side to jump 5 s. "Panel" brings everything back.
+
 **Serve target planner**
 - Scouting report → "Serve targets": their court as seen from our serving line, with their side-out chance per zone (darker = better target), the best receiver-and-zone pairs and every receiver, each with how many points 25 serves there would bring compared with serving anywhere. From their passes (grade and where it was taken) and whether they won those rallies. The best target also goes into "How to play them".
 

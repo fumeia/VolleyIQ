@@ -87,6 +87,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [showTimeout, setShowTimeout] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [voice, setVoice] = useState(false);
+  // Voice tagging in landscape: the tagging panel can step aside for a bigger video.
+  const [bigVideo, setBigVideo] = useState(true);
   // Tagging paused (off the bench, on court): kept on this device, so a reload keeps it.
   const pauseKey = `viq:paused:${match.id}`;
   const [paused, setPausedState] = useState(() => { try { return localStorage.getItem(pauseKey) === '1'; } catch { return false; } });
@@ -360,7 +362,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   );
 
   return (
-    <div className={`workspace ${isLive ? 'is-live' : ''}`}>
+    <div className={`workspace ${isLive ? 'is-live' : ''} ${voice && !paused ? 'voice-on' : ''} ${voice && !paused && bigVideo ? 'voice-big' : ''}`}>
       <header className="ws-head">
         <Link to="/" className="btn-ghost" aria-label="Back">‹</Link>
         <div className="ws-title">
@@ -485,13 +487,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
                     <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
                   </div>
-                )}
-                {!paused && voice && (
-                  <VoiceBar players={players} onClose={() => setVoice(false)}
-                    onTag={(e) => { const t = getTime(); commit({ ...e, t: t == null ? null : t }); }}
-                    onWon={() => settle(true)}
-                    onLost={() => { const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
-                    onUndo={() => { const last = lastAdded(eventsRef.current.filter((e) => e.status === 'confirmed')); if (last) { remove(last); flash(`Removed ${actionLabel(last)}`); } }} />
                 )}
                 {!paused && (
                   <div className="row wrap pause-row">
@@ -634,6 +629,14 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         />
       )}
 
+      {voice && !paused && (
+        <VoiceBar players={players} player={isLive ? undefined : player} onClose={() => setVoice(false)}
+          panelHidden={bigVideo} onTogglePanel={isLive ? undefined : () => setBigVideo(!bigVideo)} score={`S${setNo} ${score.us}:${score.them}`}
+          onTag={(e) => { const t = e.t !== undefined ? e.t : getTime(); commit({ ...e, t: t == null ? null : t }); }}
+          onWon={() => settle(true)}
+          onLost={() => { const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
+          onUndo={() => { const last = lastAdded(eventsRef.current.filter((e) => e.status === 'confirmed')); if (last) { remove(last); flash(`Removed ${actionLabel(last)}`); } }} />
+      )}
       {resumeOpen && (
         <ResumeSheet match={match} players={players} confirmed={confirmed} setNo={setNo} onClose={() => setResumeOpen(false)}
           onSave={async (gaps, setNow) => {
