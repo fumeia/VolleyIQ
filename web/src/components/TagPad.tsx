@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, SHORT, SKILLS, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { ACTIONS, ACTION_BY_CODE, ATTACK_CODES, SHORT, SKILLS, TIP, actionLabel, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { SpotSheet } from './SpotSheet';
@@ -201,7 +201,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     return (
       <div className="pad" ref={padRef}>
         <div className="pad-head">
-          <span>{who(draft.player)} · <b>{a.label}</b> → {prompt}{steps}</span>
+          <span>{who(draft.player)} · <b>{actionLabel({ action: a.code, value: draft.value })}</b> → {prompt}{steps}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
         {a.code === 'receive' && (
@@ -212,7 +212,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           </div>
         )}
         <SpotSheet
-          title={`${draft.player ? `#${draft.player.number ?? '–'} ` : ''}${a.label}`}
+          title={`${draft.player ? `#${draft.player.number ?? '–'} ` : ''}${actionLabel({ action: a.code, value: draft.value })}`}
           prompt={prompt}
           step={steps ? steps.replace(/[() ]/g, '') : undefined}
           from={draft.from}
@@ -250,7 +250,8 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           </div>
         )}
         {SKILLS.map((row) => (
-          <div key={row.label} className="skill-row">
+          <Fragment key={row.label}>
+          <div className="skill-row">
             <span className="skill-label">{row.label}</span>
             {row.label === 'Pass' && settings.receiveMode !== 'court'
               ? [0, 1, 2, 3].map((v) => (
@@ -267,6 +268,17 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
                 );
               })}
           </div>
+          {row.label === 'Attack' && (
+          <div className="skill-row skill-tip">
+            <span className="skill-label" title="Tip or feint: a soft placed ball instead of a hit">Tip</span>
+            {ATTACK_CODES.map((code) => {
+              const a = ACTION_BY_CODE[code];
+              const tone = a.score === 'us' ? 'points' : a.score === 'them' ? 'errors' : 'actions';
+              return <button key={code} className={`act act-${tone}`} onClick={() => chooseAction(a, TIP)}>{SHORT[code] ?? a.short}</button>;
+            })}
+          </div>
+          )}
+          </Fragment>
         ))}
       </div>
     );

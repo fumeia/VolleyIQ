@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ACTION_BY_CODE, ACTIONS, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, ACTIONS, ATTACK_CODES, TIP, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
 import { courtFields } from '../lib/court';
@@ -53,7 +53,16 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         </div>
 
         <label className="field-label">Action</label>
-        <ActionPicker value={d.action} onPick={(code) => set({ action: code, value: code === 'receive' ? d.value ?? 2 : null })} />
+        <ActionPicker value={d.action} onPick={(code) => set({
+          action: code,
+          // A pass keeps its grade; an attack stays a tip when it was one.
+          value: code === 'receive' ? d.value ?? 2 : ATTACK_CODES.includes(code) && ATTACK_CODES.includes(d.action!) && d.value === TIP ? TIP : null,
+        })} />
+        {ATTACK_CODES.includes(d.action!) && (
+          <label className="toggle small">
+            <input type="checkbox" checked={d.value === TIP} onChange={(e) => set({ value: e.target.checked ? TIP : null })} /> Tip / feint (a soft placed ball, not a hit)
+          </label>
+        )}
         <div className="chips tight">
           {ACTIONS.filter((a) => a.needsPlayer === false && a.group !== 'gap').map((a) => (
             <button key={a.code} className={`chip ${d.action === a.code ? 'on' : ''}`}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTION_BY_CODE, type ActionCode } from '../lib/actions';
+import { actionLabel, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import type { PlayerHandle } from './VideoPlayer';
 import { canListen, listen, type Listener } from '../lib/speech';
@@ -73,7 +73,7 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
       const p = held.jersey != null ? players.find((x) => x.active && x.number === held!.jersey) : undefined;
       const t = timeOf();
       onTag({ action: held.action, value: held.value, ...(t !== undefined ? { t } : {}), ...(p ? { player_id: p.id } : held.jersey != null ? { jersey: held.jersey } : {}) });
-      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${ACTION_BY_CODE[held.action]?.label ?? held.action}${held.value != null ? ` ${held.value}` : ''}`);
+      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${actionLabel({ action: held.action, value: held.value })}`);
       held = null;
     };
     for (const c of cmds) {

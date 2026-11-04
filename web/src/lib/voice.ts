@@ -1,4 +1,4 @@
-import type { ActionCode } from './actions';
+import { ATTACK_CODES, TIP, type ActionCode } from './actions';
 
 /**
  * Spoken tags. A phrase is a shirt number and what that player did, several in a row:
@@ -74,6 +74,8 @@ const ERROR_OF: Partial<Record<ActionCode, ActionCode>> = {
   dig: 'dig_error', block_touch: 'block_error', block_point: 'block_error',
 };
 const POINT_WORDS = ['point', 'punkt'];
+/** A tip or feint: a soft placed attack ("5 tip kill", "Finte Punkt", "neun legt den Ball"). */
+const TIP_WORDS = ['tip', 'tips', 'tipped', 'tipping', 'feint', 'feints', 'feinted', 'dink', 'dinks', 'finte', 'finten', 'lob', 'lobt', 'legt', 'gelegt', 'leger'];
 
 function actionOf(w: string): ActionCode | null {
   for (const [list, a] of WORDS) if (list.includes(w)) return a;
@@ -146,6 +148,15 @@ export function parseVoice(text: string): VoiceCommand[] {
       if (cur?.action === 'block_touch') { cur.action = 'block_point'; cur.heard += ` ${x}`; continue; }
       if (cur?.action === 'attack') { cur.action = 'kill'; cur.heard += ` ${x}`; continue; }
     }
+    const isAttack = (c: typeof cur) => !!c && ATTACK_CODES.includes(c.action);
+    if (TIP_WORDS.includes(x)) {
+      if (isAttack(cur) && cur!.jersey === jersey) { cur!.value = TIP; cur!.heard += ` ${x}`; continue; }
+      cur = { kind: 'tag', jersey, action: 'attack', value: TIP, heard: jersey != null ? `${jersey} ${x}` : x };
+      out.push(cur);
+      continue;
+    }
+    // An attack that was blocked ("5 attack blocked", "Finte geblockt"), not a block of ours.
+    if ((x === 'blocked' || x === 'geblockt') && isAttack(cur)) { cur!.action = 'attack_blocked'; cur!.heard += ` ${x}`; continue; }
     // "schlägt auf" is a serve, "schlägt" alone an attack.
     let a = actionOf(x);
     if (x === 'schlägt') { a = next === 'auf' ? 'serve' : 'attack'; if (next === 'auf') i++; }
@@ -153,6 +164,8 @@ export function parseVoice(text: string): VoiceCommand[] {
       if (x === 'free' && next === 'ball') i++;
       // The same touch said twice ("passes … a good pass"): keep one.
       if (cur && cur.action === a && cur.jersey === jersey) continue;
+      // "tip kill" / "attack … kill": the attack scored.
+      if (a === 'kill' && cur?.action === 'attack' && cur.jersey === jersey) { cur.action = 'kill'; cur.heard += ` ${x}`; continue; }
       cur = { kind: 'tag', jersey, action: a, value: a === 'receive' ? pendingGrade : null, heard: jersey != null ? `${jersey} ${x}` : x };
       pendingGrade = null;
       out.push(cur);

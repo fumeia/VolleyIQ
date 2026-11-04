@@ -110,11 +110,11 @@ function ScoutingBody({ team, matches, report: r }: { team: Team; matches: Match
       {hitters.length > 0 && (
         <section className="print-table">
           <h2>Attackers</h2>
-          <table><thead><tr><th>Player</th><th>Share</th><th>Att</th><th>Kill %</th><th>Eff</th><th>From</th><th>Line / cross / cut</th></tr></thead>
+          <table><thead><tr><th>Player</th><th>Share</th><th>Att</th><th>Kill %</th><th>Eff</th><th>Tips</th><th>From</th><th>Line / cross / cut</th></tr></thead>
             <tbody>{hitters.map((x) => {
               const d = x.dirs.line + x.dirs.cross + x.dirs.cut;
               return (
-                <tr key={x.player.id}><td>{who(x.player)}</td><td>{pct(x.share)}</td><td>{x.attempts}</td><td>{pct(x.killPct)}</td><td>{eff(x.eff)}</td>
+                <tr key={x.player.id}><td>{who(x.player)}</td><td>{pct(x.share)}</td><td>{x.attempts}</td><td>{pct(x.killPct)}</td><td>{eff(x.eff)}</td><td>{x.tips ? pct(x.tips / x.attempts) : '–'}</td>
                   <td>{x.origins.slice(0, 2).map((o) => `${ORIGIN[o.key]} ${Math.round((o.n / x.attempts) * 100)}%`).join(', ') || '–'}</td>
                   <td>{d ? `${pct(x.dirs.line / d)} / ${pct(x.dirs.cross / d)} / ${pct(x.dirs.cut / d)}` : '–'}</td></tr>
               );

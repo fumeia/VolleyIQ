@@ -51,4 +51,17 @@ describe('voice tagging', () => {
     expect(tags('eine gute Annahme von sieben')).toEqual(['7:receive=2']);
     expect(tags('Sieben mit einer perfekten Annahme')).toEqual(['7:receive=3']);
   });
+
+  it('tips and feints', () => {
+    expect(tags('five tip kill')).toEqual(['5:kill=1']);
+    expect(tags('seven feints, out')).toEqual(['7:attack_error=1']);
+    expect(tags('9 attack tip')).toEqual(['9:attack=1']);
+    expect(tags('12 tip blocked')).toEqual(['12:attack_blocked=1']);
+    expect(tags('Fünf Finte Punkt')).toEqual(['5:kill=1']);
+    expect(tags('neun legt den Ball, Punkt')).toEqual(['9:kill=1']);
+    expect(tags('7 pass 2, 1 set, 5 tip, our point')).toEqual(['7:receive=2', '1:set', '5:attack=1', 'won']);
+    // A hit stays a hit, and "attack … kill" is one kill.
+    expect(tags('five attack kill')).toEqual(['5:kill']);
+  });
 });
+

@@ -129,9 +129,16 @@ export const ROLES = [
 
 export type RoleCode = (typeof ROLES)[number]['code'];
 
+/** Attack actions: a tip / feint is one of them with value TIP (a hit has no value). */
+export const ATTACK_CODES: ActionCode[] = ['attack', 'kill', 'attack_error', 'attack_blocked'];
+export const TIP = 1;
+export const isTip = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === TIP;
+const TIP_LABEL: Partial<Record<ActionCode, string>> = { attack: 'Tip', kill: 'Tip kill', attack_error: 'Tip error', attack_blocked: 'Tip blocked' };
+
 export function actionLabel(e: { action: ActionCode; value?: number | null }) {
   const def = ACTION_BY_CODE[e.action];
   if (!def) return e.action;
+  if (isTip(e)) return TIP_LABEL[e.action]!;
   return e.action === 'receive' && e.value != null ? `Receive ${e.value}` : def.label;
 }
 

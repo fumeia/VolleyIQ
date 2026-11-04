@@ -152,3 +152,18 @@ test('voice tagging along a video in landscape gives the video the screen', asyn
   await expect(page.locator('.ws-head')).toBeVisible();
   await expect(page.locator('.voice-dot.on')).toBeVisible();
 });
+
+test('a tip kill on the tag pad', async ({ page, login }) => {
+  await login();
+  const match = await liveMatch(page, 'Tip test');
+  await page.goto(`/m/${match.id}`);
+  await page.locator('.jersey', { hasText: 'Kim' }).click();
+  await page.locator('.skill-tip').getByRole('button', { name: 'Kill' }).click();
+  // Skip the court spots (where from, where it landed) if they are asked.
+  for (let i = 0; i < 2; i++) {
+    const skip = page.getByRole('button', { name: /^Skip/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+  }
+  await expect(page.locator('.scorebox .score')).toHaveText(/1\s*:\s*0/);
+  await expect(page.locator('.ws-content')).toContainText(/#5 Kim\s*Tip kill/);
+});

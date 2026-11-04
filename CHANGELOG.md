@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Tips and feints**
+- Tag pad: a "Tip" row under Attack with the same outcomes (in play, kill, error, blocked), for a soft placed ball instead of a hit. Tips count as attacks everywhere (kills, efficiency, side-out), and are shown as "Tip kill", "Tip error" … in the lists. An attack tagged before can be made a tip in its edit sheet.
+- Voice: "five tip kill", "seven feints, out", "12 tip blocked", "Fünf Finte Punkt", "neun legt den Ball, Punkt".
+- Stats → Attack: a "Hits vs tips" table (share, kill %, error %, efficiency of each) and a Tips column per attacker. Scouting report: each attacker's share of tips, and "keep a defender up short behind the block" for a hitter who tips a lot.
+
 **Voice tagging: full sentences, standard German**
 - Whole sentences work, not just keywords: "Number seven makes a good pass, one sets, five scores", "a bad pass by twelve", "Sieben nimmt den Ball schlecht an, eins stellt, fünf greift an", "Zwölf schlägt auf ins Aus", "eine gute Annahme von sieben". Verbs (passes, sets, attacks, serves, digs; nimmt an, stellt, greift an, schlägt auf, wehrt ab) and pass grades as words (perfect / good / bad, perfekt / gut / schlecht) are understood; other words are skipped. "eine" / "ein" are no longer taken for player #1.
 - DE is now standard German (and EN English); Swiss German is no longer used.
