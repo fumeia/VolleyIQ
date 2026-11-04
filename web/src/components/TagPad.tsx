@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, ATTACK_CODES, SHORT, SKILLS, TIP, actionLabel, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, ATTACK_CODES, OFF_BLOCK, SHORT, SKILLS, TIP, actionLabel, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { SpotSheet } from './SpotSheet';
@@ -276,6 +276,13 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
               const tone = a.score === 'us' ? 'points' : a.score === 'them' ? 'errors' : 'actions';
               return <button key={code} className={`act act-${tone}`} onClick={() => chooseAction(a, TIP)}>{SHORT[code] ?? a.short}</button>;
             })}
+          </div>
+          )}
+          {row.label === 'Attack' && (
+          <div className="skill-row skill-offblock">
+            <span className="skill-label" title="Played off the opponent's block (block-out, tool)">Off block</span>
+            <button className="act act-points" onClick={() => chooseAction(ACTION_BY_CODE.kill, OFF_BLOCK)}>Kill</button>
+            <button className="act act-actions" onClick={() => chooseAction(ACTION_BY_CODE.attack, OFF_BLOCK)}>In play</button>
           </div>
           )}
           </Fragment>

@@ -129,16 +129,28 @@ export const ROLES = [
 
 export type RoleCode = (typeof ROLES)[number]['code'];
 
-/** Attack actions: a tip / feint is one of them with value TIP (a hit has no value). */
+/**
+ * Attack actions, and the kind of shot in their value: none = a hit, TIP = a tip / feint,
+ * OFF_BLOCK = played off the opponent's block (block-out, tool).
+ */
 export const ATTACK_CODES: ActionCode[] = ['attack', 'kill', 'attack_error', 'attack_blocked'];
 export const TIP = 1;
+export const OFF_BLOCK = 2;
 export const isTip = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === TIP;
+export const isOffBlock = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === OFF_BLOCK;
+export type Shot = 'hit' | 'tip' | 'block';
+export const shotOf = (e: { action: ActionCode; value?: number | null }): Shot => (isTip(e) ? 'tip' : isOffBlock(e) ? 'block' : 'hit');
+export const SHOTS: { key: Shot; label: string; value: number | null }[] = [
+  { key: 'hit', label: 'Hit', value: null }, { key: 'tip', label: 'Tip / feint', value: TIP }, { key: 'block', label: 'Off the block', value: OFF_BLOCK },
+];
 const TIP_LABEL: Partial<Record<ActionCode, string>> = { attack: 'Tip', kill: 'Tip kill', attack_error: 'Tip error', attack_blocked: 'Tip blocked' };
+const OFF_BLOCK_LABEL: Partial<Record<ActionCode, string>> = { attack: 'Attack off the block', kill: 'Kill off the block', attack_error: 'Off the block, error', attack_blocked: 'Blocked' };
 
 export function actionLabel(e: { action: ActionCode; value?: number | null }) {
   const def = ACTION_BY_CODE[e.action];
   if (!def) return e.action;
   if (isTip(e)) return TIP_LABEL[e.action]!;
+  if (isOffBlock(e)) return OFF_BLOCK_LABEL[e.action]!;
   return e.action === 'receive' && e.value != null ? `Receive ${e.value}` : def.label;
 }
 

@@ -63,5 +63,17 @@ describe('voice tagging', () => {
     // A hit stays a hit, and "attack … kill" is one kill.
     expect(tags('five attack kill')).toEqual(['5:kill']);
   });
+
+  it('off the block', () => {
+    expect(tags('five off the block')).toEqual(['5:kill=2']);
+    expect(tags('9 attack off the block')).toEqual(['9:kill=2']);
+    expect(tags('twelve tool')).toEqual(['12:kill=2']);
+    expect(tags('5 attack block out')).toEqual(['5:kill=2']);
+    expect(tags('Fünf Angriff vom Block')).toEqual(['5:kill=2']);
+    expect(tags('neun Blockaus')).toEqual(['9:kill=2']);
+    expect(tags('7 off the block in play')).toEqual(['7:attack=2']);
+    // Our own block that went out stays a block error.
+    expect(tags('12 block out')).toEqual(['12:block_error']);
+  });
 });
 

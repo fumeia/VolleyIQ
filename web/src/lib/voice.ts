@@ -1,4 +1,4 @@
-import { ATTACK_CODES, TIP, type ActionCode } from './actions';
+import { ATTACK_CODES, OFF_BLOCK, TIP, type ActionCode } from './actions';
 
 /**
  * Spoken tags. A phrase is a shirt number and what that player did, several in a row:
@@ -149,6 +149,27 @@ export function parseVoice(text: string): VoiceCommand[] {
       if (cur?.action === 'attack') { cur.action = 'kill'; cur.heard += ` ${x}`; continue; }
     }
     const isAttack = (c: typeof cur) => !!c && ATTACK_CODES.includes(c.action);
+    // Off the opponent's block (block-out, tool): almost always a point. "block out" only right after
+    // an attack; after one of our blocks ("12 block out") it is that block's error.
+    const offWords = x === 'off' && next === 'the' && /^blocks?$/.test(w[i + 2] ?? '') ? 3
+      : x === 'off' && /^blocks?$/.test(next ?? '') ? 2
+      : x === 'vom' && next === 'block' ? 2
+      : ['blockout', 'block-out', 'blockaus', 'block-aus', 'tool', 'tooled', 'tools'].includes(x) ? 1
+      : x === 'block' && (next === 'out' || next === 'aus') && isAttack(cur) ? 2 : 0;
+    if (offWords) {
+      i += offWords - 1;
+      if (isAttack(cur) && cur!.jersey === jersey) {
+        cur!.value = OFF_BLOCK;
+        if (cur!.action === 'attack') cur!.action = 'kill';
+        cur!.heard += ' off the block';
+      } else {
+        cur = { kind: 'tag', jersey, action: 'kill', value: OFF_BLOCK, heard: `${jersey != null ? `${jersey} ` : ''}off the block` };
+        out.push(cur);
+      }
+      continue;
+    }
+    // "… off the block, in play": they still played it.
+    if (x === 'play' && w[i - 1] === 'in' && cur?.value === OFF_BLOCK) { cur.action = 'attack'; continue; }
     if (TIP_WORDS.includes(x)) {
       if (isAttack(cur) && cur!.jersey === jersey) { cur!.value = TIP; cur!.heard += ` ${x}`; continue; }
       cur = { kind: 'tag', jersey, action: 'attack', value: TIP, heard: jersey != null ? `${jersey} ${x}` : x };

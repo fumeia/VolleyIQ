@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, SERIES, StackedBars } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
-import { isTip } from '../../lib/actions';
+import { isOffBlock, isTip, SHOTS, shotOf } from '../../lib/actions';
 import { ATTACKS, attackContexts, buildRallies, type AttackContext } from '../../lib/sequence';
 import {
   attackOrigin, isBackRow, ORIGINS, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
@@ -75,6 +75,7 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
           { h: 'E', title: 'Errors (out / net)', cell: (r) => r.list.filter((e) => e.action === 'attack_error').length },
           { h: 'BA', title: 'Blocked', cell: (r) => r.list.filter((e) => e.action === 'attack_blocked').length },
           { h: 'Tips', title: 'Tips / feints (kills from tips)', cell: (r) => { const tips = r.list.filter(isTip); return tips.length ? `${tips.length} (${tips.filter((e) => e.action === 'kill').length} K)` : '–'; } },
+          { h: 'Off bl.', title: 'Kills off the opponent\'s block (block-out, tool)', cell: (r) => r.list.filter((e) => isOffBlock(e) && e.action === 'kill').length || '–' },
           { h: 'K%', cell: (r) => { const t = tally(r.list); return { text: pct(pointPct(t)), tone: sample(judge.killPct(pointPct(t)), t.n) }; } },
           { h: 'Err%', cell: (r) => { const t = tally(r.list); return { text: pct(errorPct(t)), tone: sample(judge.errPct(errorPct(t)), t.n) }; } },
           { h: 'Eff', cell: (r) => { const t = tally(r.list); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 3) }; } },
@@ -113,10 +114,10 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
         ]}
         note="Landing rows count balls that came down in the court (errors land out), so they show the kill rate only." />
 
-      {attacks.some(isTip) && (() => {
-        const rows = [['hit', 'Hits'], ['tip', 'Tips / feints']].map(([k, label]) => ({ k, label, t: tally(attacks.filter((e) => isTip(e) === (k === 'tip'))) }));
+      {attacks.some((e) => shotOf(e) !== 'hit') && (() => {
+        const rows = SHOTS.map((sh) => ({ k: sh.key, label: sh.label, t: tally(attacks.filter((e) => shotOf(e) === sh.key)) })).filter((r) => r.t.n > 0);
         return (
-          <StatFigure title={`Hits vs tips${forWho}`} subtitle="Attacks hit hard and soft placed tips / feints: how often each scores, and how often it is an error or blocked"
+          <StatFigure title={`Hits, tips and off the block${forWho}`} subtitle="Attacks hit hard, soft placed tips / feints, and balls played off the opponent's block: how often each scores, and how often it is an error or blocked"
             rows={rows} rowKey={(r) => r.k}
             first={{ h: '', cell: (r) => r.label }}
             columns={[
@@ -126,7 +127,7 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
               { h: 'Err%', cell: (r) => ({ text: pct(errorPct(r.t)), tone: sample(judge.errPct(errorPct(r.t)), r.t.n) }) },
               { h: 'Eff', cell: (r) => ({ text: eff3(eff(r.t)), tone: sample(judge.eff(eff(r.t)), r.t.n, 3) }) },
             ]}
-            play={(r) => attacks.filter((e) => isTip(e) === (r.k === 'tip'))} />
+            play={(r) => attacks.filter((e) => shotOf(e) === r.k)} />
         );
       })()}
 

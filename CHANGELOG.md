@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Kills off the block**
+- Tag pad: an "Off block" row under Attack and Tip: Kill (the ball went out off their block: block-out, tool) or In play (they still played it). Shown as "Kill off the block". In an attack's edit sheet: Hit / Tip / Off the block.
+- Voice: "five off the block", "9 attack off the block", "twelve tool", "5 attack block out", "Fünf Angriff vom Block", "neun Blockaus"; "… off the block, in play" when they kept it alive. "12 block out" after one of our blocks stays our block error.
+- Stats → Attack: "Hits, tips and off the block" side by side, and an "Off bl." column per attacker. Scouting report: a hitter who scores a lot off the block gets "hands in and firm, don't reach out wide".
+
 **Tips and feints**
 - Tag pad: a "Tip" row under Attack with the same outcomes (in play, kill, error, blocked), for a soft placed ball instead of a hit. Tips count as attacks everywhere (kills, efficiency, side-out), and are shown as "Tip kill", "Tip error" … in the lists. An attack tagged before can be made a tip in its edit sheet.
 - Voice: "five tip kill", "seven feints, out", "12 tip blocked", "Fünf Finte Punkt", "neun legt den Ball, Punkt".

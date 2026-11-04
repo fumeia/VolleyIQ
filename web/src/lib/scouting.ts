@@ -1,5 +1,5 @@
 import type { Match, Player, VEvent } from './api';
-import { isTip } from './actions';
+import { isOffBlock, isTip } from './actions';
 import { breakPct, receptionZones, rotationStats, sideOutPct, type RotationRow, type ZoneRow } from './analysis';
 import { pointSources } from '../report/analytics';
 import { attackContexts, ATTACKS, buildRallies } from './sequence';
@@ -19,8 +19,8 @@ export const MIN = { receiver: 6, attacker: 6, server: 6, setterSplit: 8, rotati
 
 export interface AttackerRow {
   player: Player; attempts: number; share: number; kills: number; errors: number;
-  /** Tips / feints among the attempts. */
-  tips: number;
+  /** Tips / feints among the attempts, and kills off our block. */
+  tips: number; offBlock: number;
   killPct: number; eff: number;
   /** Where they hit from (front 4/3/2, back row), most first. */
   origins: { key: Origin; n: number }[];
@@ -76,9 +76,10 @@ export function scoutingReport(players: Player[], events: VEvent[], matches: Pic
   const attacks = ev.filter((e) => ATTACKS.includes(e.action) && e.player_id != null && byId.has(e.player_id));
   const att = new Map<number, AttackerRow>();
   for (const e of attacks) {
-    const r = att.get(e.player_id!) ?? { player: byId.get(e.player_id!)!, attempts: 0, share: 0, kills: 0, errors: 0, tips: 0, killPct: 0, eff: 0, origins: [], dirs: { line: 0, cross: 0, cut: 0 } };
+    const r = att.get(e.player_id!) ?? { player: byId.get(e.player_id!)!, attempts: 0, share: 0, kills: 0, errors: 0, tips: 0, offBlock: 0, killPct: 0, eff: 0, origins: [], dirs: { line: 0, cross: 0, cut: 0 } };
     r.attempts++;
     if (isTip(e)) r.tips++;
+    if (isOffBlock(e) && e.action === 'kill') r.offBlock++;
     if (e.action === 'kill') r.kills++;
     if (e.action === 'attack_error' || e.action === 'attack_blocked') r.errors++;
     const o = attackOrigin(e);
@@ -164,6 +165,7 @@ export function gamePlan(r: ScoutingReport): string[] {
       if (share >= 0.55) t += `; ${pct(share)} ${top === 'cut' ? 'sharp cuts along the net' : `${top} shots`}: ${top === 'line' ? 'block the line' : top === 'cross' ? 'close the cross with the block, defend the line' : 'keep a defender short'}`;
     }
     if (a.tips / a.attempts >= 0.2) t += `; ${a.tips} of the ${a.attempts} are tips: keep a defender up short behind the block`;
+    if (a.kills >= 4 && a.offBlock / a.kills >= 0.3) t += `; ${a.offBlock} of the ${a.kills} kills off the block: hands in and firm, don't reach out wide`;
     out.push(`${t}.`);
   }
 
