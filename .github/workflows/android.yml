@@ -81,10 +81,14 @@ jobs:
           cp ../../VolleyIQ.apk "../../VolleyIQ-$VERSION_NAME.apk"
           echo "APK_MB=$(( $(stat -c %s ../../VolleyIQ.apk) / 1048576 ))" >> "$GITHUB_ENV"
 
+      # A copy of the APK on the run page. Optional: the releases are where it is downloaded from, and a full
+      # artifact storage (84 MB per build) must not stop the release from being published.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: VolleyIQ-apk
           path: VolleyIQ.apk
+          retention-days: 3
 
       # Release notes from CHANGELOG.md: a release gets its own section ("## v1.2.0 …"), or "## Unreleased" when it
       # has none yet; a test build gets "## Unreleased" (what changed since the last release) and its own commit.
