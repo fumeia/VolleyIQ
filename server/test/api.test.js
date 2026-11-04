@@ -422,3 +422,26 @@ test('match video in the bucket: multipart upload signed by the server, links fo
   assert.equal((await app.inject({ url: `/api/share/team/${token}/video/${m.id}` })).statusCode, 404);
   await app.close();
 });
+
+test('practice match: sides per set, the side on each tag, the live score per side', async () => {
+  const app = await setup();
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'P' } })).json();
+  const a = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'A', number: 1 } })).json();
+  const b = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/players`, payload: { name: 'B', number: 2 } })).json();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'Practice', team_id: team.id, mode: 'live' } })).json();
+  const practice = { names: { a: 'Blue', b: 'White' }, sets: { 1: { a: [a.id], b: [b.id] } } };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice } })).json().practice, practice);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice: { names: { a: '' }, sets: {} } } })).statusCode, 400);
+  const post = (payload) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { set_no: 1, ...payload } });
+  assert.equal((await post({ action: 'kill', player_id: b.id, side: 'b' })).json().side, 'b');
+  await post({ action: 'kill', player_id: a.id, side: 'a' });
+  await post({ action: 'attack_error', player_id: b.id, side: 'b' });
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  const live = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
+  // Blue: its kill and White's error; White: its kill.
+  assert.deepEqual([live.sets[0].us, live.sets[0].them, live.match.ourName, live.match.opponent], [2, 1, 'Blue', 'White']);
+  const shared = (await app.inject({ url: `/api/share/team/${token}` })).json();
+  assert.deepEqual(shared.events.map((e) => e.side), ['b', 'a', 'b']);
+  assert.equal(shared.matches[0].practice.names.b, 'White');
+  await app.close();
+});

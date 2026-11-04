@@ -38,7 +38,7 @@ export function buildRallies(events: VEvent[]): Rally[] {
   const bySet = new Map<string, VEvent[]>();
   for (const e of confirmed) {
     // Matches are kept apart in a season: rallies never span two matches.
-    const key = `${e.match_id}:${e.set_no ?? 1}`;
+    const key = `${e.match_id}:${e.set_no ?? 1}${e.view === 'b' ? ':b' : ''}`;
     const list = bySet.get(key);
     if (list) list.push(e); else bySet.set(key, [e]);
   }

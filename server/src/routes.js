@@ -62,6 +62,8 @@ function cleanEvent(body) {
     confidence: num(body.confidence),
     hint: HINTS.includes(body.hint) ? body.hint : null,
     client_id: body.client_id ? String(body.client_id).slice(0, 64) : null,
+    // Practice matches: which of the two sides (both our players) the tag belongs to.
+    side: body.side === 'a' || body.side === 'b' ? body.side : null,
   }, null];
 }
 
@@ -85,14 +87,16 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     events: db.prepare('SELECT * FROM events WHERE match_id = ? ORDER BY COALESCE(t, 1e12), id'),
     event: db.prepare('SELECT * FROM events WHERE id = ?'),
     eventByClient: db.prepare('SELECT * FROM events WHERE match_id = ? AND client_id = ?'),
-    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, fx, fy, rally, poss, t, set_no, source, status, confidence, hint, client_id)
-                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @fx, @fy, @rally, @poss, @t, @set_no, @source, @status, @confidence, @hint, @client_id)`),
+    insertEvent: db.prepare(`INSERT INTO events (match_id, player_id, jersey, action, value, zone, x, y, fx, fy, rally, poss, t, set_no, source, status, confidence, hint, client_id, side)
+                             VALUES (@match_id, @player_id, @jersey, @action, @value, @zone, @x, @y, @fx, @fy, @rally, @poss, @t, @set_no, @source, @status, @confidence, @hint, @client_id, @side)`),
   };
+  /** Every insert names the side (null outside practice matches). */
+  const insertEv = (row) => q.insertEvent.run({ side: null, ...row });
 
   const coach = { onRequest: requireCoach };
 
   function withCalibration(m) {
-    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null };
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null, practice: m.practice ? JSON.parse(m.practice) : null };
   }
 
   const withAi = (e) => ({ ...e, ai: e.ai ? JSON.parse(e.ai) : null });
@@ -239,14 +243,28 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
           ...(v.subs?.length ? { subs: v.subs.map((x) => ({ t: x.t, out: x.out, in: x.in })) } : {}),
         }])));
     }
+    let practice = m.practice;
+    if ('practice' in b) {
+      const p = b.practice;
+      const ids = (v) => Array.isArray(v) && v.length <= 30 && v.every(Number.isInteger);
+      const name = (v) => typeof v === 'string' && v.trim().length > 0 && v.length <= 30;
+      const ok = p === null || (typeof p === 'object' && !Array.isArray(p) && name(p.names?.a) && name(p.names?.b)
+        && typeof p.sets === 'object' && p.sets !== null && Object.entries(p.sets).length <= 5
+        && Object.entries(p.sets).every(([k, v]) => /^[1-5]$/.test(k) && ids(v?.a) && ids(v?.b)));
+      if (!ok) return bad(reply, 'practice: { names: { a, b }, sets: { "1".."5": { a: [player ids], b: [player ids] } } }');
+      practice = p === null ? null : JSON.stringify({
+        names: { a: p.names.a.trim(), b: p.names.b.trim() },
+        sets: Object.fromEntries(Object.entries(p.sets).map(([k, v]) => [k, { a: v.a, b: v.b }])),
+      });
+    }
     let sheet = m.sheet;
     if ('sheet' in b) {
       const clean = b.sheet === null ? null : cleanSheet(b.sheet);
       if (b.sheet !== null && !clean) return bad(reply, 'sheet: { ourTeam: "A" | "B", sets, flow }');
       sheet = clean && JSON.stringify(clean);
     }
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, m.id);
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ?, practice = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, practice, m.id);
     return withCalibration(q.match.get(m.id));
   });
 
@@ -283,13 +301,13 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     // The court marking goes along so the Replays tab draws the court the way the camera sees it.
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, practice, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
       // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
       .map(({ video_type, video_ref, video_key, ...m }) => ({
         ...m,
         video: video_key && storage ? { type: 'hosted' } : video_type === 'youtube' && video_ref ? { type: 'youtube', id: video_ref } : video_ref ? { type: 'file', name: video_ref } : null,
       }));
-    const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status
+    const events = db.prepare(`SELECT e.id, e.match_id, e.player_id, e.jersey, e.action, e.value, e.zone, e.x, e.y, e.fx, e.fy, e.rally, e.poss, e.t, e.set_no, e.status, e.side
                                FROM events e JOIN matches m ON m.id = e.match_id
                                WHERE m.team_id = ? AND e.status = 'confirmed'`).all(team.id);
     return { team, players: q.players.all(team.id), matches: matches.map(withCalibration), events, playlists: teamPlaylists(db, team.id, { view: 'public' }).filter((p) => p.items.length) };
@@ -304,12 +322,14 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   app.get('/api/share/team/:token/live', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
+    const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, m.practice, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
       WHERE m.team_id = ? AND e.status = 'confirmed' GROUP BY m.id HAVING last >= datetime('now', '-15 minutes') ORDER BY last DESC LIMIT 1`).get(team.id);
     if (!m) return { live: null };
     const sets = new Map();
-    for (const e of db.prepare("SELECT action, set_no FROM events WHERE match_id = ? AND status = 'confirmed'").all(m.id)) {
+    for (const e of db.prepare("SELECT action, set_no, side FROM events WHERE match_id = ? AND status = 'confirmed'").all(m.id)) {
       const n = e.set_no ?? 1;
+      // Practice match: a point of the second side counts for it ("them" in the score).
+      if (e.side === 'b') e.action = US.has(e.action) ? 'opp_point' : THEM.has(e.action) ? 'opp_error' : e.action;
       if (!sets.has(n)) sets.set(n, { set: n, us: 0, them: 0 });
       if (US.has(e.action)) sets.get(n).us++;
       else if (THEM.has(e.action)) sets.get(n).them++;
@@ -318,7 +338,8 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     const done = (x) => Math.max(x.us, x.them) >= (x.set === 5 ? 15 : 25) && Math.abs(x.us - x.them) >= 2;
     return {
       live: {
-        match: { id: m.id, label: m.label, opponent: m.opponent },
+        // A practice match shows its two sides' names.
+        match: { id: m.id, label: m.label, opponent: m.practice ? JSON.parse(m.practice).names.b : m.opponent, ...(m.practice ? { ourName: JSON.parse(m.practice).names.a } : {}) },
         sets: list.map((x) => ({ ...x, done: done(x) })),
         won: list.filter((x) => done(x) && x.us > x.them).length,
         lost: list.filter((x) => done(x) && x.them > x.us).length,
@@ -399,7 +420,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       const [ev, err] = cleanEvent({ ...JSON.parse(s.changes), status: 'confirmed' });
       if (err || !match) return bad(reply, err ?? 'Match not found');
       const p = ev.player_id != null ? q.player.get(ev.player_id) : null;
-      const r = q.insertEvent.run({ ...ev, jersey: p?.number ?? null, source: 'manual', match_id: match.id });
+      const r = insertEv({ ...ev, jersey: p?.number ?? null, source: 'manual', match_id: match.id });
       event = q.event.get(r.lastInsertRowid);
       db.prepare('UPDATE edit_suggestions SET event_id = ? WHERE id = ?').run(event.id, s.id);
     } else if (decision === 'accept') {
@@ -437,7 +458,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       const existing = q.eventByClient.get(match.id, ev.client_id);
       if (existing) return existing;
     }
-    const r = q.insertEvent.run({ ...attachPlayer(match, ev), match_id: match.id });
+    const r = insertEv({ ...attachPlayer(match, ev), match_id: match.id });
     return q.event.get(r.lastInsertRowid);
   });
 
@@ -452,7 +473,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       db.prepare('UPDATE matches SET edited_count = edited_count + 1 WHERE id = ?').run(cur.match_id);
     }
     db.prepare(`UPDATE events SET player_id = @player_id, jersey = @jersey, action = @action, value = @value, zone = @zone, x = @x, y = @y,
-                fx = @fx, fy = @fy, rally = @rally, poss = @poss, t = @t, set_no = @set_no, status = @status, confidence = @confidence WHERE id = @id`)
+                fx = @fx, fy = @fy, rally = @rally, poss = @poss, t = @t, set_no = @set_no, status = @status, confidence = @confidence, side = @side WHERE id = @id`)
       .run({ ...ev, source: cur.source, id: cur.id });
     return q.event.get(cur.id);
   });
@@ -748,7 +769,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       for (const raw of events) {
         const [ev] = cleanEvent({ ...raw, source: 'auto', status: 'suggested', client_id: null });
         if (!ev || (ev.t != null && isSaved(ev.t))) continue;
-        q.insertEvent.run({ ...attachPlayer(match, ev), match_id: match.id });
+        insertEv({ ...attachPlayer(match, ev), match_id: match.id });
         n++;
       }
       return n;
@@ -902,7 +923,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   // ---------- saved versions of a match ----------
   // A version keeps everything tagged for the match; restoring one replaces the tags with
   // it, after saving the current state as a version of its own (so a restore can be undone).
-  const VERSION_COLS = ['player_id', 'jersey', 'action', 'value', 'zone', 'x', 'y', 'fx', 'fy', 'rally', 'poss', 't', 'set_no', 'source', 'status', 'confidence', 'hint', 'client_id'];
+  const VERSION_COLS = ['player_id', 'jersey', 'action', 'value', 'zone', 'x', 'y', 'fx', 'fy', 'rally', 'poss', 't', 'set_no', 'source', 'status', 'confidence', 'hint', 'client_id', 'side'];
   const MAX_VERSIONS = 30;
   const listVersions = (matchId) => db.prepare('SELECT id, label, auto, event_count, created_at FROM match_versions WHERE match_id = ? ORDER BY id DESC').all(matchId);
   function saveVersion(match, label, auto) {
@@ -942,7 +963,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       db.prepare('DELETE FROM events WHERE match_id = ?').run(match.id);
       for (const e of data.events ?? []) {
         const row = Object.fromEntries(VERSION_COLS.map((k) => [k, e[k] ?? null]));
-        q.insertEvent.run({ ...row, player_id: playerOk.has(row.player_id) ? row.player_id : null, source: row.source ?? 'manual', status: row.status ?? 'confirmed', match_id: match.id });
+        insertEv({ ...row, player_id: playerOk.has(row.player_id) ? row.player_id : null, source: row.source ?? 'manual', status: row.status ?? 'confirmed', match_id: match.id });
       }
       db.prepare('UPDATE matches SET lineups = ?, calibration = ?, sheet = ? WHERE id = ?').run(data.lineups, data.calibration, data.sheet, match.id);
     })();

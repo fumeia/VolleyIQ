@@ -332,6 +332,13 @@ const MIGRATIONS = [
     if (!cols.includes('owner_jersey')) db.exec('ALTER TABLE playlists ADD COLUMN owner_jersey INTEGER');
     if (!cols.includes('is_public')) db.exec('ALTER TABLE playlists ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1');
   },
+  // v29: practice matches, both sides our own players: the sides per set on the match, the side on each tag.
+  (db) => {
+    const ev = db.prepare('PRAGMA table_info(events)').all().map((c) => c.name);
+    if (!ev.includes('side')) db.exec('ALTER TABLE events ADD COLUMN side TEXT');
+    const m = db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name);
+    if (!m.includes('practice')) db.exec('ALTER TABLE matches ADD COLUMN practice TEXT');
+  },
 ];
 
 function migrate(db) {

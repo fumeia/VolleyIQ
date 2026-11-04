@@ -58,7 +58,7 @@ export function scoutingReport(players: Player[], events: VEvent[], matches: Pic
   const byId = new Map(players.map((p) => [p.id, p]));
   const team = statLine(ev.filter((e) => e.player_id != null));
   const rallies = buildRallies(ev);
-  const sets = new Set(ev.map((e) => `${e.match_id}:${e.set_no ?? 1}`)).size;
+  const sets = new Set(ev.map((e) => `${e.match_id}:${e.set_no ?? 1}${e.view === 'b' ? ':b' : ''}`)).size;
 
   // Reception: who passes worst.
   const recv = new Map<number, ReceiverRow>();

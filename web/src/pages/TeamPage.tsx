@@ -44,7 +44,7 @@ export function TeamPage() {
         <div className="row">
           <Link className="btn-ghost small" to={`/teams/${team.id}/scouting`}>Scouting report</Link>
           <button className="btn-ghost small" onClick={async () => {
-            const data = await api.teamReport(team.id);
+            const data = await api.teamReportRaw(team.id);
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -53,7 +53,7 @@ export function TeamPage() {
             URL.revokeObjectURL(a.href);
           }}>Export data</button>
           <button className="btn-ghost small" title="For training the auto-detection: shirt numbers and roles only, no names, teams, opponents or dates" onClick={async () => {
-            const data = anonymousExport(await api.teamReport(team.id));
+            const data = anonymousExport(await api.teamReportRaw(team.id));
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);

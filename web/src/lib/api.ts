@@ -1,3 +1,4 @@
+import { expandPractice } from './practice';
 import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
@@ -43,7 +44,7 @@ export interface DetectorTuning {
   use: { threshold: number; sustainMax: number };
 }
 /** The score of a match being tagged right now. */
-export interface LiveScore { match: { id: number; label: string; opponent: string | null }; sets: { set: number; us: number; them: number; done: boolean }[]; won: number; lost: number; updated: string }
+export interface LiveScore { match: { id: number; label: string; opponent: string | null; /** Practice match: the first side's name. */ ourName?: string }; sets: { set: number; us: number; them: number; done: boolean }[]; won: number; lost: number; updated: string }
 /** A clip playlist: tags of the team's matches, in order. */
 export interface Playlist { id: number; title: string; created_at?: string; items: number[]; owner_jersey?: number | null; is_public?: boolean }
 /** Nightly backups of the database into the bucket. */
@@ -65,7 +66,7 @@ export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
-  calibration?: Calibration | null; lineups?: Lineups | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
+  calibration?: Calibration | null; lineups?: Lineups | null; practice?: Practice | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
   /** The match video in the team's storage (bucket key, size). */
@@ -75,6 +76,9 @@ export interface Match {
   /** Public link only: which video goes with the match (in the team's storage, a YouTube id, or the name of the coach's file). */
   video?: { type: 'hosted' } | { type: 'youtube'; id: string } | { type: 'file'; name: string } | null;
 }
+/** A practice match: both sides are our players, chosen anew each set. */
+export interface Practice { names: { a: string; b: string }; sets: Record<string, { a: number[]; b: number[] }> }
+
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;
   value: number | null; zone: number | null; x: number | null; y: number | null;
@@ -85,6 +89,10 @@ export interface VEvent {
   hint?: 'quiet' | 'gap' | null;
   /** The AI check's answer for this suggestion, kept until the rally is reviewed. */
   ai?: AiTouch | null;
+  /** Practice match: which of the two sides (both our players) the tag belongs to. */
+  side?: 'a' | 'b' | null;
+  /** Analysis of a practice match only: which side's view of the match this event belongs to (see lib/practice). */
+  view?: 'a' | 'b';
 }
 export type AiPosition = 'front-left' | 'front-middle' | 'front-right' | 'back-left' | 'back-middle' | 'back-right' | 'unsure';
 /** The AI check's answer for one touch (i = its place in the request, from 1). */
@@ -220,7 +228,11 @@ export const api = {
   addPlayer: (teamId: number, p: Partial<Player>) => req<Player>('POST', `/api/teams/${teamId}/players`, p),
   updatePlayer: (id: number, p: Partial<Player>) => req<Player>('PATCH', `/api/players/${id}`, p),
   deletePlayer: (id: number) => req('DELETE', `/api/players/${id}`),
-  teamReport: (id: number) => req<{ team: Team; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/teams/${id}/report`),
+  /** For the analysis: practice matches come as both sides' views (lib/practice). */
+  teamReport: (id: number) => req<{ team: Team; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/teams/${id}/report`)
+    .then((d) => ({ ...d, events: expandPractice(d.events, d.matches) })),
+  /** The tags as saved (exports). */
+  teamReportRaw: (id: number) => req<{ team: Team; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/teams/${id}/report`),
 
   matches: () => req<Match[]>('GET', '/api/matches'),
   match: (id: number) => req<MatchBundle>('GET', `/api/matches/${id}`),
@@ -272,9 +284,10 @@ export const api = {
   deleteVersion: (id: number, vid: number) => req<MatchVersion[]>('DELETE', `/api/matches/${id}/versions/${vid}`),
   deleteMatch: (id: number) => req('DELETE', `/api/matches/${id}`),
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
-  shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`),
+  shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`).then((d) => ({ ...d, events: expandPractice(d.events, [d.match]) })),
   shareTeam: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/teams/${id}/share`, { revoke }),
-  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[]; playlists?: Playlist[] }>('GET', `/api/share/team/${token}`),
+  sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[]; playlists?: Playlist[] }>('GET', `/api/share/team/${token}`)
+    .then((d) => ({ ...d, events: expandPractice(d.events, d.matches) })),
 
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),

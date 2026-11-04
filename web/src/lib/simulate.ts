@@ -49,7 +49,7 @@ export function teamRates(events: VEvent[], matches: Pick<Match, 'id' | 'lineups
   const sets = new Map<string, VEvent[]>();
   for (const e of events) {
     if (e.status !== 'confirmed' || !scoreOf(e)) continue;
-    const k = `${e.match_id}:${e.set_no ?? 1}`;
+    const k = `${e.match_id}:${e.set_no ?? 1}${e.view === 'b' ? ':b' : ''}`;
     if (!sets.has(k)) sets.set(k, []);
     sets.get(k)!.push(e);
   }

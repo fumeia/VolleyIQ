@@ -1348,3 +1348,19 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .release-notes ul { margin: 2px 0 4px; padding-left: 18px; }
 .release-notes li { margin: 3px 0; }
 .release-notes p { margin: 4px 0; }
+
+/* ---------- practice matches: two sides of our own players ---------- */
+.practice-sheet { display: flex; flex-direction: column; gap: 10px; max-height: 90dvh; overflow: auto; }
+.practice-names label { display: flex; flex-direction: column; gap: 3px; }
+.practice-names .input { width: 140px; }
+.practice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.practice-player { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: left; }
+.practice-player small { color: var(--muted); }
+.practice-player.on-a { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.practice-player.on-b { border: 2px solid var(--text); background: var(--surface-2); }
+.pad-side { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.pad-side-name { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pad-side-a .pad-side-name { color: var(--accent); }
+.pad-side-b .pad-players .jersey { border-style: dashed; }
+.pad-side-rest summary { cursor: pointer; color: var(--muted); margin: 4px 0; }
+.practice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }

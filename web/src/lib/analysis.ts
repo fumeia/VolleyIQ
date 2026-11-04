@@ -54,7 +54,7 @@ export function rotationStats(events: VEvent[], lineupsByMatch: Map<number, Line
   const groups = new Map<string, VEvent[]>();
   for (const e of events) {
     if (e.status !== 'confirmed' || !scoreOf(e)) continue;
-    const k = `${e.match_id}:${e.set_no ?? 1}`;
+    const k = `${e.match_id}:${e.set_no ?? 1}${e.view === 'b' ? ':b' : ''}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(e);
   }

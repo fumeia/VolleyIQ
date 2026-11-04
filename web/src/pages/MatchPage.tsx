@@ -23,6 +23,8 @@ import { QualityControl } from '../components/QualityControl';
 import { ReadNumbers } from '../components/ReadNumbers';
 import { TimeoutSheet } from '../components/TimeoutSheet';
 import { ResumeSheet } from '../components/ResumeSheet';
+import { PracticeSheet } from '../components/PracticeSheet';
+import { sideOf } from '../lib/practice';
 import { VoiceBar } from '../components/VoiceBar';
 import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
@@ -85,6 +87,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }, [reel?.i, reel?.list]);
   const [lineupSet, setLineupSet] = useState<number | null>(null);
   const [showTimeout, setShowTimeout] = useState(false);
+  // Practice match: both sides are our players; the sides are set per set.
+  const practice = match.practice ?? null;
+  const [sidesOpen, setSidesOpen] = useState(false);
+  // Asked once per set; closed without saving, the bar above the pad still offers it.
+  const [sidesLater, setSidesLater] = useState<number | null>(null);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [voice, setVoice] = useState(false);
   // Voice tagging in landscape: the tagging panel can step aside for a bigger video.
@@ -106,6 +113,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const [setNo, setSetNo] = useState(() => Math.max(1, ...initial.events.map((e) => e.set_no ?? 1)));
+  const sidesNow = practice?.sets[String(setNo)] ?? null;
   const player = useRef<PlayerHandle>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -202,7 +210,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   eventsRef.current = events;
 
   function commit(e: Partial<VEvent>) {
-    const clientId = add({ ...e, set_no: setNo });
+    // Practice match: the tag belongs to its player's side (team points say their side themselves).
+    const side = practice ? e.side ?? sideOf(practice, setNo, e.player_id) ?? 'a' : undefined;
+    const clientId = add({ ...e, set_no: setNo, ...(side ? { side } : {}) });
     const p = players.find((x) => x.id === e.player_id);
     const who = p ? `#${p.number} ` : '';
     flash(`${who}${actionLabel(e as VEvent)}${e.zone ? ` · Z${e.zone}` : ''}`, () => {
@@ -338,6 +348,23 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       commit({ action: o.add, value: o.addValue ?? null, t: t == null ? null : t });
     }
   }
+  /**
+   * Practice match: the point went to side [w]. The last touch of the rally decides what it was,
+   * from the view of the side that touched it: its winner (attack → kill …) or its error.
+   */
+  function practicePoint(w: 'a' | 'b') {
+    const own = lastTag ? (lastTag.side ?? 'a') : null;
+    const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, own == null || own === w);
+    if (o.change && lastTag) {
+      const before = { action: lastTag.action, value: lastTag.value };
+      update(lastTag, { action: o.change.action, ...(o.change.value !== undefined ? { value: o.change.value } : {}) });
+      if (!o.add) flash(`${practice!.names[w]}: ${actionLabel({ action: o.change.action, value: o.change.value ?? lastTag.value })}`, () => update(lastTag, before));
+    }
+    if (o.add) {
+      const t = getTime();
+      commit({ action: o.add, value: o.addValue ?? null, t: t == null ? null : t, side: own ?? w });
+    }
+  }
   const outcomeLabel = (won: boolean) => {
     if (!won) return 'how?';
     const o = outcome(lastTag ? { id: lastTag.id, action: lastTag.action } : null, true, won);
@@ -353,11 +380,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       play={() => player.current?.play()}
       isPlaying={() => !!player.current?.isPlaying()}
       // "+1 Opp. point" asks how they scored, like "They won".
-      onCommit={(e) => (e.action === 'opp_point' && e.value == null ? (player.current?.pause(), setTheyOpen(true)) : commit(e))}
+      onCommit={(e) => (!practice && e.action === 'opp_point' && e.value == null ? (player.current?.pause(), setTheyOpen(true)) : commit(e))}
       onCourt={onCourt}
       server={server}
       lastAction={lastTag?.action ?? null}
-      farAt={(t) => !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far'}
+      farAt={(t, pid) => {
+        const far = !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far';
+        // Practice: the second side plays on the other half; its touches are saved from its own half.
+        return practice && sideOf(practice, setNo, pid) === 'b' ? !far : far;
+      }}
+      sides={practice && sidesNow ? { names: practice.names, a: sidesNow.a, b: sidesNow.b } : null}
     />
   );
 
@@ -375,7 +407,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           <button className="set-btn" onClick={() => setSetNo((s) => Math.min(5, s + 1))}>›</button>
           <span className="score">{score.us}<i>:</i>{score.them}</span>
         </div>
-        <button className="btn-ghost small timeout-btn" onClick={() => setShowTimeout(true)} title="What to say at a time-out">Time-out</button>
+        {!practice && <button className="btn-ghost small timeout-btn" onClick={() => setShowTimeout(true)} title="What to say at a time-out">Time-out</button>}
         <button className="btn-ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><Icon name="gear" /></button>
         <MoreMenu />
       </header>
@@ -463,6 +495,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn btn-primary small" onClick={() => setSetNo(setNo + 1)}>Start set {setNo + 1} ›</button>
                   </div>
                 )}
+                {practice && (
+                  <div className="practice-bar">
+                    <span>Practice · set {setNo}: <b>{practice.names.a}</b> {score.us} : {score.them} <b>{practice.names.b}</b></span>
+                    <button className="btn-ghost small" onClick={() => setSidesOpen(true)}>{sidesNow ? 'Change sides' : `Pick the sides of set ${setNo}`}</button>
+                  </div>
+                )}
                 {paused ? (
                   <div className="paused-card">
                     <b>Tagging paused · set {setNo} · {score.us} : {score.them}</b>
@@ -470,7 +508,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn btn-primary" onClick={() => setResumeOpen(true)}>Resume</button>
                   </div>
                 ) : pad}
-                {!paused && zeroPass && (
+                {!paused && !practice && zeroPass && (
                   <div className="zero-pass small">
                     <span>Pass 0 by {playerLabel(players, zeroPass) || '?'}: was it their ace?</span>
                     <button className="btn small btn-lost" onClick={() => { const t = getTime(); commit({ action: 'opp_point', value: OPP_POINT_VALUE.ace, t: t == null ? null : t }); }}>Their ace (point)</button>
@@ -482,7 +520,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     flip={!!match.calibration && ourHalfAt(match.calibration, getTime() ?? 0) === 'far'}
                     onDone={theyScored} onCancel={() => setTheyOpen(false)} />
                 )}
-                {!paused && (
+                {!paused && practice && (
+                  <div className="outcome-bar">
+                    <button className="btn btn-won" onClick={() => practicePoint('a')}>Point {practice.names.a}</button>
+                    <button className="btn btn-won practice-b-won" onClick={() => practicePoint('b')}>Point {practice.names.b}</button>
+                  </div>
+                )}
+                {!paused && !practice && (
                   <div className="outcome-bar">
                     <button className="btn btn-won" onClick={() => settle(true)}>We won <small>{outcomeLabel(true)}</small></button>
                     <button className="btn btn-lost" onClick={() => settle(false)}>They won <small>{outcomeLabel(false)}</small></button>
@@ -491,8 +535,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 {!paused && (
                   <div className="row wrap pause-row">
                     {!voice && <button className="btn-ghost small" onClick={() => setVoice(true)} title="Tag by speaking: 7 pass 2, 1 set, 5 kill">Voice tagging</button>}
-                    <button className="btn-ghost small" onClick={() => setPaused(true)} title="Stop tagging for a while; when you come back, enter the score and carry on">Pause tagging</button>
-                    <button className="btn-ghost small" onClick={() => setResumeOpen(true)} title="Points were missed: enter the score as it is now">Catch up the score</button>
+                    {!practice && <button className="btn-ghost small" onClick={() => setPaused(true)} title="Stop tagging for a while; when you come back, enter the score and carry on">Pause tagging</button>}
+                    {!practice && <button className="btn-ghost small" onClick={() => setResumeOpen(true)} title="Points were missed: enter the score as it is now">Catch up the score</button>}
                   </div>
                 )}
                 {confirmed.length > 0 && (() => {
@@ -633,9 +677,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         <VoiceBar players={players} player={isLive ? undefined : player} onClose={() => setVoice(false)}
           panelHidden={bigVideo} onTogglePanel={isLive ? undefined : () => setBigVideo(!bigVideo)} score={`S${setNo} ${score.us}:${score.them}`}
           onTag={(e) => { const t = e.t !== undefined ? e.t : getTime(); commit({ ...e, t: t == null ? null : t }); }}
-          onWon={() => settle(true)}
-          onLost={() => { const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
+          onWon={() => (practice ? practicePoint('a') : settle(true))}
+          onLost={() => { if (practice) return practicePoint('b'); const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
           onUndo={() => { const last = lastAdded(eventsRef.current.filter((e) => e.status === 'confirmed')); if (last) { remove(last); flash(`Removed ${actionLabel(last)}`); } }} />
+      )}
+      {(sidesOpen || (practice && !sidesNow && tab === 'tag' && sidesLater !== setNo)) && (
+        <PracticeSheet match={match} players={players} set={setNo} onClose={() => { setSidesOpen(false); setSidesLater(setNo); }}
+          onSave={async (p) => { setMatch(await api.updateMatch(match.id, { practice: p })); flash(`Sides of set ${setNo} saved`); }} />
       )}
       {resumeOpen && (
         <ResumeSheet match={match} players={players} confirmed={confirmed} setNo={setNo} onClose={() => setResumeOpen(false)}

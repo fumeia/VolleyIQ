@@ -217,7 +217,7 @@ function LiveCard({ token, name }: { token: string; name: string }) {
         <span className={over ? 'live-dot over' : 'live-dot'}>{over ? t('Final') : t('Live')}</span>
         <small className="muted">{ago < 1 ? t('updated just now') : t('updated {n} min ago', { n: ago })}</small>
       </div>
-      <div className="live-teams"><b>{name || t('Us')}</b><span className="live-sets">{live.won} : {live.lost}</span><b>{live.match.opponent ?? live.match.label}</b></div>
+      <div className="live-teams"><b>{live.match.ourName ?? (name || t('Us'))}</b><span className="live-sets">{live.won} : {live.lost}</span><b>{live.match.opponent ?? live.match.label}</b></div>
       {cur && <div className="live-score">{cur.us} : {cur.them} <small className="muted">{t('Set {n}', { n: cur.set })}</small></div>}
       {live.sets.filter((s) => s.done).length > 0 && (
         <div className="small muted">{live.sets.filter((s) => s.done).map((s) => `${s.us}:${s.them}`).join(', ')}</div>

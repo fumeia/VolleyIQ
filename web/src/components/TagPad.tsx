@@ -31,7 +31,9 @@ interface Props {
   /** The previous tag of this rally: the likely next actions come first. */
   lastAction?: ActionCode | null;
   /** Whether we play on the far half at video time t (court drawn as the camera sees it). */
-  farAt?: (t: number | null) => boolean;
+  farAt?: (t: number | null, playerId?: number | null) => boolean;
+  /** Practice match: the two sides of this set (both our players), shown as two groups with a +1 each. */
+  sides?: { names: { a: string; b: string }; a: number[]; b: number[] } | null;
 }
 
 /** What usually follows a touch of ours, for the "likely" row. */
@@ -69,7 +71,7 @@ export const isTyping = (e: KeyboardEvent) => {
   return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 };
 
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   // The video is sticky at the top; keep it in view. When a player is picked we
@@ -128,10 +130,17 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     else finish(next);
   }
 
-  function teamAction(code: ActionCode) {
+  function teamAction(code: ActionCode, side?: 'a' | 'b') {
     const t = getTime();
-    onCommit({ action: code, t: t == null ? null : Math.max(0, t - settings.leadSeconds) });
+    onCommit({ action: code, t: t == null ? null : Math.max(0, t - settings.leadSeconds), ...(side ? { side } : {}) });
   }
+  const jersey = (p: Player) => (
+    <button key={p.id} className={`jersey role-${p.role} ${onCourt?.length && !onCourt.includes(p.id) ? 'bench' : ''}`} onClick={() => start(p)}>
+      <span className="jersey-num">{p.number ?? '–'}</span>
+      <span className="jersey-name">{p.name.split(' ')[0]}</span>
+      <span className="jersey-role">{p.role}</span>
+    </button>
+  );
 
   function cancel() {
     const d = draftRef.current;
@@ -216,7 +225,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           prompt={prompt}
           step={steps ? steps.replace(/[() ]/g, '') : undefined}
           from={draft.from}
-          flip={!!farAt?.(draft.t)}
+          flip={!!farAt?.(draft.t, draft.player?.id ?? null)}
           net={isNetSpot(a.code, first || a.court !== 'path') ? {} : undefined}
           showTarget={a.code === 'receive' && !first}
           onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))}
@@ -299,14 +308,25 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           Serve · #{server.number ?? '–'} {server.name.split(' ')[0]}
         </button>
       )}
+      {sides ? (
+        <>
+          {(['a', 'b'] as const).map((k) => (
+            <div key={k} className={`pad-side pad-side-${k}`}>
+              <span className="pad-side-name">{sides.names[k]}</span>
+              <div className="pad-grid pad-players">{roster.filter((p) => sides[k].includes(p.id)).map(jersey)}</div>
+            </div>
+          ))}
+          {roster.some((p) => !sides.a.includes(p.id) && !sides.b.includes(p.id)) && (
+            <details className="pad-side-rest small"><summary>Not on court this set</summary>
+              <div className="pad-grid pad-players">{roster.filter((p) => !sides.a.includes(p.id) && !sides.b.includes(p.id)).map(jersey)}</div>
+            </details>
+          )}
+          {/* Points without a touch of the rally: "Point …" below the pad. */}
+        </>
+      ) : (
+      <>
       <div className="pad-grid pad-players">
-        {roster.map((p) => (
-          <button key={p.id} className={`jersey role-${p.role} ${onCourt?.length && !onCourt.includes(p.id) ? 'bench' : ''}`} onClick={() => start(p)}>
-            <span className="jersey-num">{p.number ?? '–'}</span>
-            <span className="jersey-name">{p.name.split(' ')[0]}</span>
-            <span className="jersey-role">{p.role}</span>
-          </button>
-        ))}
+        {roster.map(jersey)}
         <button className="jersey jersey-unknown" onClick={() => start(null)}>
           <span className="jersey-num">?</span>
           <span className="jersey-name">Unknown</span>
@@ -317,6 +337,8 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
         <button className="act act-points" onClick={() => teamAction('opp_error')}>+1 Opp. error</button>
         <button className="act act-errors" onClick={() => teamAction('opp_point')}>+1 Opp. point</button>
       </div>
+      </>
+      )}
     </div>
   );
 }

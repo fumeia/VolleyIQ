@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Practice matches: both sides are our players**
+- New match → "Practice match": name the two sides (Blue / White by default). For every set you pick who plays on which side (tap a player once for the first side, twice for the second; each set starts from the set before, with "Swap sides").
+- The tag pad shows both sides as two groups; every tag remembers its player's side, so a kill of a White player is a point for White. "Point Blue" / "Point White" end a rally (the last touch becomes its kill or error, as with "We won / They won"). The score reads Blue : White; voice works the same ("our point" = the first side, "their point" = the second).
+- Court spots of the second side are tapped on a court turned around, so they are saved from that player's own half: in the analysis every player's attacks, passes and serves sit on the same field.
+- Analysis: a practice match counts as the match seen from both sides (Blue against White and White against Blue), and every touch counts once for its player. Player stats, court maps, hits / tips, passing and the team totals all include it; the live score on the public page shows the two sides' names.
+
 **Kills off the block**
 - Tag pad: an "Off block" row under Attack and Tip: Kill (the ball went out off their block: block-out, tool) or In play (they still played it). Shown as "Kill off the block". In an attack's edit sheet: Hit / Tip / Off the block.
 - Voice: "five off the block", "9 attack off the block", "twelve tool", "5 attack block out", "Fünf Angriff vom Block", "neun Blockaus"; "… off the block, in play" when they kept it alive. "12 block out" after one of our blocks stays our block error.

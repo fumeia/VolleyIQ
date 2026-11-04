@@ -176,3 +176,38 @@ test('a tip kill and a kill off the block on the tag pad', async ({ page, login 
   await expect(page.locator('.scorebox .score')).toHaveText(/2\s*:\s*0/);
   await expect(page.locator('.ws-content')).toContainText(/#7 Noa\s*Kill off the block/);
 });
+
+test('practice match: both sides from our roster, points for the right side', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Practice team ${Date.now()}` } })).json();
+  for (const [name, number] of [['Alex Probe', 1], ['Kim Muster', 5], ['Noa Beispiel', 7], ['Jo Test', 9]] as const) {
+    await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role: 'OH' } });
+  }
+  await page.goto('/new?mode=live');
+  await page.locator('form select').first().selectOption({ label: team.name });
+  await page.getByLabel(/Practice match/).check();
+  await page.getByRole('button', { name: /Create|Start/ }).click();
+  // The sides of set 1 are asked right away: Alex and Kim for Blue, Noa and Jo for White.
+  const sheet = page.getByRole('dialog', { name: 'Sides for this set' });
+  for (const n of ['Alex', 'Kim']) await sheet.locator('.practice-player', { hasText: n }).click();
+  // Twice for the second side.
+  for (const n of ['Noa', 'Jo']) { await sheet.locator('.practice-player', { hasText: n }).click(); await sheet.locator('.practice-player', { hasText: n }).click(); }
+  await sheet.getByRole('button', { name: /Save the sides/ }).click();
+  await expect(page.locator('.pad-side-a')).toContainText('Kim');
+  await expect(page.locator('.pad-side-b')).toContainText('Noa');
+  // Noa (White) kills: White's point.
+  await page.locator('.pad-side-b .jersey', { hasText: 'Noa' }).click();
+  await page.locator('.skill-row', { hasText: 'Attack' }).first().getByRole('button', { name: /Kill/ }).click();
+  for (let i = 0; i < 2; i++) {
+    const skip = page.getByRole('button', { name: /^Skip/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+  }
+  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*0 : 1\s*White/);
+  // A point for Blue without a tag of the rally.
+  await page.getByRole('button', { name: 'Point Blue' }).click();
+  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*1 : 1\s*White/);
+  // Saved: the same after a reload.
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*1 : 1\s*White/);
+});

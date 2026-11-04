@@ -1,4 +1,5 @@
-import { scoreOf, type ActionCode } from './actions';
+import { type ActionCode } from './actions';
+import { sideScore } from './practice';
 import type { Player, VEvent } from './api';
 import { zoneOf } from './court';
 import { buildRallies, realAssists } from './sequence';
@@ -108,12 +109,17 @@ export function zoneCounts(events: VEvent[], actions: ActionCode[]) {
 export interface SetScore { set: number; us: number; them: number }
 
 /** Running score per set, derived from point-ending events. */
-export function scoreBySet(events: Pick<VEvent, 'action' | 'set_no'>[]): SetScore[] {
+/**
+ * Points per set. A practice match counts as its first side ("us") against the second: a point of a
+ * second-side player goes to "them", and the second side's view of an analysed match is left out.
+ */
+export function scoreBySet(events: Pick<VEvent, 'action' | 'set_no' | 'side' | 'view' | 'value'>[]): SetScore[] {
   const sets = new Map<number, SetScore>();
   for (const e of events) {
+    if (e.view === 'b') continue;
     const s = e.set_no ?? 1;
     if (!sets.has(s)) sets.set(s, { set: s, us: 0, them: 0 });
-    const effect = scoreOf(e);
+    const effect = sideScore(e);
     if (effect === 'us') sets.get(s)!.us++;
     else if (effect === 'them') sets.get(s)!.them++;
   }

@@ -1,4 +1,5 @@
-import { scoreOf, type ActionCode } from '../lib/actions';
+import { sideScore } from '../lib/practice';
+import { type ActionCode } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
 import { zoneOf } from '../lib/court';
 import { playerStats, scoreBySet, statLine, type StatLine } from '../lib/stats';
@@ -14,7 +15,8 @@ export interface FlowPoint { i: number; us: number; them: number }
 export function scoreFlow(events: VEvent[]): { set: number; points: FlowPoint[] }[] {
   const sets = new Map<number, FlowPoint[]>();
   for (const e of [...events].sort(byTime)) {
-    const effect = scoreOf(e);
+    if (e.view === 'b') continue;
+    const effect = sideScore(e);
     if (!effect) continue;
     const s = e.set_no ?? 1;
     const pts = sets.get(s) ?? [{ i: 0, us: 0, them: 0 }];

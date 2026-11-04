@@ -11,6 +11,9 @@ export function NewMatch() {
   const nav = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [mode, setMode] = useState<'video' | 'live'>(params.get('mode') === 'live' ? 'live' : 'video');
+  // Practice match: both sides are our players (picked per set on the match page).
+  const [practice, setPractice] = useState(params.get('practice') === '1');
+  const [sideNames, setSideNames] = useState({ a: 'Blue', b: 'White' });
   // Opened from a game of the schedule (or a scouting video): filled in already.
   const [teamId, setTeamId] = useState<number | ''>(params.get('team') ? Number(params.get('team')) : '');
   const [label, setLabel] = useState(params.get('label') ?? '');
@@ -40,8 +43,8 @@ export function NewMatch() {
     }
     const m = await api.createMatch({
       team_id: teamId === '' ? null : teamId,
-      label: label.trim() || `${opponent ? `vs ${opponent}` : 'Match'} ${date}`,
-      opponent: opponent || null,
+      label: label.trim() || (practice ? `Practice ${sideNames.a} - ${sideNames.b} ${date}` : `${opponent ? `vs ${opponent}` : 'Match'} ${date}`),
+      opponent: practice ? null : opponent || null,
       played_on: date,
       mode,
       video_type: ytId ? 'youtube' : null,
@@ -53,6 +56,7 @@ export function NewMatch() {
       const lineups = lineupsFromSheet(sheet.flow, players, sheet.liberoNo);
       await api.updateMatch(m.id, { sheet: sheet.flow, ...(Object.keys(lineups).length ? { lineups } : {}) }).catch(() => {});
     }
+    if (practice) await api.updateMatch(m.id, { practice: { names: { a: sideNames.a.trim() || 'Blue', b: sideNames.b.trim() || 'White' }, sets: {} } });
     if (scheduleId) await api.scheduleMatch(scheduleId, m.id).catch(() => {});
     // Non-YouTube links (WeTransfer, Drive, …) are downloaded to the phone on the next screen; YouTube only when asked.
     if (link && (!ytId || (isApp() && download))) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
@@ -81,8 +85,20 @@ export function NewMatch() {
           <option value="">Select team…</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <label className="field-label">Opponent</label>
-        <input className="input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="e.g. VC Nord" />
+        <label className="toggle">
+          <input type="checkbox" checked={practice} onChange={(e) => setPractice(e.target.checked)} /> Practice match: both sides are our players (sides picked per set)
+        </label>
+        {practice ? (
+          <div className="row wrap">
+            <label className="small">First side <input className="input slim" value={sideNames.a} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, a: e.target.value })} aria-label="Name of the first side" /></label>
+            <label className="small">Second side <input className="input slim" value={sideNames.b} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, b: e.target.value })} aria-label="Name of the second side" /></label>
+          </div>
+        ) : (
+          <>
+            <label className="field-label">Opponent</label>
+            <input className="input" value={opponent} onChange={(e) => setOpponent(e.target.value)} placeholder="e.g. VC Nord" />
+          </>
+        )}
         <label className="field-label">Date</label>
         <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <label className="field-label">Label (optional)</label>
