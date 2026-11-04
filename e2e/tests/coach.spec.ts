@@ -211,3 +211,32 @@ test('practice match: both sides from our roster, points for the right side', as
   await page.reload();
   await expect(page.locator('.practice-bar')).toContainText(/Blue\s*1 : 1\s*White/);
 });
+
+test('practice match: far side tapped as seen, saved from its own half', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Practice court ${Date.now()}` } })).json();
+  const ids: number[] = [];
+  for (const [name, number] of [['Alex Probe', 1], ['Noa Beispiel', 7]] as const) {
+    ids.push((await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role: 'OH' } })).json()).id);
+  }
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Court test', team_id: team.id, mode: 'live' } })).json();
+  // Blue (Alex) on the near half, White (Noa) on the far half.
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Blue', b: 'White' }, sets: { 1: { a: [ids[0]], b: [ids[1]], near: 'a' } } } } });
+  await page.goto(`/m/${match.id}`);
+  await page.locator('.pad-side-b .jersey', { hasText: 'Noa' }).click();
+  await page.locator('.skill-row', { hasText: 'Attack' }).first().getByRole('button', { name: /Kill/ }).click();
+  const court = page.locator('.court-svg').first();
+  // Drawn as seen: Blue below, White above.
+  await expect(court).toContainText('WHITE');
+  const box = (await court.boundingBox())!;
+  // Hit from the far (upper) half, near the net; landed in the near (lower) half.
+  await court.click({ position: { x: box.width * 0.3, y: box.height * 0.4 } });
+  await court.click({ position: { x: box.width * 0.6, y: box.height * 0.75 } });
+  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*0 : 1\s*White/);
+  await page.waitForTimeout(500);
+  const ev = (await (await page.request.get(`/api/matches/${match.id}`)).json()).events[0];
+  // Saved from White's own half (y 0..9), going to the other half (y 9..18).
+  expect(ev.side).toBe('b');
+  expect(ev.fy).toBeLessThan(9);
+  expect(ev.y).toBeGreaterThan(9);
+});

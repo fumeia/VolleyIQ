@@ -77,7 +77,11 @@ export interface Match {
   video?: { type: 'hosted' } | { type: 'youtube'; id: string } | { type: 'file'; name: string } | null;
 }
 /** A practice match: both sides are our players, chosen anew each set. */
-export interface Practice { names: { a: string; b: string }; sets: Record<string, { a: number[]; b: number[] }> }
+export interface Practice {
+  names: { a: string; b: string };
+  /** Per set: the players of each side, and which side plays on the near half (bottom of the drawn court, as the camera / coach sees it). */
+  sets: Record<string, { a: number[]; b: number[]; near?: 'a' | 'b' }>;
+}
 
 export interface VEvent {
   id: number; match_id: number; player_id: number | null; jersey: number | null; action: ActionCode;

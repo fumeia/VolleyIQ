@@ -20,6 +20,13 @@ export function PracticeSheet({ match, players, set, onSave, onClose }: {
     for (const id of prev?.b ?? []) m[id] = 'b';
     return m;
   });
+  // Which side is on the near half: as saved, or for a new set the other end than in the set before.
+  const [near, setNear] = useState<'a' | 'b'>(() => {
+    const saved = p.sets[String(set)]?.near;
+    if (saved) return saved;
+    const before = p.sets[String(set - 1)]?.near;
+    return before ? (before === 'a' ? 'b' : 'a') : 'a';
+  });
   const [busy, setBusy] = useState(false);
   const roster = players.filter((x) => x.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const next = (v: Pick): Pick => (v == null ? 'a' : v === 'a' ? 'b' : null);
@@ -29,7 +36,7 @@ export function PracticeSheet({ match, players, set, onSave, onClose }: {
   async function save() {
     setBusy(true);
     try {
-      await onSave({ names: { a: names.a.trim() || 'Blue', b: names.b.trim() || 'White' }, sets: { ...p.sets, [String(set)]: { a: of('a'), b: of('b') } } });
+      await onSave({ names: { a: names.a.trim() || 'Blue', b: names.b.trim() || 'White' }, sets: { ...p.sets, [String(set)]: { a: of('a'), b: of('b'), near } } });
       onClose();
     } finally { setBusy(false); }
   }
@@ -51,6 +58,14 @@ export function PracticeSheet({ match, players, set, onSave, onClose }: {
             </button>
           ))}
         </div>
+        <div className="row wrap">
+          <span className="small">On the near half (bottom of the court, as you or the camera see it):</span>
+          <span className="segmented small">
+            <button className={near === 'a' ? 'on' : ''} onClick={() => setNear('a')}>{names.a || 'First side'}</button>
+            <button className={near === 'b' ? 'on' : ''} onClick={() => setNear('b')}>{names.b || 'Second side'}</button>
+          </span>
+        </div>
+        <p className="small muted">You tap every spot where it happened, as you see it; for the analysis the far side's spots are turned around to its own half, so all players' actions end up on the same side. With a marked court in the video, the marking decides which side is near.</p>
         <div className="row wrap">
           <span className="small"><b>{names.a}</b> {of('a').length} · <b>{names.b}</b> {of('b').length}</span>
           <button className="btn-ghost small" onClick={swap}>Swap sides</button>

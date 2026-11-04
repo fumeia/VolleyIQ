@@ -226,6 +226,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           step={steps ? steps.replace(/[() ]/g, '') : undefined}
           from={draft.from}
           flip={!!farAt?.(draft.t, draft.player?.id ?? null)}
+          names={sides && draft.player ? (sides.b.includes(draft.player.id) ? { us: sides.names.b, them: sides.names.a } : { us: sides.names.a, them: sides.names.b }) : undefined}
           net={isNetSpot(a.code, first || a.court !== 'path') ? {} : undefined}
           showTarget={a.code === 'receive' && !first}
           onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))}

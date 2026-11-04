@@ -19,6 +19,8 @@ interface Props {
   sideways?: boolean | 'auto';
   /** We play on the far half in the video: draw the court as the camera sees it (our half at the top, mirrored). */
   flip?: boolean;
+  /** Names for the two halves instead of US / THEM (practice matches: the two sides). */
+  names?: { us: string; them: string };
   /** Plots only: show just this stretch of the court (meters from our baseline), e.g. [4, 21] for attacks. */
   yRange?: [number, number];
   /** Over the [paths], semi-transparent: how many end in each zone (3 m columns; front and back row of each half). */
@@ -48,7 +50,8 @@ const CELL = 1.5;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** The whole court with run-off, for tapping spots on either side and for plots. */
-export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip, yRange, zoneCounts }: Props) {
+export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, label, sideways: side, flip, yRange, zoneCounts, names }: Props) {
+  const usL = names?.us.toUpperCase() ?? 'US', themL = names?.them.toUpperCase() ?? 'THEM';
   const svg = useRef<SVGSVGElement>(null);
   const portrait = usePortraitPhone();
   const sideways = side === 'auto' ? portrait : !!side;
@@ -109,14 +112,14 @@ export function CourtFull({ onPick, from, to, points, paths, heat, showTarget, l
       {sideways ? (
         <>
           <text x={label_(FULL_VIEW.x0, COURT.net).x + 0.2} y={0.6} className="court-side">NET</text>
-          <text x={0.3} y={VH - 0.3} className="court-side">{flip ? 'THEM' : 'US'}</text>
-          <text x={VW - 0.3} y={VH - 0.3} className="court-side end">{flip ? 'US' : 'THEM'}</text>
+          <text x={0.3} y={VH - 0.3} className="court-side">{flip ? themL : usL}</text>
+          <text x={VW - 0.3} y={VH - 0.3} className="court-side end">{flip ? usL : themL}</text>
         </>
       ) : (
         <>
           <text x={W - 0.3} y={vy(COURT.net) - 0.25} className="court-side end">NET</text>
-          <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">{flip ? 'US' : 'THEM'}</text>
-          <text x={0.3} y={vy(0) + 1.1} className="court-side">{flip ? 'THEM' : 'US'}</text>
+          <text x={0.3} y={vy(COURT.length) - 0.5} className="court-side">{flip ? usL : themL}</text>
+          <text x={0.3} y={vy(0) + 1.1} className="court-side">{flip ? themL : usL}</text>
         </>
       )}
       {showTarget && <circle cx={P(PASS_TARGET.x, PASS_TARGET.y).x} cy={P(PASS_TARGET.x, PASS_TARGET.y).y} r={1.5} className="court-target" />}

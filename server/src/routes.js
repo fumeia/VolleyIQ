@@ -250,11 +250,11 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       const name = (v) => typeof v === 'string' && v.trim().length > 0 && v.length <= 30;
       const ok = p === null || (typeof p === 'object' && !Array.isArray(p) && name(p.names?.a) && name(p.names?.b)
         && typeof p.sets === 'object' && p.sets !== null && Object.entries(p.sets).length <= 5
-        && Object.entries(p.sets).every(([k, v]) => /^[1-5]$/.test(k) && ids(v?.a) && ids(v?.b)));
+        && Object.entries(p.sets).every(([k, v]) => /^[1-5]$/.test(k) && ids(v?.a) && ids(v?.b) && (v.near == null || v.near === 'a' || v.near === 'b')));
       if (!ok) return bad(reply, 'practice: { names: { a, b }, sets: { "1".."5": { a: [player ids], b: [player ids] } } }');
       practice = p === null ? null : JSON.stringify({
         names: { a: p.names.a.trim(), b: p.names.b.trim() },
-        sets: Object.fromEntries(Object.entries(p.sets).map(([k, v]) => [k, { a: v.a, b: v.b }])),
+        sets: Object.fromEntries(Object.entries(p.sets).map(([k, v]) => [k, { a: v.a, b: v.b, ...(v.near ? { near: v.near } : {}) }])),
       });
     }
     let sheet = m.sheet;

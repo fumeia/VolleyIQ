@@ -11,6 +11,8 @@ interface Props {
   from?: Pt | null;
   to?: Pt | null;
   flip?: boolean;
+  /** Names of the two halves (own side, other side) instead of US / THEM. */
+  names?: { us: string; them: string };
   showTarget?: boolean;
   onPick: (p: Pt) => void;
   skipLabel: string;
@@ -47,7 +49,7 @@ export function useBelowVideo() {
  * as player and action are known, and closes after the last tap. The court is drawn as
  * the camera sees it, so a spot is tapped where it is in the video.
  */
-export function SpotSheet({ title, prompt, step, from, to, flip, showTarget, onPick, skipLabel, onSkip, onBack, extra, net }: Props) {
+export function SpotSheet({ title, prompt, step, from, to, flip, names, showTarget, onPick, skipLabel, onSkip, onBack, extra, net }: Props) {
   const box = useBelowVideo();
   return (
     <div className="spot-sheet" style={{ top: box.top, left: box.left }}>
@@ -57,7 +59,7 @@ export function SpotSheet({ title, prompt, step, from, to, flip, showTarget, onP
       <div className="spot-court">
         {net
           ? <NetSpot key={prompt} initial={net.initial} flip={flip} onPick={onPick} />
-          : <CourtFull from={from} to={to} flip={flip} showTarget={showTarget} label={prompt} onPick={onPick} />}
+          : <CourtFull from={from} to={to} flip={flip} names={names} showTarget={showTarget} label={prompt} onPick={onPick} />}
       </div>
       {extra}
       <div className="spot-actions">
