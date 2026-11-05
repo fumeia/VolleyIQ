@@ -189,9 +189,9 @@ test('practice match: both sides from our roster, points for the right side', as
   await page.getByRole('button', { name: /Create|Start/ }).click();
   // The sides of set 1 are asked right away: Alex and Kim near, Noa and Jo far.
   const sheet = page.getByRole('dialog', { name: 'Sides for this set' });
-  for (const n of ['Alex', 'Kim']) await sheet.locator('.practice-player', { hasText: n }).click();
-  // Twice for the far side.
-  for (const n of ['Noa', 'Jo']) { await sheet.locator('.practice-player', { hasText: n }).click(); await sheet.locator('.practice-player', { hasText: n }).click(); }
+  const row = (n: string) => sheet.locator('.practice-row', { hasText: n });
+  for (const n of ['Alex', 'Kim']) await row(n).getByRole('radio', { name: 'Near' }).click();
+  for (const n of ['Noa', 'Jo']) await row(n).getByRole('radio', { name: 'Far' }).click();
   await sheet.getByRole('button', { name: /Save the sides/ }).click();
   await expect(page.locator('.pad-side-a')).toContainText('Kim');
   await expect(page.locator('.pad-side-b')).toContainText('Noa');

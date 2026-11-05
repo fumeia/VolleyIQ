@@ -3,7 +3,7 @@
 ## Unreleased
 
 **Practice matches: Near and Far**
-- The two sides are now called Near and Far by default (the near half is the bottom of the court as you or the camera see it): tap a player once for Near, twice for Far. No separate "which side is near" question any more; "Swap near and far" when the groups change ends. Names can still be changed when creating the match.
+- The two sides are now called Near and Far by default (the near half is the bottom of the court as you or the camera see it): every player has a row with Near | Far | Out to tap. No separate "which side is near" question any more; "Swap near and far" when the groups change ends. Names can still be changed when creating the match.
 
 **Practice matches: both sides are our players**
 - New match → "Practice match": name the two sides (Blue / White by default). For every set you pick who plays on which side (tap a player once for the first side, twice for the second; each set starts from the set before, with "Swap sides").

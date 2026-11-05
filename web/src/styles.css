@@ -1364,3 +1364,9 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .pad-side-b .pad-players .jersey { border-style: dashed; }
 .pad-side-rest summary { cursor: pointer; color: var(--muted); margin: 4px 0; }
 .practice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+
+.practice-list { display: flex; flex-direction: column; gap: 4px; }
+.practice-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--line); }
+.practice-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.practice-choice { flex: none; }
+.practice-choice button { min-width: 56px; }
