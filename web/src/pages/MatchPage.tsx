@@ -385,12 +385,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       server={server}
       lastAction={lastTag?.action ?? null}
       farAt={(t, pid) => {
-        const calibrated = !!match.calibration;
-        const far = calibrated && ourHalfAt(match.calibration!, t ?? getTime() ?? 0) === 'far';
+        const far = !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far';
         if (!practice) return far;
-        // Practice: the court is drawn as the camera (or the coach) sees it, and the spot is saved from the
-        // player's own half. The first side's half: from the court marking, else the set's "near" choice.
-        const aFar = calibrated ? far : (sidesNow?.near ?? 'a') === 'b';
+        // Practice: the court is drawn as you (or the camera) see it, the first side on the near half
+        // (bottom), and the spot is saved from the player's own half.
+        const aFar = (sidesNow?.near ?? 'a') === 'b';
         const side = sideOf(practice, setNo, pid) ?? 'a';
         return side === 'a' ? aFar : !aFar;
       }}

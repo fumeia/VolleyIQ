@@ -13,7 +13,7 @@ export function NewMatch() {
   const [mode, setMode] = useState<'video' | 'live'>(params.get('mode') === 'live' ? 'live' : 'video');
   // Practice match: both sides are our players (picked per set on the match page).
   const [practice, setPractice] = useState(params.get('practice') === '1');
-  const [sideNames, setSideNames] = useState({ a: 'Blue', b: 'White' });
+  const [sideNames, setSideNames] = useState({ a: 'Near', b: 'Far' });
   // Opened from a game of the schedule (or a scouting video): filled in already.
   const [teamId, setTeamId] = useState<number | ''>(params.get('team') ? Number(params.get('team')) : '');
   const [label, setLabel] = useState(params.get('label') ?? '');
@@ -56,7 +56,7 @@ export function NewMatch() {
       const lineups = lineupsFromSheet(sheet.flow, players, sheet.liberoNo);
       await api.updateMatch(m.id, { sheet: sheet.flow, ...(Object.keys(lineups).length ? { lineups } : {}) }).catch(() => {});
     }
-    if (practice) await api.updateMatch(m.id, { practice: { names: { a: sideNames.a.trim() || 'Blue', b: sideNames.b.trim() || 'White' }, sets: {} } });
+    if (practice) await api.updateMatch(m.id, { practice: { names: { a: sideNames.a.trim() || 'Near', b: sideNames.b.trim() || 'Far' }, sets: {} } });
     if (scheduleId) await api.scheduleMatch(scheduleId, m.id).catch(() => {});
     // Non-YouTube links (WeTransfer, Drive, …) are downloaded to the phone on the next screen; YouTube only when asked.
     if (link && (!ytId || (isApp() && download))) localStorage.setItem(`viq:pendingLink:${m.id}`, link);
@@ -90,8 +90,8 @@ export function NewMatch() {
         </label>
         {practice ? (
           <div className="row wrap">
-            <label className="small">First side <input className="input slim" value={sideNames.a} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, a: e.target.value })} aria-label="Name of the first side" /></label>
-            <label className="small">Second side <input className="input slim" value={sideNames.b} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, b: e.target.value })} aria-label="Name of the second side" /></label>
+            <label className="small">Near side <input className="input slim" value={sideNames.a} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, a: e.target.value })} aria-label="Name of the first side" /></label>
+            <label className="small">Far side <input className="input slim" value={sideNames.b} maxLength={30} onChange={(e) => setSideNames({ ...sideNames, b: e.target.value })} aria-label="Name of the second side" /></label>
           </div>
         ) : (
           <>

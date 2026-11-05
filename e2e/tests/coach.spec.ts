@@ -187,29 +187,29 @@ test('practice match: both sides from our roster, points for the right side', as
   await page.locator('form select').first().selectOption({ label: team.name });
   await page.getByLabel(/Practice match/).check();
   await page.getByRole('button', { name: /Create|Start/ }).click();
-  // The sides of set 1 are asked right away: Alex and Kim for Blue, Noa and Jo for White.
+  // The sides of set 1 are asked right away: Alex and Kim near, Noa and Jo far.
   const sheet = page.getByRole('dialog', { name: 'Sides for this set' });
   for (const n of ['Alex', 'Kim']) await sheet.locator('.practice-player', { hasText: n }).click();
-  // Twice for the second side.
+  // Twice for the far side.
   for (const n of ['Noa', 'Jo']) { await sheet.locator('.practice-player', { hasText: n }).click(); await sheet.locator('.practice-player', { hasText: n }).click(); }
   await sheet.getByRole('button', { name: /Save the sides/ }).click();
   await expect(page.locator('.pad-side-a')).toContainText('Kim');
   await expect(page.locator('.pad-side-b')).toContainText('Noa');
-  // Noa (White) kills: White's point.
+  // Noa (far side) kills: a point for Far.
   await page.locator('.pad-side-b .jersey', { hasText: 'Noa' }).click();
   await page.locator('.skill-row', { hasText: 'Attack' }).first().getByRole('button', { name: /Kill/ }).click();
   for (let i = 0; i < 2; i++) {
     const skip = page.getByRole('button', { name: /^Skip/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
   }
-  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*0 : 1\s*White/);
-  // A point for Blue without a tag of the rally.
-  await page.getByRole('button', { name: 'Point Blue' }).click();
-  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*1 : 1\s*White/);
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*0 : 1\s*Far/);
+  // A point for Near without a tag of the rally.
+  await page.getByRole('button', { name: 'Point Near' }).click();
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
   // Saved: the same after a reload.
   await page.waitForTimeout(500);
   await page.reload();
-  await expect(page.locator('.practice-bar')).toContainText(/Blue\s*1 : 1\s*White/);
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
 });
 
 test('practice match: far side tapped as seen, saved from its own half', async ({ page, login }) => {
