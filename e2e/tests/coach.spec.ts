@@ -195,6 +195,11 @@ test('practice match: both sides from our roster, points for the right side', as
   await sheet.getByRole('button', { name: /Save the sides/ }).click();
   await expect(page.locator('.pad-side-a')).toContainText('Kim');
   await expect(page.locator('.pad-side-b')).toContainText('Noa');
+  // Each side has its own line-up for the rotations.
+  await page.locator('.practice-bar').getByRole('button', { name: /Line-up Far/ }).click();
+  await expect(page.locator('.sheet-head')).toContainText('Line-up Far');
+  await expect(page.getByRole('button', { name: 'Far serves' })).toBeVisible();
+  await page.locator('.sheet-head').getByRole('button').click();
   // Noa (far side) kills: a point for Far.
   await page.locator('.pad-side-b .jersey', { hasText: 'Noa' }).click();
   await page.locator('.skill-row', { hasText: 'Attack' }).first().getByRole('button', { name: /Kill/ }).click();

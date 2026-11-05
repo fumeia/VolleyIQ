@@ -1,3 +1,4 @@
+import { lineupsOf } from '../lib/practice';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Match, Player, VEvent } from '../lib/api';
 import { playerStats } from '../lib/stats';
@@ -70,7 +71,7 @@ export function MatchReportView({ match, players, events, actions }: { match: Ma
   const rep = useMemo(() => matchReport(match, players, events), [match, players, events]);
   // Side-out / break % per rotation, when the match has line-ups.
   const rotations = useMemo(
-    () => rotationStats(events.filter((e) => e.status === 'confirmed'), new Map([[match.id ?? events[0]?.match_id ?? 0, match.lineups]]), players),
+    () => rotationStats(events.filter((e) => e.status === 'confirmed'), new Map([[match.id ?? events[0]?.match_id ?? 0, lineupsOf(match)]]), players),
     [events, match, players],
   );
   if (!rep.confirmed.length) return <p className="muted">No confirmed tags yet. Tag the match (or review the AI suggestions) to build the report.</p>;

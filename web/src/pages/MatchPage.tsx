@@ -24,7 +24,8 @@ import { ReadNumbers } from '../components/ReadNumbers';
 import { TimeoutSheet } from '../components/TimeoutSheet';
 import { ResumeSheet } from '../components/ResumeSheet';
 import { PracticeSheet } from '../components/PracticeSheet';
-import { sideOf } from '../lib/practice';
+import { sideOf, sideScore } from '../lib/practice';
+import type { Lineups } from '../lib/rotation';
 import { VoiceBar } from '../components/VoiceBar';
 import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
@@ -86,6 +87,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     return () => clearTimeout(timer);
   }, [reel?.i, reel?.list]);
   const [lineupSet, setLineupSet] = useState<number | null>(null);
+  // Practice match: whose line-up the sheet edits (the near side's are the match's own line-ups).
+  const [lineupSide, setLineupSide] = useState<'a' | 'b'>('a');
   const [showTimeout, setShowTimeout] = useState(false);
   // Practice match: both sides are our players; the sides are set per set.
   const practice = match.practice ?? null;
@@ -250,10 +253,16 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
 
   // Line-up of the current set, rotated by the points tagged so far: on-court players come first.
   const lineup = match.lineups?.[String(setNo)];
-  const rotationNow = lineup ? rotationAfter(lineup, pointsOfSet(confirmed, setNo, Infinity), players, getTime() ?? Infinity) : null;
-  const onCourt = rotationNow
-    ? [4, 3, 2, 5, 6, 1].map((pos) => rotationNow.positions[pos - 1]).filter((x): x is number => x != null)
-    : undefined;
+  // Points of the set for the first side (a practice match: a point of the second side is "them").
+  const setPoints = practice
+    ? confirmed.filter((e) => (e.set_no ?? 1) === setNo).map((e) => sideScore(e)).filter((x): x is 'us' | 'them' => !!x)
+    : pointsOfSet(confirmed, setNo, Infinity);
+  const rotationNow = lineup ? rotationAfter(lineup, setPoints, players, getTime() ?? Infinity) : null;
+  // Practice match: the second side rotates with its own line-up, from its own view of the points.
+  const lineupB = practice?.lineupsB?.[String(setNo)] ?? null;
+  const rotationB = lineupB ? rotationAfter(lineupB, setPoints.map((x) => (x === 'us' ? 'them' : 'us')), players, getTime() ?? Infinity) : null;
+  const courtOf = (r: typeof rotationNow) => (r ? [4, 3, 2, 5, 6, 1].map((pos) => r.positions[pos - 1]).filter((x): x is number => x != null) : []);
+  const onCourt = rotationNow || rotationB ? [...courtOf(rotationNow), ...courtOf(rotationB)] : undefined;
 
   /** Deletes saved events; Undo puts them back. */
   async function deleteEvents(list: VEvent[]) {
@@ -295,7 +304,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const lastPoint = setTags.map((e) => !!scoreOf(e)).lastIndexOf(true);
   const rallyTags = setTags.slice(lastPoint + 1);
   const lastTag = rallyTags[rallyTags.length - 1] ?? null;
-  const server = rotationNow?.weServe ? players.find((p) => p.id === rotationNow.positions[0]) ?? null : null;
+  const serverId = rotationNow?.weServe ? rotationNow.positions[0] : rotationB?.weServe ? rotationB.positions[0] : null;
+  const server = serverId != null ? players.find((p) => p.id === serverId) ?? null : null;
 
   /** A pass graded 0 is not a point by itself (it can be rescued): ask whether it was their ace. */
   const zeroPass = lastTag?.action === 'receive' && lastTag.value === 0 ? lastTag : null;
@@ -503,6 +513,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <div className="practice-bar">
                     <span>Practice · set {setNo}: <b>{practice.names.a}</b> {score.us} : {score.them} <b>{practice.names.b}</b></span>
                     <button className="btn-ghost small" onClick={() => setSidesOpen(true)}>{sidesNow ? 'Change sides' : `Pick the sides of set ${setNo}`}</button>
+                    {sidesNow && (['a', 'b'] as const).map((k) => (
+                      <button key={k} className="btn-ghost small" onClick={() => { setLineupSide(k); setLineupSet(setNo); }}>
+                        Line-up {practice.names[k]}{(k === 'a' ? lineup : lineupB) ? ' ✓' : ''}
+                      </button>
+                    ))}
                   </div>
                 )}
                 {paused ? (
@@ -701,9 +716,26 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           }} />
       )}
       {showTimeout && <TimeoutSheet match={match} players={players} events={events} set={setNo} onClose={() => setShowTimeout(false)} />}
-      {lineupSet != null && (
+      {lineupSet != null && (!practice || lineupSide === 'a') && (
         <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
-          onSave={async (lineups) => { setMatch(await api.updateMatch(match.id, { lineups })); flash('Line-up saved'); }} />
+          title={practice ? practice.names.a : undefined}
+          serveFirstFor={practice ? (n) => { const o = practice.lineupsB?.[String(n)]; return o ? !o.weServeFirst : undefined; } : undefined}
+          onSave={async (lineups) => {
+            // Practice: the other side serves first when this one does not.
+            const other = practice?.lineupsB ? syncServe(practice.lineupsB, lineups) : null;
+            setMatch(await api.updateMatch(match.id, { lineups, ...(practice && other ? { practice: { ...practice, lineupsB: other } } : {}) }));
+            flash('Line-up saved');
+          }} />
+      )}
+      {lineupSet != null && practice && lineupSide === 'b' && (
+        <LineupSheet match={{ ...match, lineups: practice.lineupsB ?? null }} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
+          title={practice.names.b}
+          serveFirstFor={(n) => { const o = match.lineups?.[String(n)]; return o ? !o.weServeFirst : undefined; }}
+          onSave={async (lineupsB) => {
+            const own = match.lineups ? syncServe(match.lineups, lineupsB) : null;
+            setMatch(await api.updateMatch(match.id, { practice: { ...practice, lineupsB }, ...(own ? { lineups: own } : {}) }));
+            flash(`Line-up of ${practice.names.b} saved`);
+          }} />
       )}
 
       {showKeys && <KeyHelp onClose={() => setShowKeys(false)} />}
@@ -1131,4 +1163,9 @@ function OfficialCheck({ matchId, confirmed }: { matchId: number; confirmed: VEv
       <span className="small muted">{off.length === 0 ? 'Every set matches the official score.' : 'A point counts for us from a kill, ace, block point or their error; for them from our errors and their points. Missing points are usually a rally without its last tag.'}</span>
     </div>
   );
+}
+
+/** Practice match: in each set the other side serves first when this side does not (its line-ups' sets only). */
+function syncServe(other: Lineups, changed: Lineups): Lineups {
+  return Object.fromEntries(Object.entries(other).map(([k, l]) => [k, changed[k] ? { ...l, weServeFirst: !changed[k].weServeFirst } : l]));
 }

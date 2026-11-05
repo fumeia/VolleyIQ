@@ -1,3 +1,4 @@
+import { lineupsOf } from './practice';
 import type { Match, Player, VEvent } from './api';
 import { isOffBlock, isTip } from './actions';
 import { breakPct, receptionZones, rotationStats, sideOutPct, type RotationRow, type ZoneRow } from './analysis';
@@ -117,7 +118,7 @@ export function scoutingReport(players: Player[], events: VEvent[], matches: Pic
   }
   const servers = [...srv.values()].map((r) => ({ ...r, targets: r.targets.sort((a, b) => b.n - a.n) })).sort((a, b) => b.n - a.n);
 
-  const lineups = new Map<number, Lineups | null | undefined>(matches.map((m) => [m.id, m.lineups]));
+  const lineups = new Map<number, Lineups | null | undefined>(matches.map((m) => [m.id, lineupsOf(m)]));
   const rot = rotationStats(ev, lineups, players);
   const rotations = rot.some((r) => r.receiving + r.serving > 0) ? rot : null;
   const points = pointSources(ev);

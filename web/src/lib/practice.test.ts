@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, VEvent } from './api';
-import { expandPractice, sideOf, sideScore } from './practice';
+import { expandPractice, lineupsOf, sideOf, sideScore } from './practice';
+import { rotationStats } from './analysis';
 import { scoreBySet, playerStats } from './stats';
 import { buildRallies } from './sequence';
 import { pointSources } from '../report/analytics';
@@ -53,4 +54,26 @@ describe('practice matches', () => {
     const plain = [ev('kill', 1, 'a', { match_id: 2, side: null })];
     expect(expandPractice(plain, [{ id: 2, practice: null }])).toBe(plain);
   });
+
+  it('counts rotations for both sides, each with its own line-up', () => {
+    // Setters: #1 (near) and #3 (far). Near serves first; far: #3 starts in position 1.
+    const S = (pid: number) => ({ ...P(pid), role: pid === 1 || pid === 3 ? 'S' : 'OH' }) as Player;
+    const players = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(S);
+    const m = {
+      id: 1,
+      lineups: { 1: { order: [1, 2, 5, 6, 7, 8], weServeFirst: true } },
+      practice: { ...practice, lineupsB: { 1: { order: [3, 4, 9, 10, 11, 12], weServeFirst: false } } },
+    };
+    // Near serves and wins (break), then far wins (side-out), then near wins (side-out).
+    let k = 100;
+    const e = (action: string, side: 'a' | 'b') => ({ id: ++k, match_id: 1, action, player_id: null, value: null, t: k, set_no: 1, status: 'confirmed', side }) as VEvent;
+    const all = expandPractice([e('opp_error', 'a'), e('opp_error', 'b'), e('opp_error', 'a')], [m]);
+    const rows = rotationStats(all, new Map([[1, lineupsOf(m)]]), players);
+    const tot = rows.reduce((a, r) => ({ receiving: a.receiving + r.receiving, sideOuts: a.sideOuts + r.sideOuts, serving: a.serving + r.serving, breaks: a.breaks + r.breaks }), { receiving: 0, sideOuts: 0, serving: 0, breaks: 0 });
+    // Near: served 2 (1 break), received 1 (1 side-out). Far: received 2 (1 side-out), served 1 (no break). Both views count.
+    expect(tot).toEqual({ serving: 3, breaks: 1, receiving: 3, sideOuts: 2 });
+    // Far's first rally: received with its setter #3 in position 1.
+    expect(rows[0].receiving).toBeGreaterThan(0);
+  });
 });
+

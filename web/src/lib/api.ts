@@ -81,6 +81,8 @@ export interface Practice {
   names: { a: string; b: string };
   /** Per set: the players of each side, and which side plays on the near half (bottom of the drawn court, as the camera / coach sees it). */
   sets: Record<string, { a: number[]; b: number[]; near?: 'a' | 'b' }>;
+  /** The second side's line-ups per set (the first side's are the match's own line-ups). */
+  lineupsB?: Lineups | null;
 }
 
 export interface VEvent {

@@ -1,5 +1,6 @@
 import { scoreOf, type ActionCode } from './actions';
 import type { Match, Practice, VEvent } from './api';
+import type { Lineups } from './rotation';
 
 /**
  * Practice matches: both sides are our own players, picked anew each set. Every tag says which
@@ -46,4 +47,14 @@ export function expandPractice(events: VEvent[], matches: Pick<Match, 'id' | 'pr
     if (scoreOf(e)) out.push(mirror(e, own === 'a' ? 'b' : 'a', -Math.abs(e.id) - 1e9));
   }
   return out;
+}
+
+/**
+ * Line-ups for the analysis: the match's own per set ("1".."5"), and in a practice match the second
+ * side's as "b1".."b5" (its view of the match is analysed with them).
+ */
+export function lineupsOf(m: Pick<Match, 'lineups' | 'practice'>): Lineups | null {
+  const b = m.practice?.lineupsB;
+  if (!b) return m.lineups ?? null;
+  return { ...(m.lineups ?? {}), ...Object.fromEntries(Object.entries(b).map(([k, v]) => [`b${k}`, v])) };
 }

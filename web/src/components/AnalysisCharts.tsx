@@ -1,3 +1,4 @@
+import { lineupsOf } from '../lib/practice';
 import { useMemo } from 'react';
 import { BarChart, GroupedColumns, LineChart, Scatter, SERIES } from '../charts/Charts';
 import type { Match, Player, VEvent } from '../lib/api';
@@ -21,7 +22,7 @@ export function AnalysisCharts({ players, events, matches }: { players: Player[]
   const rows = useMemo(() => playerStats(players, all).filter((r) => r.count > 0), [players, all]);
   const season = (matches?.length ?? 0) > 1;
   const flow = useMemo(() => (season ? [] : scoreFlow(all)), [all, season]);
-  const lineups = useMemo(() => new Map((matches ?? []).map((m) => [m.id, m.lineups])), [matches]);
+  const lineups = useMemo(() => new Map((matches ?? []).map((m) => [m.id, lineupsOf(m)])), [matches]);
   const rotations = useMemo(() => rotationStats(all, lineups, players), [all, lineups, players]);
   const hasRotations = rotations.some((r) => r.receiving + r.serving > 0);
   // Without line-ups, the rotations come from the order in which our players served.

@@ -16,13 +16,17 @@ interface Props {
   onClose: () => void;
   /** The video, to read the line-up from a frame at a serve. */
   player?: React.RefObject<PlayerHandle | null>;
+  /** Whose line-up (practice match: the side's name). */
+  title?: string;
+  /** Practice match: who serves first in a set without a line-up yet (the opposite of the other side). */
+  serveFirstFor?: (set: number) => boolean | undefined;
 }
 
 // Court positions as seen from behind our baseline: front row 4-3-2 at the net, back row 5-6-1.
 const GRID = [4, 3, 2, 5, 6, 1];
 
 /** Starting six per set (position 1 = server), libero and who serves first. */
-export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose, player }: Props) {
+export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose, player, title, serveFirstFor }: Props) {
   const [all, setAll] = useState<Lineups>(() => match.lineups ?? {});
   const [set, setSet] = useState(initialSet);
   const [slot, setSlot] = useState<number | null>(1);
@@ -32,7 +36,8 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
   const empty: Lineup = { order: [null, null, null, null, null, null], libero: null, weServeFirst: true };
   // A new set starts from the previous set's six (without its substitutions).
   const prev = all[String(set - 1)];
-  const cur = all[String(set)] ?? (prev ? { ...prev, subs: [] } : empty);
+  const serveDefault = serveFirstFor?.(set);
+  const cur = all[String(set)] ?? { ...(prev ? { ...prev, subs: [] } : empty), ...(serveDefault !== undefined ? { weServeFirst: serveDefault } : {}) };
   const subs = [...(cur.subs ?? [])].sort((a, b) => a.t - b.t);
   const subAt = now ?? 1e9 + subs.length; // live tagging: after everything so far
   const onCourtNow = orderAt(cur, subAt).filter((x): x is number => x != null);
@@ -55,7 +60,7 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head"><b>Line-up</b><button className="btn-ghost" onClick={onClose}>✕</button></div>
+        <div className="sheet-head"><b>Line-up{title ? ` ${title}` : ''}</b><button className="btn-ghost" onClick={onClose}>✕</button></div>
         <div className="segmented">
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} className={set === n ? 'on' : ''} onClick={() => setSet(n)}>Set {n}{all[String(n)] ? ' ✓' : ''}</button>
@@ -119,8 +124,8 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
         )}
         <label className="field-label">First serve of set {set}</label>
         <div className="segmented">
-          <button className={cur.weServeFirst ? 'on' : ''} onClick={() => put({ ...cur, weServeFirst: true })}>We serve</button>
-          <button className={!cur.weServeFirst ? 'on' : ''} onClick={() => put({ ...cur, weServeFirst: false })}>They serve</button>
+          <button className={cur.weServeFirst ? 'on' : ''} onClick={() => put({ ...cur, weServeFirst: true })}>{title ? `${title} serves` : 'We serve'}</button>
+          <button className={!cur.weServeFirst ? 'on' : ''} onClick={() => put({ ...cur, weServeFirst: false })}>{title ? 'The other side serves' : 'They serve'}</button>
         </div>
         <div className="sheet-actions">
           <button className="btn" onClick={onClose}>Cancel</button>

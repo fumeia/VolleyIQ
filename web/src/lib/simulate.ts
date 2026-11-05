@@ -1,3 +1,4 @@
+import { lineupsOf } from './practice';
 import { isGap, scoreOf } from './actions';
 import { rotationStats } from './analysis';
 import type { Match, Player, VEvent } from './api';
@@ -66,7 +67,7 @@ export function teamRates(events: VEvent[], matches: Pick<Match, 'id' | 'lineups
   }
   const sideout = shrink(so, rec, LEAGUE_SIDEOUT, TEAM_PRIOR);
   const brk = shrink(br, srv, 1 - LEAGUE_SIDEOUT, TEAM_PRIOR);
-  const lineups = new Map<number, Lineups | null | undefined>(matches.map((m) => [m.id, m.lineups]));
+  const lineups = new Map<number, Lineups | null | undefined>(matches.map((m) => [m.id, lineupsOf(m)]));
   const rot = rotationStats(events, lineups, players);
   const byRotation = rot.reduce((a, r) => a + r.receiving + r.serving, 0) >= 20;
   return {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Practice matches: rotations**
+- Each side gets its own line-up per set ("Line-up Near" / "Line-up Far" above the tag pad): positions 1-6, the libero, and who serves first (the other side's choice follows by itself). While tagging, both sides rotate with the points: the players on court come first on the pad, and the server of the side serving gets the quick "Serve" button.
+- Rotation stats (side-out and break per setter position) include practice matches, each side counted from its own view with its own line-up.
+
 **Practice matches: Near and Far**
 - The two sides are now called Near and Far by default (the near half is the bottom of the court as you or the camera see it): every player has a row with Near | Far | Out to tap. No separate "which side is near" question any more; "Swap near and far" when the groups change ends. Names can still be changed when creating the match.
 

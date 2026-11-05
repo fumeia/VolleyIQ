@@ -60,7 +60,8 @@ export function rotationStats(events: VEvent[], lineupsByMatch: Map<number, Line
   }
   for (const [k, list] of groups) {
     const [matchId, set] = k.split(':').map(Number);
-    const lineup = lineupsByMatch.get(matchId)?.[String(set)];
+    // A practice match's second side: its own line-up ("b1" …, see lineupsOf).
+    const lineup = lineupsByMatch.get(matchId)?.[`${k.endsWith(':b') ? 'b' : ''}${set}`];
     if (!lineup) continue;
     const points: ('us' | 'them')[] = [];
     for (const e of list.sort(byTime)) {

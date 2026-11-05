@@ -24,6 +24,23 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+const LINEUPS_FORMAT = 'lineups: { "1".."5": { order: [6 player ids or null], libero, weServeFirst, subs?: [{ t, out, in }] } }';
+
+/** Line-ups per set ("1".."5"): [the cleaned object or null, whether it was valid]. */
+function cleanLineups(l) {
+  if (l === null || l === undefined) return [null, true];
+  const id = (v) => v === null || Number.isInteger(v);
+  const ok = typeof l === 'object' && !Array.isArray(l) && Object.entries(l).length <= 5 && Object.entries(l).every(([k, v]) =>
+    /^[1-5]$/.test(k) && Array.isArray(v?.order) && v.order.length === 6 && v.order.every(id) && id(v.libero ?? null) && typeof v.weServeFirst === 'boolean'
+    && (v.subs == null || (Array.isArray(v.subs) && v.subs.length <= 30
+      && v.subs.every((x) => Number.isFinite(x?.t) && x.t >= 0 && Number.isInteger(x.out) && Number.isInteger(x.in)))));
+  if (!ok) return [null, false];
+  return [Object.fromEntries(Object.entries(l).map(([k, v]) => [k, {
+    order: v.order, libero: v.libero ?? null, weServeFirst: v.weServeFirst,
+    ...(v.subs?.length ? { subs: v.subs.map((x) => ({ t: x.t, out: x.out, in: x.in })) } : {}),
+  }])), true];
+}
+
 /** Normalizes an incoming event body; returns [event, error]. */
 const HINTS = ['quiet', 'gap'];
 /** Seconds: a suggestion this close to a saved event is the same touch. */
@@ -230,18 +247,9 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     }
     let lineups = m.lineups;
     if ('lineups' in b) {
-      const l = b.lineups;
-      const id = (v) => v === null || Number.isInteger(v);
-      const ok = l === null || (typeof l === 'object' && !Array.isArray(l) && Object.entries(l).length <= 5 && Object.entries(l).every(([k, v]) =>
-        /^[1-5]$/.test(k) && Array.isArray(v?.order) && v.order.length === 6 && v.order.every(id) && id(v.libero ?? null) && typeof v.weServeFirst === 'boolean'
-        && (v.subs == null || (Array.isArray(v.subs) && v.subs.length <= 30
-          && v.subs.every((x) => Number.isFinite(x?.t) && x.t >= 0 && Number.isInteger(x.out) && Number.isInteger(x.in))))));
-      if (!ok) return bad(reply, 'lineups: { "1".."5": { order: [6 player ids or null], libero, weServeFirst, subs?: [{ t, out, in }] } }');
-      lineups = l === null ? null : JSON.stringify(Object.fromEntries(Object.entries(l).map(([k, v]) =>
-        [k, {
-          order: v.order, libero: v.libero ?? null, weServeFirst: v.weServeFirst,
-          ...(v.subs?.length ? { subs: v.subs.map((x) => ({ t: x.t, out: x.out, in: x.in })) } : {}),
-        }])));
+      const [clean, ok] = cleanLineups(b.lineups);
+      if (!ok) return bad(reply, LINEUPS_FORMAT);
+      lineups = clean === null ? null : JSON.stringify(clean);
     }
     let practice = m.practice;
     if ('practice' in b) {
@@ -252,7 +260,10 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
         && typeof p.sets === 'object' && p.sets !== null && Object.entries(p.sets).length <= 5
         && Object.entries(p.sets).every(([k, v]) => /^[1-5]$/.test(k) && ids(v?.a) && ids(v?.b) && (v.near == null || v.near === 'a' || v.near === 'b')));
       if (!ok) return bad(reply, 'practice: { names: { a, b }, sets: { "1".."5": { a: [player ids], b: [player ids] } } }');
+      const [lineupsB, lbOk] = cleanLineups(p?.lineupsB ?? null);
+      if (!lbOk) return bad(reply, `practice.lineupsB: ${LINEUPS_FORMAT}`);
       practice = p === null ? null : JSON.stringify({
+        ...(lineupsB ? { lineupsB } : {}),
         names: { a: p.names.a.trim(), b: p.names.b.trim() },
         sets: Object.fromEntries(Object.entries(p.sets).map(([k, v]) => [k, { a: v.a, b: v.b, ...(v.near ? { near: v.near } : {}) }])),
       });
