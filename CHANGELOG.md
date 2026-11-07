@@ -8,6 +8,7 @@
 - It is tested on parts of the matches it did not learn from, next to the threshold rule on the same tags. Only when it finds more touches for less noise does the next run use it (Auto → "Learning from your tags" shows both, and the switch turns it off). It needs about 150 tagged touches lined up with a sound: one tagged match is plenty.
 - Auto → Options → "This match is already tagged: only learn from it": a run on a match you tagged by hand keeps its sounds for the learning and adds nothing to Review; it skips reading the picture, so it is much faster. On by default for a match with 100+ tagged touches.
 - Needs the new app: runs of older versions only kept 3 measurements per sound.
+- Small on the server: only the newest run of a match keeps its sound peaks (about 1 MB for a 98-minute match; older runs keep their results), and a training uses at most the 10 most recent matches and 8,000 labelled sounds: about a second and under 50 MB of memory even then, retrained only when tags or runs change.
 
 **Fine scrubbing**
 - Match page: a second strip under the timeline with the 10 seconds around the current moment, to put the video on the exact ball contact (0.04 s steps; the video pauses while you drag, and the strip stays put). Saved tags show as marks on it.

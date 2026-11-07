@@ -43,7 +43,7 @@ export function features(peaks) {
     while (b10 + 1 < n && peaks[b10 + 1][0] <= t + 10) b10++;
     const prev = i > 0 ? Math.min(t - peaks[i - 1][0], 3) : 3;
     const next = i + 1 < n ? Math.min(peaks[i + 1][0] - t, 3) : 3;
-    out[i] = [
+    out[i] = Float32Array.of(
       lz[i],
       Math.min(p[2], 3),
       ln(1 + Math.max(p[3], 0)),
@@ -57,7 +57,7 @@ export function features(peaks) {
       next,
       (b3 - a3) / 10,
       lz[i] - (sum[b10 + 1] - sum[a10]) / (b10 - a10 + 1),
-    ];
+    );
   }
   return out;
 }
@@ -104,14 +104,16 @@ export function labelMatch(events, peaks) {
 const sigmoid = (z) => 1 / (1 + Math.exp(-z));
 
 /** Logistic regression on standardised inputs, both classes weighted equally, a little L2. */
-export function fit(rows, ys, { iters = 400, lr = 0.5, l2 = 1e-3 } = {}) {
+export function fit(rows, ys, { iters = 250, lr = 0.8, l2 = 1e-3 } = {}) {
   const d = rows[0].length, n = rows.length;
   const mean = new Array(d).fill(0), std = new Array(d).fill(0);
   for (const r of rows) for (let k = 0; k < d; k++) mean[k] += r[k] / n;
   for (const r of rows) for (let k = 0; k < d; k++) std[k] += (r[k] - mean[k]) ** 2 / n;
   // A column that never changes (or only by rounding) is left as it is.
   for (let k = 0; k < d; k++) { const sd = Math.sqrt(std[k]); std[k] = sd > 1e-6 ? sd : 1; }
-  const xs = rows.map((r) => r.map((v, k) => (v - mean[k]) / std[k]));
+  // Standardised once, in one flat array (small in memory, quick to loop over).
+  const xs = new Float64Array(n * d);
+  rows.forEach((r, i) => { for (let k = 0; k < d; k++) xs[i * d + k] = (r[k] - mean[k]) / std[k]; });
   const pos = ys.filter((y) => y === 1).length, neg = n - pos;
   const wPos = n / (2 * Math.max(pos, 1)), wNeg = n / (2 * Math.max(neg, 1));
   const w = new Array(d).fill(0);
@@ -120,10 +122,11 @@ export function fit(rows, ys, { iters = 400, lr = 0.5, l2 = 1e-3 } = {}) {
     const g = new Array(d).fill(0);
     let gb = 0;
     for (let i = 0; i < n; i++) {
+      const o = i * d;
       let z = b;
-      for (let k = 0; k < d; k++) z += w[k] * xs[i][k];
+      for (let k = 0; k < d; k++) z += w[k] * xs[o + k];
       const err = (sigmoid(z) - ys[i]) * (ys[i] === 1 ? wPos : wNeg);
-      for (let k = 0; k < d; k++) g[k] += err * xs[i][k];
+      for (let k = 0; k < d; k++) g[k] += err * xs[o + k];
       gb += err;
     }
     for (let k = 0; k < d; k++) w[k] -= lr * (g[k] / n + l2 * w[k]);
@@ -149,9 +152,12 @@ function score(matches, keep) {
       while (j < kept.length && kept[j] < t - WINDOW) j++;
       if (j < kept.length && kept[j] <= t + WINDOW) found++;
     }
+    // Both sorted by time: one pass through each.
+    let q = 0;
     for (const [a, b] of m.dead) {
       deadSec += b - a;
-      for (const t of kept) if (t >= a && t <= b) noise++;
+      while (q < kept.length && kept[q] < a) q++;
+      for (let r = q; r < kept.length && kept[r] <= b; r++) noise++;
     }
   });
   return { truth, found, recall: truth ? found / truth : 0, noise, noisePerMin: deadSec ? noise / (deadSec / 60) : 0, score: found - NOISE_COST * noise };
@@ -170,8 +176,19 @@ function foldOf(matches, mi, k) {
  * Trains and tests the model on the labelled matches: { ready, model, cv, rule, ... }. [matches]
  * come from labelMatch; only runs whose peaks have all the measurements can be used.
  */
+/** At most this many labelled sounds go into a training (the rest of the "not a touch" ones are thinned out evenly). */
+export const MAX_ROWS = 8000;
+
 export function trainModel(matches) {
   const ms = matches.filter((m) => m && m.peaks[0]?.length >= 10);
+  // Thin out the "not a touch" sounds evenly when there are more than fit: memory and time stay small.
+  const nPos = ms.reduce((a, m) => a + m.labels.filter((l) => l === 1).length, 0);
+  const nNeg = ms.reduce((a, m) => a + m.labels.filter((l) => l === 0).length, 0);
+  const keepEvery = Math.max(1, Math.ceil(nNeg / Math.max(1, MAX_ROWS - Math.min(nPos, MAX_ROWS / 2))));
+  if (keepEvery > 1) {
+    let c = 0;
+    for (const m of ms) m.labels = m.labels.map((l) => (l === 0 && (c++ % keepEvery) !== 0 ? -1 : l));
+  }
   const pos = ms.reduce((a, m) => a + m.labels.filter((l) => l === 1).length, 0);
   const neg = ms.reduce((a, m) => a + m.labels.filter((l) => l === 0).length, 0);
   const base = { matches: ms.length, touches: ms.reduce((a, m) => a + m.touches.length, 0), positives: pos, negatives: neg };
@@ -206,8 +223,10 @@ const r6 = (v) => Math.round(v * 1e6) / 1e6;
 
 /** From the database: the newest run with measured peaks of every match with tagged touches. */
 export function trainFromDb(db) {
+  // The newest run of at most the 10 most recently run matches: enough to learn from, small in memory.
   const runs = db.prepare(`SELECT r.match_id, r.candidates FROM detection_runs r
-    WHERE r.candidates IS NOT NULL AND r.id = (SELECT MAX(id) FROM detection_runs x WHERE x.match_id = r.match_id AND x.candidates IS NOT NULL)`).all();
+    WHERE r.candidates IS NOT NULL AND r.id = (SELECT MAX(id) FROM detection_runs x WHERE x.match_id = r.match_id AND x.candidates IS NOT NULL)
+    ORDER BY r.id DESC LIMIT 10`).all();
   const matches = runs.map((r) => {
     const peaks = JSON.parse(r.candidates).sort((a, b) => a[0] - b[0]);
     if (!peaks.length || peaks[0].length < 10) return null;

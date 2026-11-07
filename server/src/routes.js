@@ -767,6 +767,8 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       if (runEvents.length) {
         const p = params && typeof params === 'object' ? JSON.stringify(params).slice(0, 2000) : null;
         db.prepare('INSERT INTO detection_runs (match_id, params, events, candidates) VALUES (?, ?, ?, ?)').run(match.id, p, JSON.stringify(runEvents), peaks?.length ? JSON.stringify(peaks) : null);
+        // Only the newest run's sound peaks are learned from: older runs keep their results, not their peaks (about 1 MB each).
+        if (peaks?.length) db.prepare('UPDATE detection_runs SET candidates = NULL WHERE match_id = ? AND id < (SELECT MAX(id) FROM detection_runs WHERE match_id = ?)').run(match.id, match.id);
         db.prepare('DELETE FROM detection_runs WHERE match_id = ? AND id NOT IN (SELECT id FROM detection_runs WHERE match_id = ? ORDER BY id DESC LIMIT 10)').run(match.id, match.id);
       }
       // A run on a match that is already tagged, only to learn from (the app's "only learn" option):

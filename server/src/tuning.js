@@ -55,9 +55,12 @@ export function evaluate(data, threshold, sustainMax) {
       while (j < kept.length && kept[j] < t - WINDOW) j++;
       if (j < kept.length && kept[j] <= t + WINDOW) found++;
     }
+    // Both sorted by time: one pass through each.
+    let k = 0;
     for (const [a, b] of m.dead) {
       deadSec += b - a;
-      for (const t of kept) if (t >= a && t <= b) noise++;
+      while (k < kept.length && kept[k] < a) k++;
+      for (let q = k; q < kept.length && kept[q] <= b; q++) noise++;
     }
   }
   return { threshold, sustainMax, truth, found, recall: truth ? found / truth : 0, noise, noisePerMin: deadSec ? noise / (deadSec / 60) : 0, score: found - NOISE_COST * noise };
