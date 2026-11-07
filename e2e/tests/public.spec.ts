@@ -42,3 +42,17 @@ test('a wrong public link says so', async ({ page }) => {
   await page.goto('/s/t/not-a-real-token');
   await expect(page.getByText(/invalid or was revoked/).first()).toBeVisible();
 });
+
+test('replays: the chosen filters stay after going to another tab and back', async ({ page, seed }) => {
+  await page.goto(`/s/t/${seed.share}/replays`);
+  const skills = page.locator('.replay-filters .chips .chip');
+  const pick = skills.nth(1);
+  const name = (await pick.textContent())!;
+  await pick.click();
+  await page.locator('.replay-result').getByRole('button', { name: 'Points' }).click();
+  await page.locator('.public-nav').getByRole('link', { name: 'Overview' }).click();
+  await expect(page.locator('.replay-filters')).toHaveCount(0);
+  await page.locator('.public-nav').getByRole('link', { name: 'Replays' }).click();
+  await expect(page.locator('.replay-filters .chips .chip.on')).toHaveText(name);
+  await expect(page.locator('.replay-result button.on')).toHaveText('Points');
+});

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useKept } from '../lib/useKept';
 import { t } from '../lib/i18n';
 import { ACTION_BY_CODE, SKILLS } from '../lib/actions';
 import { api, type Match, type Player, type Playlist, type VEvent } from '../lib/api';
@@ -37,18 +38,29 @@ const loadSent = (token: string): number[] => { try { return JSON.parse(localSto
  */
 export function Replays({ token, matches, players, events, initialMatch, playlists: shared = [] }: Props) {
   const withTags = matches.filter((m) => events.some((e) => e.match_id === m.id && e.t != null));
-  const [matchId, setMatchId] = useState<number | null>(initialMatch ?? withTags[withTags.length - 1]?.id ?? null);
+  // The choices below stay for the visit: going to another tab and back keeps them (per team link).
+  const kept = (name: string) => `viq:replays:${token}:${name}`;
+  // The link's match counts once: a match picked here afterwards stays when coming back through the same link.
+  const [force] = useState(() => {
+    if (initialMatch == null) return undefined;
+    try {
+      if (sessionStorage.getItem(kept('opened')) === String(initialMatch)) return undefined;
+      sessionStorage.setItem(kept('opened'), String(initialMatch));
+    } catch { /* storage blocked: the link's match */ }
+    return initialMatch;
+  });
+  const [matchId, setMatchId] = useKept<number | null>(kept('match'), initialMatch ?? withTags[withTags.length - 1]?.id ?? null, (v) => v == null || matches.some((m) => m.id === v), force);
   const match = matches.find((m) => m.id === matchId) ?? null;
   const [files, setFiles] = useState<Record<number, { url: string; name: string }>>({});
-  const [skill, setSkill] = useState('all');
-  const [result, setResult] = useState<'all' | 'points' | 'errors'>('all');
-  const [playerId, setPlayerId] = useState<number | null>(null);
-  const [set, setSet] = useState<number | null>(null);
-  const [lead, setLead] = useState(0);
-  const [rate, setRate] = useState(1);
+  const [skill, setSkill] = useKept(kept('skill'), 'all');
+  const [result, setResult] = useKept<'all' | 'points' | 'errors'>(kept('result'), 'all');
+  const [playerId, setPlayerId] = useKept<number | null>(kept('player'), null, (v) => v == null || players.some((p) => p.id === v));
+  const [set, setSet] = useKept<number | null>(kept('set'), null);
+  const [lead, setLead] = useKept(kept('lead'), 0, (v) => v >= 0 && v < LEADS.length);
+  const [rate, setRate] = useKept(kept('rate'), 1, (v) => v > 0 && v <= 4);
   const [cur, setCur] = useState<number | null>(null);
   const [playAll, setPlayAll] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useKept(kept('editing'), false);
   // The correction being made (a tag, or with [add] a touch that is not tagged, at that video time).
   const [target, setTarget] = useState<{ event: VEvent; add?: { matchId: number; t: number } } | null>(null);
   const [notice, setNotice] = useState('');
@@ -92,7 +104,7 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
   const sets = [...new Set(all.map((e) => e.set_no ?? 1))].sort((a, b) => a - b);
   const inMatch = players.filter((p) => all.some((e) => e.player_id === p.id)).sort((a, b) => (a.number ?? 99) - (b.number ?? 99));
   // A playlist: its tags in its order, from any match (the video follows the clip's match).
-  const [listId, setListId] = useState<number | null>(null);
+  const [listId, setListId] = useKept<number | null>(kept('list'), null);
   // Teammates' own playlists: with their shirt number they see their private ones too, and can make and change their own.
   const [jersey, setJerseyState] = useState<number | null>(() => { try { const v = localStorage.getItem('viq:jersey'); return v && /^\d{1,2}$/.test(v) ? Number(v) : null; } catch { return null; } });
   const setJersey = (n: number | null) => { setJerseyState(n); try { if (n == null) localStorage.removeItem('viq:jersey'); else localStorage.setItem('viq:jersey', String(n)); } catch { /* private mode */ } };

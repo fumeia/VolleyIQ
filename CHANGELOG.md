@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Replays keep your filters**
+- The match, skill, player, set, points / errors, playlist, clip length, speed and corrections switch you pick on Replays stay when you go to another tab and come back (until the app or browser tab is closed).
+
 **Events list: +1 / +0 on every tag**
 - Each tag in the Events tab shows whether it scores a point as the match is read now: +1 (in your team's colour for your points, orange for theirs; in a practice match by side), +0 when it does not, and a dashed +0 for a tag that is counted together with the one next to it (a blocked attack with the block point, a dig error with the kill). Hover for who gets the point.
 
