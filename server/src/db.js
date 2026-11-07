@@ -339,6 +339,11 @@ const MIGRATIONS = [
     const m = db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name);
     if (!m.includes('practice')) db.exec('ALTER TABLE matches ADD COLUMN practice TEXT');
   },
+  // v30: a match marked fully tagged keeps the rules for reading its tags ({ at, rules }).
+  (db) => {
+    const m = db.prepare('PRAGMA table_info(matches)').all().map((c) => c.name);
+    if (!m.includes('final')) db.exec('ALTER TABLE matches ADD COLUMN final TEXT');
+  },
 ];
 
 function migrate(db) {

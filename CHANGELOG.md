@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Blocks: one point, not two**
+- An "Attack blocked" directly followed by a "Block point" of the other side is now one point (for the blocking side), not a point for each. Both players keep the play in their stats (the attacker a blocked attack, the blocker a block point). This works on the tags you already have; nothing in them changes.
+- Block point has a second step: "Where did the ball land? (skip if unsure)". New charts in Block and Defense: "Where our block points landed" and "Blocked attacks: where they came down on our side", to see where the cover was missing.
+
+**Practice matches: kill off the block**
+- After "Off block → Kill", a sheet asks which blocker of the other side touched it. That player gets "Block touched out": a block error, no extra point.
+
+**Mark as fully tagged**
+- In the Events tab of a match: "Mark as fully tagged". The match keeps the tag-reading rules it was finished with, and new detection runs add no suggestions to it. Your own edits still work. "Unmark" undoes it.
+
+**Download the video from Replays**
+- Replays of a video uploaded to your storage have a download link (original, plus 720p and 480p when there are smaller copies), also for visitors of the public page. The links work for 6 hours.
+
 **Practice matches: the other side's answer comes first**
 - The quick row at the top of the tag pad now knows whose turn it is: a player of the other side than the last touch gets what answers it (after a serve: Receive first; after an attack: Dig, Block touch, No touch; after a set: Block touch, Dig). Before, it always offered what follows your own team's touch (after a serve: Dig, Block touch, Free ball), so Receive was missing there.
 - The pass row is called "Receive" ("Receive → tap court").

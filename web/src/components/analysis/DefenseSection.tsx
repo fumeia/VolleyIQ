@@ -3,7 +3,7 @@ import type { Player, VEvent } from '../../lib/api';
 import { buildRallies, contactQuality, transitionConversion, transitionPossessions, type Rally } from '../../lib/sequence';
 import { ourZone, targetDistance } from '../../lib/trajectory';
 import { who } from './AttackSection';
-import { BLOCKS, NetBlocks, NoTouchBlocks } from './BlockSection';
+import { BLOCKS, NetBlocks, NoTouchBlocks, BlockLandings } from './BlockSection';
 import { avg2, diverge, HalfZones, judge, meters, pct, ratio, StatFigure, Swatch, type ZoneValue, sample } from './ui';
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -92,6 +92,7 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
       )}
       <NetBlocks players={players} events={events} />
       <NoTouchBlocks players={players} events={events} />
+      <BlockLandings players={players} events={events} />
     </div>
   );
 }

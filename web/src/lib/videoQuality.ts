@@ -7,7 +7,11 @@ export const QUALITIES: { q: Quality; label: string }[] = [
 ];
 
 /** A streaming link with its smaller versions (only those already made). */
-export interface VideoLink { url: string; expiresIn: number; variants?: Partial<Record<'720' | '480', string>> }
+export interface VideoLink {
+  url: string; expiresIn: number; variants?: Partial<Record<'720' | '480', string>>;
+  /** The same files to save instead of play (link valid like the others), with their sizes when known. */
+  downloads?: { quality: 'original' | '720' | '480'; url: string; bytes: number | null }[];
+}
 
 const key = (who: string) => `viq:quality:${who}`;
 const isQuality = (v: unknown): v is Quality => v === 'original' || v === '720' || v === '480';

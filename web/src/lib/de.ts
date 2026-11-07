@@ -37,7 +37,7 @@ export const DE: Record<string, string> = {
   'Choose your copy of the match video': 'Deine Kopie des Matchvideos wählen', 'The team video could not be loaded.': 'Das Teamvideo konnte nicht geladen werden.',
   'It plays here on your device and is not uploaded.': 'Es läuft hier auf deinem Gerät und wird nicht hochgeladen.',
   'The video file used for tagging is called': 'Die Videodatei für das Erfassen heisst', 'Your copy': 'Deine Kopie', 'change': 'ändern',
-  'back to the team video': 'zurück zum Teamvideo', 'Video not playing?': 'Video läuft nicht?', 'Try the smaller 480p version': 'Die kleinere 480p-Version versuchen',
+  'back to the team video': 'zurück zum Teamvideo', 'Download the video': 'Video herunterladen', 'original': 'Original', 'Video not playing?': 'Video läuft nicht?', 'Try the smaller 480p version': 'Die kleinere 480p-Version versuchen',
   'use your own copy instead': 'stattdessen die eigene Kopie verwenden', 'Use your own copy instead': 'Stattdessen die eigene Kopie verwenden',
   'Playlists': 'Playlists', 'All touches': 'Alle Ballkontakte', 'All sets': 'Alle Sätze', 'Set {n}': 'Satz {n}', 'Errors': 'Fehler',
   'Play all {n}': 'Alle {n} abspielen', 'Short clips': 'Kurze Clips', 'Long clips': 'Lange Clips', 'Suggest corrections': 'Korrekturen vorschlagen',

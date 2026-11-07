@@ -290,3 +290,32 @@ test('practice match: after the near side serves, a far player gets Receive firs
   // The receive row says so too.
   await expect(page.locator('.skill-row', { hasText: 'Receive' }).first()).toBeVisible();
 });
+
+test('practice match: blocked attack + block point is one point; off the block asks who touched it', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Block team ${Date.now()}` } })).json();
+  const near = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Ash Win', number: 3, role: 'OH' } })).json()).id;
+  const far = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Kon Stantin', number: 5, role: 'MB' } })).json()).id;
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Block test', team_id: team.id, mode: 'live' } })).json();
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [near], b: [far] } } } } });
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'attack_blocked', player_id: near, side: 'a', set_no: 1, t: 10 } });
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'block_point', player_id: far, side: 'b', set_no: 1, t: 10.4 } });
+  await page.goto(`/m/${match.id}`);
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*0 : 1\s*Far/);
+  // A kill off the block: who of Far touched it?
+  await page.locator('.pad-side-a .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.skill-offblock').getByRole('button', { name: 'Kill' }).click();
+  for (let i = 0; i < 2; i++) {
+    const skip = page.getByRole('button', { name: /^Skip/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+  }
+  const ask = page.getByRole('dialog', { name: 'Who touched it on the block' });
+  await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await expect(page.locator('.ws-content')).toContainText(/#5 Kon\s*Block touched out/);
+  // One point for Near (the kill), none for the touch.
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
+  // Marked fully tagged.
+  await page.getByRole('button', { name: /^Events/ }).click();
+  await page.getByRole('button', { name: 'Mark as fully tagged' }).click();
+  await expect(page.locator('.final-box')).toContainText('Fully tagged');
+});

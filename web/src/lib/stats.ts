@@ -25,9 +25,11 @@ const ratio = (a: number, b: number) => (b > 0 ? a / b : null);
 
 export function statLine(events: Ev[]): StatLine {
   const c = {} as Record<ActionCode, number>;
-  let recSum = 0, recN = 0, recPerfect = 0, recErr = 0;
+  let recSum = 0, recN = 0, recPerfect = 0, recErr = 0, touchedOut = 0;
   for (const e of events) {
     c[e.action] = (c[e.action] ?? 0) + 1;
+    // A block touch that sent the ball out (the attack scored off the block) is the blocker's error.
+    if (e.action === 'block_touch' && e.value === 2) touchedOut++;
     if (e.action === 'receive' && e.value != null) {
       recN++; recSum += e.value;
       if (e.value === 3) recPerfect++;
@@ -42,14 +44,14 @@ export function statLine(events: Ev[]): StatLine {
   const blockPoints = n('block_point');
   const bumpSets = n('assist'), assistErrors = n('assist_error'), setErrors = n('set_error');
   const points = kills + aces + blockPoints;
-  const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + assistErrors + setErrors + recErr;
+  const errors = attackErrors + serveErrors + n('dig_error') + n('block_error') + touchedOut + assistErrors + setErrors + recErr;
   return {
     kills, attackErrors, blocked, attempts,
     killPct: ratio(kills, attempts), attackEff: ratio(kills - attackErrors, attempts),
     aces, serveErrors, serves, acePct: ratio(aces, serves), serveInPct: ratio(serves - serveErrors, serves),
     receptions: recN, recAvg: ratio(recSum, recN), recPerfectPct: ratio(recPerfect, recN), recErrors: recErr,
     digs: n('dig'), digErrors: n('dig_error'), freeballs: n('freeball'),
-    blockPoints, blockTouches: n('block_touch'), blockErrors: n('block_error'), blockMisses: n('block_miss'),
+    blockPoints, blockTouches: n('block_touch') - touchedOut, blockErrors: n('block_error') + touchedOut, blockMisses: n('block_miss'),
     sets: n('set') + bumpSets + assistErrors + setErrors, assists: 0, bumpSets, assistErrors, setErrors,
     points, errors, plusMinus: points - errors,
   };

@@ -1,3 +1,4 @@
+import { pairBlocksOf } from './pairs';
 import { expandPractice } from './practice';
 import type { ActionCode, RoleCode } from './actions';
 import type { Calibration } from './calibration';
@@ -78,7 +79,9 @@ export interface Match {
   id: number; team_id: number | null; team_name?: string | null; label: string; opponent: string | null;
   played_on: string | null; mode: 'video' | 'live'; video_type: 'youtube' | 'upload' | 'local' | null;
   video_ref: string | null; share_token: string | null;
-  calibration?: Calibration | null; lineups?: Lineups | null; practice?: Practice | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
+  calibration?: Calibration | null; lineups?: Lineups | null; practice?: Practice | null;
+  /** Marked fully tagged: when, and the rules for reading the tags it keeps (lib/pairs). */
+  final?: { at: string; rules: number } | null; sheet?: MatchSheetFlow | null; created_at?: string; event_count?: number; suggested_count?: number;
   /** Analyst effort: active seconds, and auto suggestions corrected / removed / saved (matches list only for the counts). */
   work_sec?: number; edited_count?: number; removed_count?: number; confirmed_count?: number; auto_confirmed_count?: number;
   /** The match video in the team's storage (bucket key, size). */
@@ -111,6 +114,10 @@ export interface VEvent {
   side?: 'a' | 'b' | null;
   /** Analysis of a practice match only: which side's view of the match this event belongs to (see lib/practice). */
   view?: 'a' | 'b';
+  /** Read from the tags (lib/pairs): a blocked attack that the other side's block point scores for. */
+  noPoint?: boolean;
+  /** That blocked attack: where the block point landed, on the attacker's own half. */
+  blockLanding?: { x: number; y: number };
 }
 export type AiPosition = 'front-left' | 'front-middle' | 'front-right' | 'back-left' | 'back-middle' | 'back-right' | 'unsure';
 /** The AI check's answer for one touch (i = its place in the request, from 1). */
@@ -248,7 +255,7 @@ export const api = {
   deletePlayer: (id: number) => req('DELETE', `/api/players/${id}`),
   /** For the analysis: practice matches come as both sides' views (lib/practice). */
   teamReport: (id: number) => req<{ team: Team; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/teams/${id}/report`)
-    .then((d) => ({ ...d, events: expandPractice(d.events, d.matches) })),
+    .then((d) => ({ ...d, events: expandPractice(pairBlocksOf(d.events, d.matches), d.matches) })),
   /** The tags as saved (exports). */
   teamReportRaw: (id: number) => req<{ team: Team; players: Player[]; matches: Match[]; events: VEvent[] }>('GET', `/api/teams/${id}/report`),
 
@@ -302,10 +309,10 @@ export const api = {
   deleteVersion: (id: number, vid: number) => req<MatchVersion[]>('DELETE', `/api/matches/${id}/versions/${vid}`),
   deleteMatch: (id: number) => req('DELETE', `/api/matches/${id}`),
   share: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/matches/${id}/share`, { revoke }),
-  shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`).then((d) => ({ ...d, events: expandPractice(d.events, [d.match]) })),
+  shared: (token: string) => req<MatchBundle>('GET', `/api/share/${token}`).then((d) => ({ ...d, events: expandPractice(pairBlocksOf(d.events, [d.match]), [d.match]) })),
   shareTeam: (id: number, revoke = false) => req<{ share_token: string | null }>('POST', `/api/teams/${id}/share`, { revoke }),
   sharedTeam: (token: string) => req<{ team: Pick<Team, 'id' | 'name' | 'show_tips'>; players: Player[]; matches: Match[]; events: VEvent[]; playlists?: Playlist[] }>('GET', `/api/share/team/${token}`)
-    .then((d) => ({ ...d, events: expandPractice(d.events, d.matches) })),
+    .then((d) => ({ ...d, events: expandPractice(pairBlocksOf(d.events, d.matches), d.matches) })),
 
   addEvent: (matchId: number, e: Partial<VEvent>) => req<VEvent>('POST', `/api/matches/${matchId}/events`, e),
   updateEvent: (id: number, e: Partial<VEvent>) => req<VEvent>('PATCH', `/api/events/${id}`, e),

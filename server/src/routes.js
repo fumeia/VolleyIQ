@@ -114,7 +114,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   const coach = { onRequest: requireCoach };
 
   function withCalibration(m) {
-    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null, practice: m.practice ? JSON.parse(m.practice) : null };
+    return m && { ...m, calibration: m.calibration ? JSON.parse(m.calibration) : null, lineups: m.lineups ? JSON.parse(m.lineups) : null, sheet: m.sheet ? JSON.parse(m.sheet) : null, practice: m.practice ? JSON.parse(m.practice) : null, final: m.final ? JSON.parse(m.final) : null };
   }
 
   const withAi = (e) => ({ ...e, ai: e.ai ? JSON.parse(e.ai) : null });
@@ -269,14 +269,20 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
         sets: Object.fromEntries(Object.entries(p.sets).map(([k, v]) => [k, { a: v.a, b: v.b, ...(v.near ? { near: v.near } : {}) }])),
       });
     }
+    let final = m.final;
+    if ('final' in b) {
+      const f = b.final;
+      if (f !== null && !(f && typeof f.at === 'string' && f.at.length <= 40 && Number.isInteger(f.rules) && f.rules >= 1 && f.rules <= 100)) return bad(reply, 'final: { at, rules } or null');
+      final = f === null ? null : JSON.stringify({ at: f.at, rules: f.rules });
+    }
     let sheet = m.sheet;
     if ('sheet' in b) {
       const clean = b.sheet === null ? null : cleanSheet(b.sheet);
       if (b.sheet !== null && !clean) return bad(reply, 'sheet: { ourTeam: "A" | "B", sets, flow }');
       sheet = clean && JSON.stringify(clean);
     }
-    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ?, practice = ? WHERE id = ?`)
-      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, practice, m.id);
+    db.prepare(`UPDATE matches SET team_id = ?, label = ?, opponent = ?, played_on = ?, mode = ?, video_type = ?, video_ref = ?, calibration = ?, lineups = ?, sheet = ?, practice = ?, final = ? WHERE id = ?`)
+      .run(int(pick('team_id')), pick('label'), pick('opponent'), pick('played_on'), pick('mode'), pick('video_type'), pick('video_ref'), calibration, lineups, sheet, practice, final, m.id);
     return withCalibration(q.match.get(m.id));
   });
 
@@ -313,7 +319,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     // The court marking goes along so the Replays tab draws the court the way the camera sees it.
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, practice, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, practice, final, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
       // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
       .map(({ video_type, video_ref, video_key, ...m }) => ({
         ...m,
@@ -334,11 +340,21 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   app.get('/api/share/team/:token/live', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
-    const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, m.practice, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
+    const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, m.practice, m.final, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
       WHERE m.team_id = ? AND e.status = 'confirmed' GROUP BY m.id HAVING last >= datetime('now', '-15 minutes') ORDER BY last DESC LIMIT 1`).get(team.id);
     if (!m) return { live: null };
     const sets = new Map();
-    for (const e of db.prepare("SELECT action, set_no, side FROM events WHERE match_id = ? AND status = 'confirmed'").all(m.id)) {
+    // A blocked attack answered by the other side's block point is one point (rules 2+, see web/src/lib/pairs.ts).
+    const rows = db.prepare("SELECT action, set_no, side, t, id FROM events WHERE match_id = ? AND status = 'confirmed' ORDER BY set_no, COALESCE(t, 1e12), id").all(m.id);
+    const rules = m.final ? JSON.parse(m.final).rules : 2;
+    if (rules >= 2) {
+      for (let i = 0; i + 1 < rows.length; i++) {
+        const a = rows[i], b = rows[i + 1];
+        if (a.action === 'attack_blocked' && b.action === 'block_point' && a.set_no === b.set_no && (a.side === 'b') !== (b.side === 'b')
+          && (a.t == null || b.t == null || b.t - a.t <= 3)) a.action = 'attack_blocked_paired';
+      }
+    }
+    for (const e of rows) {
       const n = e.set_no ?? 1;
       // Practice match: a point of the second side counts for it ("them" in the score).
       if (e.side === 'b') e.action = US.has(e.action) ? 'opp_point' : THEM.has(e.action) ? 'opp_error' : e.action;
@@ -774,6 +790,8 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
       // A run on a match that is already tagged, only to learn from (the app's "only learn" option):
       // the run and its sound peaks are kept, Review gets no suggestions.
       if (params?.learnOnly === true) return 0;
+      // A match marked fully tagged gets no suggestions either: its tags stay as they are.
+      if (match.final) return 0;
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
       if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
       // A new run skips touches already saved (reviewed or tagged), so it only brings back what is missing.
@@ -884,12 +902,24 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   async function dropVariants(m) {
     for (const v of Object.values(variantsOf(m))) await deleteObject(storage, v.key, sOpts).catch(() => {});
   }
-  /** Links to stream the video, valid for 6 hours: the original and each smaller version. */
-  const videoLink = (m) => ({
-    url: presign(storage, 'GET', m.video_key, { expires: 6 * 3600 }),
-    expiresIn: 6 * 3600,
-    variants: Object.fromEntries(Object.entries(variantsOf(m)).map(([q, v]) => [q, presign(storage, 'GET', v.key, { expires: 6 * 3600 })])),
-  });
+  /**
+   * Links to stream the video, valid for 6 hours: the original and each smaller version, and the
+   * same as downloads (the browser saves the file instead of playing it), with their sizes.
+   */
+  const videoLink = (m) => {
+    const name = `VolleyIQ ${m.played_on ?? ''} ${m.label ?? ''}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w .-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'VolleyIQ match';
+    const download = (key, q) => presign(storage, 'GET', key, { expires: 6 * 3600, query: { 'response-content-disposition': `attachment; filename="${name}${q ? ` ${q}p` : ''}.mp4"` } });
+    const variants = Object.entries(variantsOf(m));
+    return {
+      url: presign(storage, 'GET', m.video_key, { expires: 6 * 3600 }),
+      expiresIn: 6 * 3600,
+      variants: Object.fromEntries(variants.map(([q, v]) => [q, presign(storage, 'GET', v.key, { expires: 6 * 3600 })])),
+      downloads: [
+        { quality: 'original', url: download(m.video_key, null), bytes: m.video_bytes ?? null },
+        ...variants.map(([q, v]) => ({ quality: q, url: download(v.key, q), bytes: v.bytes ?? null })),
+      ],
+    };
+  };
   app.get('/api/matches/:id/video/url', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video in the cloud for this match', 404);
@@ -911,7 +941,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   // For the public link: only matches of that team.
   app.get('/api/share/team/:token/video/:matchId', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
-    const match = team && db.prepare('SELECT video_key, video_variants FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
+    const match = team && db.prepare('SELECT * FROM matches WHERE id = ? AND team_id = ?').get(int(req.params.matchId), team.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video', 404);
     return videoLink(match);
   });

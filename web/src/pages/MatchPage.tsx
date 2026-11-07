@@ -12,7 +12,8 @@ import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../compone
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
-import { actionLabel, scoreOf } from '../lib/actions';
+import { OFF_BLOCK, TOUCHED_OUT, actionLabel, scoreOf } from '../lib/actions';
+import { pairBlocks, rulesOf, RULES } from '../lib/pairs';
 import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
 import { MatchSheetScan } from '../components/MatchSheetScan';
@@ -70,7 +71,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const nav = useNavigate();
   const [match, setMatch] = useState<Match>(initial.match);
   const players = initial.players;
-  const { events, add, update, remove, replaceAll, pendingCount } = useEvents(match.id, initial.events);
+  const { events: savedEvents, add, update, remove, replaceAll, pendingCount } = useEvents(match.id, initial.events);
+  // The tags as they count: a blocked attack answered by the other side's block point is one point (lib/pairs),
+  // unless the match was marked fully tagged with older rules.
+  const events = useMemo(() => pairBlocks(savedEvents, () => rulesOf(match)), [savedEvents, match.final]); // eslint-disable-line react-hooks/exhaustive-deps
   useWorkTimer(match.id);
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
@@ -90,6 +94,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   // Practice match: whose line-up the sheet edits (the near side's are the match's own line-ups).
   const [lineupSide, setLineupSide] = useState<'a' | 'b'>('a');
   const [showTimeout, setShowTimeout] = useState(false);
+  // A kill off the block was just tagged in a practice match: which blocker touched it?
+  const [offBlockAsk, setOffBlockAsk] = useState<{ t: number | null; fx: number | null; other: 'a' | 'b' } | null>(null);
   // Practice match: both sides are our players; the sides are set per set.
   const practice = match.practice ?? null;
   const [sidesOpen, setSidesOpen] = useState(false);
@@ -216,6 +222,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     // Practice match: the tag belongs to its player's side (team points say their side themselves).
     const side = practice ? e.side ?? sideOf(practice, setNo, e.player_id) ?? 'a' : undefined;
     const clientId = add({ ...e, set_no: setNo, ...(side ? { side } : {}) });
+    // Practice: a kill off the block asks which blocker of the other side touched it.
+    if (practice && e.action === 'kill' && e.value === OFF_BLOCK && sidesNow) {
+      setOffBlockAsk({ t: e.t ?? null, fx: e.fx ?? null, other: side === 'b' ? 'a' : 'b' });
+    }
     const p = players.find((x) => x.id === e.player_id);
     const who = p ? `#${p.number} ` : '';
     flash(`${who}${actionLabel(e as VEvent)}${e.zone ? ` · Z${e.zone}` : ''}`, () => {
@@ -587,6 +597,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             {tab === 'events' && (
               <div className="row wrap">
+                <FinalBox match={match} onChanged={setMatch} />
                 <OfficialCheck matchId={match.id} confirmed={confirmed} />
                 <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
                 <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
@@ -706,6 +717,28 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       {(sidesOpen || (practice && !sidesNow && tab === 'tag' && sidesLater !== setNo)) && (
         <PracticeSheet match={match} players={players} set={setNo} onClose={() => { setSidesOpen(false); setSidesLater(setNo); }}
           onSave={async (p) => { setMatch(await api.updateMatch(match.id, { practice: p })); flash(`Sides of set ${setNo} saved`); }} />
+      )}
+      {offBlockAsk && practice && sidesNow && (
+        <div className="sheet-backdrop" onClick={() => setOffBlockAsk(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Who touched it on the block">
+            <div className="sheet-head"><b>Off the block: who of {practice.names[offBlockAsk.other]} touched it?</b><button className="btn-ghost" onClick={() => setOffBlockAsk(null)} aria-label="Close">✕</button></div>
+            <p className="small muted">They get "Block touched out" (a block error in their stats, no extra point: the kill scored).</p>
+            <div className="chips">
+              {players.filter((p) => sidesNow[offBlockAsk.other].includes(p.id))
+                .sort((a, b) => (onCourt?.includes(b.id) ? 1 : 0) - (onCourt?.includes(a.id) ? 1 : 0) || (a.number ?? 99) - (b.number ?? 99))
+                .map((p) => (
+                  <button key={p.id} className="chip" onClick={() => {
+                    const ask = offBlockAsk;
+                    setOffBlockAsk(null);
+                    // Just before the kill, at the net where the attack was hit (seen from the blocker's half).
+                    commit({ action: 'block_touch', value: TOUCHED_OUT, player_id: p.id, jersey: p.number, side: ask.other,
+                      t: ask.t == null ? null : Math.max(0, ask.t - 0.05), ...(ask.fx != null ? { x: Math.max(0, Math.min(9, 9 - ask.fx)), y: 9 } : {}) });
+                  }}>#{p.number ?? '–'} {p.name.split(' ')[0]}</button>
+                ))}
+              <button className="chip" onClick={() => setOffBlockAsk(null)}>Not sure</button>
+            </div>
+          </div>
+        </div>
       )}
       {resumeOpen && (
         <ResumeSheet match={match} players={players} confirmed={confirmed} setNo={setNo} onClose={() => setResumeOpen(false)}
@@ -1173,4 +1206,36 @@ function OfficialCheck({ matchId, confirmed }: { matchId: number; confirmed: VEv
 /** Practice match: in each set the other side serves first when this side does not (its line-ups' sets only). */
 function syncServe(other: Lineups, changed: Lineups): Lineups {
   return Object.fromEntries(Object.entries(other).map(([k, l]) => [k, changed[k] ? { ...l, weServeFirst: !changed[k].weServeFirst } : l]));
+}
+
+/**
+ * "Fully tagged": the match keeps the rules for reading its tags that it has now, so its score
+ * and stats do not change by themselves when the analysis gets new rules (lib/pairs). Tags can
+ * still be edited by hand; a new detection run adds no suggestions to it.
+ */
+function FinalBox({ match, onChanged }: { match: Match; onChanged: (m: Match) => void }) {
+  const [busy, setBusy] = useState(false);
+  const set = async (final: Match['final']) => {
+    setBusy(true);
+    try { onChanged(await api.updateMatch(match.id, { final })); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card final-box">
+      {match.final ? (
+        <>
+          <b className="small">Fully tagged <span className="tone-good">✓</span></b>
+          <span className="small muted">
+            Since {new Date(match.final.at).toLocaleDateString()}. Its score and stats keep the rules they had then{match.final.rules < RULES ? ' (newer rules exist: unmark to use them)' : ''}; you can still change tags by hand.
+          </span>
+          <button className="btn-ghost small" disabled={busy} onClick={() => set(null)}>Unmark</button>
+        </>
+      ) : (
+        <>
+          <b className="small">Done tagging this match?</b>
+          <span className="small muted">Mark it fully tagged: later changes to how the analysis reads tags will not change its score or stats, and new detection runs add nothing to it.</span>
+          <button className="btn small" disabled={busy} onClick={() => set({ at: new Date().toISOString(), rules: RULES })}>Mark as fully tagged</button>
+        </>
+      )}
+    </div>
+  );
 }

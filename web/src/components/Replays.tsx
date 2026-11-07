@@ -230,6 +230,14 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
           {hostedPick && hostedPick.quality !== '480' && available(link).includes('480') && <><button className="link" onClick={() => { setQuality('480'); saveQuality('team', '480'); }}>{t('Try the smaller 480p version')}</button> {t('or')} </>}
           <label className="link">{hostedPick && hostedPick.quality !== '480' && available(link).includes('480') ? t('use your own copy instead') : t('Use your own copy instead')}<input type="file" accept="video/*" hidden onChange={(e) => pickFile(e.target.files?.[0])} /></label></p>
       )}
+      {!file && link?.downloads?.length ? (
+        <p className="small replay-download">
+          {t('Download the video')}:{' '}
+          {link.downloads.map((d, i) => (
+            <span key={d.quality}>{i > 0 ? ' · ' : ''}<a href={d.url} download>{d.quality === 'original' ? t('original') : `${d.quality}p`}{d.bytes ? ` (${d.bytes >= 1e9 ? `${(d.bytes / 1e9).toFixed(1)} GB` : `${Math.round(d.bytes / 1e6)} MB`})` : ''}</a></span>
+          ))}
+        </p>
+      ) : null}
 
       <div className="replay-playlists">
         <span className="small muted">{t('Playlists')}</span>

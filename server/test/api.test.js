@@ -445,3 +445,24 @@ test('practice match: sides per set, the side on each tag, the live score per si
   assert.equal(shared.matches[0].practice.names.b, 'White');
   await app.close();
 });
+
+test('a blocked attack answered by the block point of the other side is one point; fully tagged matches get no suggestions', async () => {
+  const app = await setup();
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Blocks' } })).json();
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'Practice', team_id: team.id, mode: 'live' } })).json();
+  await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice: { names: { a: 'Near', b: 'Far' }, sets: {} } } });
+  const post = (payload) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { set_no: 1, ...payload } });
+  await post({ action: 'attack_blocked', side: 'a', t: 10 });
+  await post({ action: 'block_point', side: 'b', t: 10.5 });
+  await post({ action: 'kill', side: 'a', t: 30 });
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  const live = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
+  // Near: its kill. Far: the block point only (not the blocked attack too).
+  assert.deepEqual([live.sets[0].us, live.sets[0].them], [1, 1]);
+  // Marked fully tagged: a detection run adds nothing.
+  const final = { at: '2026-11-07T12:00:00Z', rules: 2 };
+  assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { final } })).json().final, final);
+  const r = await app.inject({ method: 'POST', url: `/api/matches/${m.id}/suggestions`, payload: { events: [{ action: 'attack', t: 50 }] } });
+  assert.equal(r.json().inserted, 0);
+  await app.close();
+});

@@ -46,7 +46,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'kill', label: 'Kill', short: 'Kill', group: 'points', key: 'z', court: 'path', fromPrompt: 'Where was the attack hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'ace', label: 'Serve Ace', short: 'Ace', group: 'points', key: 'x', court: 'path', fromPrompt: 'Where was the serve hit from?', toPrompt: 'Where did it land?', score: 'us' },
   { code: 'block_miss', label: 'Block, no touch', short: 'Blk none', group: 'actions', key: 'h', court: 'path', fromPrompt: 'Where along the net was the block?', toPrompt: 'Where did the ball go?' },
-  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'at', toPrompt: 'Where along the net?', score: 'us' },
+  { code: 'block_point', label: 'Block Point', short: 'Blk Pt', group: 'points', key: 'v', court: 'path', fromPrompt: 'Where along the net was the block?', toPrompt: 'Where did the ball land? (skip if unsure)', score: 'us' },
   { code: 'set', label: 'Set', short: 'Set', group: 'setting', key: 'g', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist', label: 'Bump set', short: 'Bump set', group: 'setting', key: 't', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?' },
   { code: 'assist_error', label: 'Bump set error', short: 'Bump err', group: 'setting', key: 'y', court: 'path', fromPrompt: 'Where was the set made?', toPrompt: 'Where did the set go?', score: 'them' },
@@ -70,7 +70,7 @@ export const REVIEW_ACTIONS: ActionCode[] = [
  * first spot of a block without a touch (then where the ball went).
  */
 export function isNetSpot(code: ActionCode, first: boolean): boolean {
-  return ['block_touch', 'block_point', 'block_error'].includes(code) || (code === 'block_miss' && first);
+  return ['block_touch', 'block_error'].includes(code) || ((code === 'block_miss' || code === 'block_point') && first);
 }
 
 /** "Fast" court mode: the court spots that matter most for the stats. */
@@ -105,7 +105,9 @@ export const ACTION_BY_CODE = Object.fromEntries(ACTIONS.map((a) => [a.code, a])
  * Who a tag gives the point to: the action's own effect, and a reception error
  * (pass graded 0 = aced) is the opponent's point too.
  */
-export function scoreOf(e: { action: ActionCode; value?: number | null }): 'us' | 'them' | undefined {
+export function scoreOf(e: { action: ActionCode; value?: number | null; noPoint?: boolean }): 'us' | 'them' | undefined {
+  // A blocked attack answered by the other side's block point: that one scores (see lib/pairs).
+  if (e.noPoint) return undefined;
   // A pass graded 0 is not a point by itself (it can be rescued): their ace is the
   // "They won" / opponent point tagged after it.
   return ACTION_BY_CODE[e.action]?.score;
@@ -138,6 +140,9 @@ export const TIP = 1;
 export const OFF_BLOCK = 2;
 export const isTip = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === TIP;
 export const isOffBlock = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === OFF_BLOCK;
+/** A block touch that sent the ball out (the attack scored "off the block"): a block error without its own point. */
+export const TOUCHED_OUT = 2;
+export const isTouchedOut = (e: { action: ActionCode; value?: number | null }) => e.action === 'block_touch' && e.value === TOUCHED_OUT;
 export type Shot = 'hit' | 'tip' | 'block';
 export const shotOf = (e: { action: ActionCode; value?: number | null }): Shot => (isTip(e) ? 'tip' : isOffBlock(e) ? 'block' : 'hit');
 export const SHOTS: { key: Shot; label: string; value: number | null }[] = [
@@ -151,6 +156,7 @@ export function actionLabel(e: { action: ActionCode; value?: number | null }) {
   if (!def) return e.action;
   if (isTip(e)) return TIP_LABEL[e.action]!;
   if (isOffBlock(e)) return OFF_BLOCK_LABEL[e.action]!;
+  if (isTouchedOut(e)) return 'Block touched out';
   return e.action === 'receive' && e.value != null ? `Receive ${e.value}` : def.label;
 }
 

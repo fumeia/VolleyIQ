@@ -16,7 +16,8 @@ const KINDS: { action: string; label: string; color: string }[] = [
 ];
 /** Where along the net a block was (meters from our left antenna), when it was placed there. */
 export function netX(e: VEvent): number | null {
-  const [x, y] = e.action === 'block_miss' ? [e.fx, e.fy] : [e.x, e.y];
+  // A block without a touch, and a block point tagged with where it landed: the net spot comes first.
+  const [x, y] = e.action === 'block_miss' || (e.action === 'block_point' && e.fx != null) ? [e.fx, e.fy] : [e.x, e.y];
   return x != null && y != null && Math.abs(y - 9) <= 1.5 ? Math.max(0, Math.min(8.999, x)) : null;
 }
 
@@ -60,6 +61,47 @@ export function NetBlocks({ players, events, only }: { players: Player[]; events
         {[[1.5, 'Zone 4'], [4.5, 'Zone 3'], [7.5, 'Zone 2']].map(([x, l]) => <text key={l} x={x as number} y={7.3} className="net-chart-z">{l}</text>)}
       </svg>
     </figure>
+  );
+}
+
+/**
+ * Where our block points landed (block points tagged with the net spot and then the landing),
+ * and on the other side of the net where blocked attacks came down: the spots the cover
+ * (Sicherung) was not ready for. [only]: one player's.
+ */
+export function BlockLandings({ players, events, only }: { players: Player[]; events: VEvent[]; only?: number }) {
+  const name = (id: number | null) => who(players.find((p) => p.id === id) ?? ({ number: null, name: '?' } as Player));
+  const points = events.filter((e) => e.action === 'block_point' && e.fx != null && e.fy != null && e.x != null && e.y != null && (only == null || e.player_id === only));
+  const blocked = events.filter((e) => e.action === 'attack_blocked' && e.blockLanding && (only == null || e.player_id === only));
+  if (!points.length && !blocked.length) return null;
+  const forWho = only == null ? '' : ` · ${name(only)}`;
+  const paths: PlotPath[] = points.map((e) => ({ key: e.id, from: { x: e.fx!, y: e.fy! }, to: { x: e.x!, y: e.y! }, color: SERIES.aqua, title: `${name(e.player_id)}: block point` }));
+  const zones = new Map<number, ZoneValue>();
+  const placed = blocked.filter((e) => ourZone({ fx: e.blockLanding!.x, fy: e.blockLanding!.y }) != null);
+  const zoneOfE = (e: VEvent) => ourZone({ fx: e.blockLanding!.x, fy: e.blockLanding!.y });
+  const max = Math.max(1, ...[4, 3, 2, 5, 6, 1].map((z) => placed.filter((e) => zoneOfE(e) === z).length));
+  for (const z of [4, 3, 2, 5, 6, 1]) {
+    const n = placed.filter((e) => zoneOfE(e) === z).length;
+    if (n) zones.set(z, { fill: sequential(n / max), main: String(n), sub: pct(n / placed.length), title: `Zone ${z}: ${n} blocked attacks came down here` });
+  }
+  return (
+    <>
+      {points.length > 0 && (
+        <figure className="chart paper">
+          <figcaption>
+            <div className="chart-title"><b>Where our block points landed{forWho}</b></div>
+            <span className="chart-sub">From where the block was at the net to where the ball came down ({points.length} block points with both spots)</span>
+            <span className="chart-legend"><Swatch fill={SERIES.aqua} label="Block point" /><PlayBtn list={points} label="Watch these" /></span>
+          </figcaption>
+          <div className="plot-wrap paper"><CourtFull paths={paths} zoneCounts /></div>
+        </figure>
+      )}
+      {placed.length > 0 && (
+        <HalfZones title={`Blocked attacks: where they came down on our side${forWho}`}
+          subtitle="Where the other side's block point landed after one of our attacks: the spots our cover (Sicherung) was not ready for"
+          half="ours" values={zones} legend={<><Swatch fill={sequential(1)} label="Most" /><Swatch fill={sequential(0.15)} label="Few" /><PlayBtn list={placed} label="Watch these" /></>} />
+      )}
+    </>
   );
 }
 
@@ -119,6 +161,7 @@ export function BlockSection({ players, events, only }: { players: Player[]; eve
         ]} />
       <NetBlocks players={players} events={events} only={only} />
       <NoTouchBlocks players={players} events={events} only={only} />
+      <BlockLandings players={players} events={events} only={only} />
     </div>
   );
 }
