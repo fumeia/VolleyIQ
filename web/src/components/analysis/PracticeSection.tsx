@@ -2,8 +2,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { Match, Player, VEvent } from '../../lib/api';
 import { orderAt } from '../../lib/rotation';
 import {
-  changes, effOf, findings, hittersByPosition, passers, playerTimeline, setterHitter, setterRows, sideSets,
-  SLOT_NAMES, who, type KeyNumber, type SideSet, type SlotRole, type Tally,
+  changes, effOf, findings, passers, playerTimeline, setterHitter, setterRows, sideSets,
+  SLOT_NAMES, who, type KeyNumber, type SideSet, type Tally,
 } from '../../lib/practiceAnalysis';
 import type { Ratio } from '../../lib/sequence';
 import { avg2, eff3, enough, judge, pct, Val, type Tone } from './ui';
@@ -98,7 +98,7 @@ function SetCards({ sides, players }: { sides: SideSet[]; players: Player[] }) {
   return (
     <>
       <Head title="Set by set" help={<>
-        <p>Each set's two sides, named after who set for them in that set (whoever set most; with no sets tagged, the player with the setter role). The court is the starting line-up as saved on the tag screen; the setter is shaded. The position next to each name (S, OH, MB, OPP) is worked out from where the player stood relative to the setter, so it is what they played in this set, not their usual role. A libero who played in the six counts as the middle there.</p>
+        <p>Each set's two sides, named after who set for them in that set. The court is the starting line-up; the setter is shaded.</p>
         <p>The table is the <b>whole side</b> in this set, all its players together, not the setter alone. Side-out: rallies won when the other side served (won/played). Break: rallies won on the side's own serve. Attack: (kills − errors) / attacks, with kills-errors/attacks in brackets. Pass: average grade 0–3. Errors: all errors of the side (attack, serve, pass, set, block, dig).</p>
       </>} />
       {sets.map((set) => {
@@ -178,13 +178,11 @@ function Combos({ sides, players }: { sides: SideSet[]; players: Player[] }) {
   const f = useMemo(() => findings(players, sides), [players, sides]);
   const st = useMemo(() => setterRows(sides), [sides]);
   const pairs = useMemo(() => setterHitter(sides), [sides]);
-  const pos = useMemo(() => hittersByPosition(sides).sort((a, b) => sum(b.by) - sum(a.by)), [sides]);
   const ps = useMemo(() => passers(sides), [sides]);
   const ch = useMemo(() => changes(players, sides), [players, sides]);
   const setters = st.map((r) => r.setter).filter((s) => pairs.some((p) => p.setter === s));
   const hitters = [...new Set(pairs.filter((p) => setters.includes(p.setter)).map((p) => p.hitter))]
     .sort((a, b) => pairs.filter((p) => p.hitter === b).reduce((s, p) => s + p.n, 0) - pairs.filter((p) => p.hitter === a).reduce((s, p) => s + p.n, 0));
-  const roles: SlotRole[] = ['OH', 'OPP', 'MB'];
   return (
     <>
       {f.length > 0 && (
@@ -246,28 +244,9 @@ function Combos({ sides, players }: { sides: SideSet[]; players: Player[] }) {
         </section>
       )}
 
-      {pos.some((h) => Object.keys(h.by).length) && (
-        <section className="chart">
-          <Head title="Hitters by position" help={<p>Each hitter's attacks by the position they played in that set (outside, opposite, middle), worked out from the line-ups. Shows where someone hits best. Attack efficiency (kills − errors) / attacks, kills-errors/attacks below. Sets without a saved line-up use the player's role from the team page.</p>} />
-          <div className="table-wrap">
-            <table className="stat-table">
-              <thead><tr><th>Hitter</th>{roles.map((r) => <th key={r}>{SLOT_NAMES[r]}</th>)}</tr></thead>
-              <tbody>
-                {pos.map((h) => (
-                  <tr key={h.hitter}>
-                    <td>{name(players, h.hitter)}</td>
-                    {roles.map((r) => { const c = tallyCell(h.by[r]); return <td key={r}>{c.text ? <><Val tone={c.tone}>{c.text}</Val><br /><small className="muted">{c.sub}</small></> : ''}</td>; })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
       {ps.length > 0 && (
         <section className="chart">
-          <Head title="Passers" help={<p>Everyone who received serve, libero included: average pass grade 0–3, perfect passes (3) and pass errors (0). <b>Attack after</b>: how the side's first attack went after this player's pass, (kills − errors) / attacks. This is where a libero's value shows; liberos are never judged on points.</p>} />
+          <Head title="Passers" help={<p>Everyone who received serve, libero included: average pass grade 0–3, perfect passes (3) and pass errors (0). <b>Attack after</b>: how the side's first attack went after this player's pass, (kills − errors) / attacks.</p>} />
           <div className="table-wrap">
             <table className="stat-table">
               <thead><tr><th>Passer</th><th>Passes</th><th>Average</th><th>Perfect</th><th>Errors</th><th>Attack after</th></tr></thead>
@@ -293,7 +272,7 @@ function Combos({ sides, players }: { sides: SideSet[]; players: Player[] }) {
 
       {ch.length > 0 && (
         <section className="chart">
-          <Head title="What changed from set to set" help={<p>Players who changed position or setter from one set to the next, with the number that fits what they did: attack efficiency for hitters, pass average for passers and liberos, the hitters' efficiency after their sets for setters. Only when both sets have at least 3 of them.</p>} />
+          <Head title="What changed from set to set" help={<p>Players who had a different setter from one set to the next, with the number that fits their role: attack efficiency for hitters, pass average for passers and liberos. Only when both sets have at least 3 of them.</p>} />
           <ul className="practice-changes">
             {ch.map((c, i) => (
               <li key={i}>
@@ -310,8 +289,6 @@ function Combos({ sides, players }: { sides: SideSet[]; players: Player[] }) {
   );
 }
 
-const sum = (by: Partial<Record<SlotRole, Tally>>) => Object.values(by).reduce((s, t) => s + (t?.n ?? 0), 0);
-
 function PlayerSets({ sides, players }: { sides: SideSet[]; players: Player[] }) {
   const ids = [...new Set(sides.flatMap((s) => [...s.perPlayer.keys(), ...s.players]))]
     .sort((a, b) => (players.find((p) => p.id === a)?.number ?? 99) - (players.find((p) => p.id === b)?.number ?? 99));
@@ -320,7 +297,7 @@ function PlayerSets({ sides, players }: { sides: SideSet[]; players: Player[] })
   const tl = id == null ? [] : playerTimeline(id, sides);
   return (
     <>
-      <Head title="A player's sets" help={<p>Pick a player to see their sets one after the other: the position they played (from the line-up), who set for them, their teammates, how their side's set ended, and their own numbers for that position: attack efficiency (kills − errors) / attacks for hitters, pass average for passers and liberos, the hitters' efficiency after their sets for setters. Grey: too few to judge.</p>} />
+      <Head title="A player's sets" help={<p>Pick a player to see their sets one after the other: who set for them, their teammates, how their side's set ended, and their own numbers for their role: attack efficiency (kills − errors) / attacks for hitters, pass average for passers and liberos, the hitters' efficiency after their sets for setters. Grey: too few to judge.</p>} />
       <div className="chips">
         {ids.map((x) => <button key={x} className={`chip ${x === id ? 'on' : ''}`} onClick={() => setPick(x)}>{name(players, x)}</button>)}
       </div>

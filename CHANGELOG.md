@@ -6,17 +6,17 @@
 - Fix: saving the sides of a set (Near / Far / Out) deleted the second side's line-ups of all sets. They are kept now. Line-ups lost this way need to be entered again.
 - On the server, `node src/restore-lineups.js` brings deleted line-ups of the second side back from the nightly backups (only missing ones, only when the players fit the set's sides; backups from before practice matches are skipped; `--apply` to save).
 - Fix: the public team link did not send the line-ups, so its practice analysis showed "No line-up saved" for every side and its rotations had no line-ups to work with.
-- A line-up goes to the side whose players it holds, also after "Swap near and far". A libero who plays in the six (no middle left) counts as the middle there.
+- A line-up goes to the side whose players it holds, also after "Swap near and far".
 - Sides are called after their setter ("Tobi's side"); the set table is the whole side's numbers. Sets without tags say so instead of showing zeros.
-- Players are judged by what they did in their position: hitters by attack efficiency, passers and liberos by their passes, setters by how the hitters did after their sets. No more points-based pairs (a libero scores no points).
-- Combinations: Setters (side-out, break, hitters after their sets, after good and after poor passes, who got their sets), Setter and hitter, Hitters by position (outside, opposite, middle), Passers (with the attack after their pass), and what changed from set to set.
+- Players are judged by their role on the team page: hitters by attack efficiency, passers and liberos by their passes, setters by how the hitters did after their sets. The points-based pairs are gone.
+- Combinations: Setters (side-out, break, hitters after their sets, after good and after poor passes, who got their sets), Setter and hitter, Passers (with the attack after their pass), and what changed for a player with another setter.
 - A small blue "?" next to each title explains what the table shows and how to read it.
 
 **Practice matches: their own analysis**
 - Stats for a practice match open on a new "Practice" topic with no "us" and "them". Each side is named after who set for it in that set ("Ann setting").
-- Set by set: each set's two sides next to each other, with their line-ups as a small court (position in the 5-1 worked out from the setter's place), the score, side-out, break, attack, pass, serve, blocks and errors. "Players and rotations" opens each side's players and rotations.
-- Combinations: what the data says (best and worst setter and hitter, setters' results, pairs who did well together, the biggest changes from one set to the next); a setter and hitter table (kills-errors / attacks after each setter's set); and, for each player who switched position, setter or teammates, their +/- before and after.
-- Players: pick a player and see their sets one under the other: position, setter, teammates, result and what they did.
+- Set by set: each set's two sides next to each other, with their line-ups as a small court, the score, side-out, break, attack, pass, serve, blocks and errors. "Players and rotations" opens each side's players and rotations.
+- Combinations: what the data says (best and worst setter and hitter, setters' results); a setter and hitter table (kills-errors / attacks after each setter's set).
+- Players: pick a player and see their sets one under the other: setter, teammates, result and what they did.
 - "All matches" (Stats and the public link) leaves practice matches out by default, as both sides are your own players. "Include practice matches" brings them back.
 
 **Video conversion: only what makes sense, and a Stop button**

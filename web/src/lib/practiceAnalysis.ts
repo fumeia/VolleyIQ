@@ -1,15 +1,15 @@
 import { scoreOf } from './actions';
 import type { Match, Player, VEvent } from './api';
-import { orderAt, rotationAfter, type Lineup } from './rotation';
+import { rotationAfter, type Lineup } from './rotation';
 import { attackContexts, buildRallies, phaseScoring, SETS, type Ratio } from './sequence';
 import { statLine, type StatLine } from './stats';
 import type { Side } from './practice';
 
 /**
  * Analysis of a practice match (both sides our own players, mixed anew each set). No "us" and
- * "them": each set's two sides, what each player did in the position they played, and how the
- * combinations worked: setters with hitters, setters with good and poor passes, hitters by
- * position, passers, and what changed for a player from one set to the next.
+ * "them": each set's two sides, what each player did in their role, and how the combinations
+ * worked: setters with hitters, setters with good and poor passes, passers, and what changed for
+ * a player with another setter.
  * [events]: the match's expanded tags (each side's view, see expandPractice), confirmed only.
  */
 
@@ -33,7 +33,7 @@ export interface SideSet {
   players: number[];
   lineup: Lineup | null;
   setter: number | null;
-  /** The position each player played in this set (from the line-up, relative to the setter). */
+  /** Each player's role (team page). */
   roleOf: Map<number, SlotRole>;
   tagged: boolean;
   pointsFor: number; pointsAgainst: number;
@@ -59,23 +59,11 @@ function setterOf(evs: VEvent[], ids: number[], lineup: Lineup | null, players: 
   return pool.find((id) => players.find((p) => p.id === id)?.role === 'S') ?? top?.[0] ?? null;
 }
 
-/**
- * Positions in a 5-1 from the setter's place in the order: then outside, middle, opposite,
- * outside, middle. A libero in the six (no middle left) counts as the middle there.
- */
-function rolesFrom(lineup: Lineup | null, setter: number | null, ids: number[], players: Player[]): Map<number, SlotRole> {
+/** Each player's role from the team page. */
+function rolesFrom(ids: number[], players: Player[]): Map<number, SlotRole> {
   const out = new Map<number, SlotRole>();
-  const order = lineup ? orderAt(lineup, 0) : [];
-  const i = setter == null ? -1 : order.indexOf(setter);
-  if (lineup && i >= 0) {
-    const slots: SlotRole[] = ['S', 'OH', 'MB', 'OPP', 'OH', 'MB'];
-    order.forEach((id, k) => { if (id != null) out.set(id, slots[(k - i + 6) % 6]); });
-    if (lineup.libero != null && !order.includes(lineup.libero)) out.set(lineup.libero, 'L');
-  }
-  // No line-up (or no setter in it): the roster role.
   for (const id of ids) {
-    if (out.has(id)) continue;
-    const r = id === setter ? 'S' : players.find((p) => p.id === id)?.role;
+    const r = players.find((p) => p.id === id)?.role;
     if (r === 'S' || r === 'OH' || r === 'MB' || r === 'OPP' || r === 'L') out.set(id, r);
   }
   return out;
@@ -138,7 +126,7 @@ export function sideSets(match: Match, players: Player[], events: VEvent[]): Sid
       out.push({
         set, side, players: ids, lineup, setter,
         label: name ?? (setter != null ? `${firstName(players.find((x) => x.id === setter))}'s side` : side === 'a' ? 'Side 1' : 'Side 2'),
-        roleOf: rolesFrom(lineup, setter, ids, players),
+        roleOf: rolesFrom([...new Set([...ids, ...(lineup ? lineup.order.filter((x): x is number => x != null) : []), ...(lineup?.libero != null ? [lineup.libero] : []), ...evs.map((e) => e.player_id).filter((x): x is number => x != null)])], players),
         tagged: evs.some((e) => e.player_id != null || scoreOf(e)),
         pointsFor: pf, pointsAgainst: pa, sideout: ph.sideout, brk: ph.break,
         line: statLine(evs.filter((e) => e.player_id != null)), perPlayer, setterAttacks, rotations, events: evs,
@@ -205,22 +193,6 @@ export function setterHitter(sides: SideSet[]): Pairing[] {
   return [...m.values()];
 }
 
-/** Each hitter's attacks by the position they played (from the line-ups). */
-export function hittersByPosition(sides: SideSet[]): { hitter: number; by: Partial<Record<SlotRole, Tally>> }[] {
-  const m = new Map<number, Partial<Record<SlotRole, Tally>>>();
-  for (const s of sides) {
-    for (const e of s.events) {
-      if (e.player_id == null || !['attack', 'kill', 'attack_error', 'attack_blocked'].includes(e.action)) continue;
-      const role = s.roleOf.get(e.player_id);
-      if (!role || role === 'S' || role === 'L') continue;
-      const by = m.get(e.player_id) ?? {};
-      count((by[role] ??= tally()), e);
-      m.set(e.player_id, by);
-    }
-  }
-  return [...m].map(([hitter, by]) => ({ hitter, by }));
-}
-
 export interface PasserRow { player: number; n: number; avg: number | null; perfect: number; errors: number; after: Tally; roles: SlotRole[] }
 
 /** Passers (libero included): pass grades, and what the side's attack made of their passes. */
@@ -248,7 +220,7 @@ export function passers(sides: SideSet[]): PasserRow[] {
 
 /* ------------------------------------------------- one player's sets */
 
-/** A player's main number for the position they played, so a libero is never judged on points. */
+/** A player's main numbers for their role: attack for hitters, passes for passers, the hitters after their sets for setters. */
 export interface KeyNumber { label: string; value: number | null; text: string; n: number; kind: 'attack' | 'pass' | 'setting' }
 
 export function keyNumbers(role: SlotRole | null, l: StatLine, side?: SideSet, id?: number): KeyNumber[] {
@@ -266,7 +238,7 @@ export function keyNumbers(role: SlotRole | null, l: StatLine, side?: SideSet, i
 
 export interface PlayerSet { set: number; side: SideSet; role: SlotRole | null; setter: number | null; line: StatLine; won: boolean | null; keys: KeyNumber[] }
 
-/** One player's sets: on which side, in which position, with which setter, and how it went. */
+/** One player's sets: on which side, with which setter, and how it went. */
 export function playerTimeline(id: number, sides: SideSet[]): PlayerSet[] {
   return sides
     .filter((s) => s.players.includes(id) || s.events.some((e) => e.player_id === id))
@@ -284,7 +256,7 @@ export function playerTimeline(id: number, sides: SideSet[]): PlayerSet[] {
 export interface Change { player: number; from: PlayerSet; to: PlayerSet; what: string[]; key: KeyNumber['kind']; before: KeyNumber; after: KeyNumber; delta: number }
 
 /**
- * From one set to the next: who changed position or setter, and the number that fits what they
+ * From one set to the next: who got a different setter, and the number that fits what they
  * did (attack, pass or setting) before and after. Only when both sets have enough of it (3+).
  */
 export function changes(players: Player[], sides: SideSet[]): Change[] {
@@ -296,7 +268,6 @@ export function changes(players: Player[], sides: SideSet[]): Change[] {
     for (let i = 1; i < tl.length; i++) {
       const from = tl[i - 1], to = tl[i];
       const what: string[] = [];
-      if (from.role && to.role && from.role !== to.role) what.push(`${SLOT_NAMES[from.role]} → ${SLOT_NAMES[to.role]}`);
       if (from.setter !== to.setter && to.setter !== id && from.setter !== id && from.setter != null && to.setter != null) what.push(`setter ${name(from.setter)} → ${name(to.setter)}`);
       if (!what.length) continue;
       for (const kind of ['setting', 'attack', 'pass'] as const) {
@@ -339,14 +310,5 @@ export function findings(players: Player[], sides: SideSet[]): Finding[] {
   if (poor.length > 1) out.push({ tone: 'good', text: `Most out of poor passes: ${name(poor[0].setter)} (hitters ${effText(poor[0].poor)} after a pass graded 0 or 1).` });
   const ps = passers(sides).filter((r) => r.n >= 8).sort((a, b) => b.avg! - a.avg!);
   if (ps.length > 1) out.push({ tone: 'good', text: `Best passer: ${name(ps[0].player)}, ${ps[0].avg!.toFixed(2)} on ${ps[0].n} passes${ps[0].perfect ? `, ${ps[0].perfect} perfect` : ''}.` });
-  // A hitter clearly better in one position than another.
-  let best: { hitter: number; hi: [SlotRole, Tally]; lo: [SlotRole, Tally]; d: number } | null = null;
-  for (const h of hittersByPosition(sides)) {
-    const list = (Object.entries(h.by) as [SlotRole, Tally][]).filter(([, t]) => t.n >= 4).sort((a, b) => effOf(b[1])! - effOf(a[1])!);
-    if (list.length < 2) continue;
-    const d = effOf(list[0][1])! - effOf(list[list.length - 1][1])!;
-    if (d >= 0.25 && (!best || d > best.d)) best = { hitter: h.hitter, hi: list[0], lo: list[list.length - 1], d };
-  }
-  if (best) out.push({ tone: 'info', text: `${name(best.hitter)} hit better as ${SLOT_NAMES[best.hi[0]]} (${effText(best.hi[1])}) than as ${SLOT_NAMES[best.lo[0]]} (${effText(best.lo[1])}).` });
   return out;
 }

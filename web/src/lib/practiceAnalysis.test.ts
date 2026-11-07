@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Match, Player, VEvent } from './api';
 import { expandPractice } from './practice';
-import { changes, findings, hittersByPosition, passers, playerTimeline, setterHitter, setterRows, sideSets } from './practiceAnalysis';
+import { changes, findings, passers, playerTimeline, setterHitter, setterRows, sideSets } from './practiceAnalysis';
 
 const P = (id: number, number: number, name: string, role: Player['role']): Player => ({ id, number, name, role, active: 1 } as Player);
 // 1 Ann S, 2 Bea OH, 3 Cay MB, 4 Dot S, 5 Eve OH, 6 Fay OPP, 7 Lia L
@@ -43,12 +43,12 @@ describe('practice match analysis', () => {
     expect(s1[0].roleOf.get(7)).toBe('L');
     expect(s1[0].sideout).toEqual({ won: 4, n: 4 });
   });
-  it('a swapped line-up goes to the side whose players it holds; a libero in the six is the middle there', () => {
+  it('a swapped line-up goes to the side whose players it holds; roles come from the team page', () => {
     const s2 = s.filter((x) => x.set === 2);
     expect(s2[0].lineup!.order).toEqual([1, 5, 3, null, null, null]);
     expect(s2[1].lineup!.order).toEqual([4, 6, 7, 2, null, null]);
-    expect(s2[1].roleOf.get(7)).toBe('MB');
-    expect(s2[1].roleOf.get(2)).toBe('OPP');
+    expect(s2[1].roleOf.get(7)).toBe('L');
+    expect(s2[1].roleOf.get(2)).toBe('OH');
   });
   it('setters: hitters after their sets, split by the pass before', () => {
     const ann = setterRows(s).find((r) => r.setter === 1)!;
@@ -59,10 +59,7 @@ describe('practice match analysis', () => {
     expect(dot.poor).toEqual({ kills: 0, errors: 5, n: 5 });
     expect(setterHitter(s).find((r) => r.setter === 4 && r.hitter === 2)).toMatchObject({ n: 4, errors: 4 });
   });
-  it('hitters by position, passers (libero judged on passes), what changed', () => {
-    const bea = hittersByPosition(s).find((h) => h.hitter === 2)!;
-    expect(bea.by.OH).toEqual({ kills: 4, errors: 0, n: 4 });
-    expect(bea.by.OPP).toEqual({ kills: 0, errors: 4, n: 4 });
+  it('passers (libero judged on passes), what changed', () => {
     const lia = passers(s).find((r) => r.player === 7)!;
     expect(lia).toMatchObject({ n: 8, perfect: 4 });
     expect(lia.avg).toBe(2);
@@ -70,7 +67,7 @@ describe('practice match analysis', () => {
     // The libero has a pass number, never an attack or points number.
     expect(playerTimeline(7, s)[0].keys.map((k) => k.kind)).toEqual(['pass']);
     const ch = changes(players, s).find((c) => c.player === 2)!;
-    expect(ch.what.join(' ')).toMatch(/Outside → Opposite.*setter #1 Ann → #4 Dot/);
+    expect(ch.what).toEqual(['setter #1 Ann → #4 Dot']);
     expect(ch.key).toBe('attack');
     expect(ch.delta).toBe(-2);
   });
@@ -78,7 +75,6 @@ describe('practice match analysis', () => {
     const f = findings(players, s).map((x) => x.text).join('\n');
     expect(f).toMatch(/Best setter and hitter: #1 Ann setting #2 Bea: 4 kills, 0 errors in 4 attacks/);
     expect(f).toMatch(/#2 Bea with #4 Dot setting: 0 kills, 4 errors in 4 attacks/);
-    expect(f).toMatch(/#2 Bea hit better as Outside .* than as Opposite/);
     expect(f).not.toMatch(/Lia.*points/);
   });
 });
