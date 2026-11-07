@@ -92,9 +92,64 @@ function actionOf(w: string): ActionCode | null {
 /** Splits a transcript into words: lower case, punctuation off, "#7" and "7er" become 7. */
 export function words(text: string): string[] {
   return text.toLowerCase()
+    // "5:00" (a number heard as a time) is 5.
+    .replace(/\b(\d{1,2}):\d\d\b/g, '$1')
     .replace(/[#.,;:!?"'()]/g, ' ')
     .replace(/(\d+)(er|te|th|st|nd|rd)\b/g, '$1')
-    .split(/\s+/).filter(Boolean);
+    .split(/\s+/).filter(Boolean)
+    .map(soundsLike);
+}
+
+/** Words speech engines write for our words ("seven past two" was "seven pass two"). */
+const SOUNDS_LIKE: Record<string, string> = {
+  past: 'pass', passe: 'pass', pas: 'pass', parse: 'pass', paths: 'pass', path: 'pass',
+  sat: 'set', sett: 'set', said: 'set', sets: 'sets', seat: 'set',
+  kil: 'kill', kiel: 'kill', keel: 'kill', kale: 'kill', skill: 'kill', kills: 'kills',
+  attic: 'attack', attach: 'attack', atack: 'attack', attacked: 'attacked',
+  surf: 'serve', serf: 'serve', serv: 'serve', survey: 'serve', served: 'served',
+  ice: 'ace', aids: 'ace',
+  blog: 'block', bloc: 'block', black: 'block', blocks: 'blocks',
+  deck: 'dig', dick: 'dig',
+  receipt: 'receive', receives: 'receives',
+  era: 'error', arrow: 'error', errors: 'error',
+  ate: '8', tree: '3',
+  anname: 'annahme', annahmen: 'annahme', anahme: 'annahme',
+  punk: 'punkt', punkte: 'punkt',
+  zuspiele: 'zuspiel', aufschlags: 'aufschlag', angriffe: 'angriff', fehlern: 'fehler',
+};
+
+/** Our own words, for the nearest match of an unknown word (one letter off). */
+let VOCAB: string[] | null = null;
+function vocab(): string[] {
+  if (!VOCAB) VOCAB = [...new Set([...WORDS.flatMap(([w]) => w), ...ERROR_WORDS, ...POINT_WORDS, ...TIP_WORDS, ...Object.keys(GRADE_WORDS)])].filter((w) => w.length >= 4);
+  return VOCAB;
+}
+function oneOff(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1 || a === b) return false;
+  let i = 0, j = 0, diff = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++diff > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return diff + (a.length - i) + (b.length - j) <= 1;
+}
+function soundsLike(w: string): string {
+  if (SOUNDS_LIKE[w]) return SOUNDS_LIKE[w];
+  if (w.length < 4 || /\d/.test(w) || numberWord(w) != null) return w;
+  const known = vocab();
+  if (known.includes(w)) return w;
+  // One letter off and the same first letter ("serw" → "serve" is two off and stays unknown).
+  return known.find((k) => k[0] === w[0] && oneOff(w, k)) ?? w;
+}
+
+/** Words to tell the phone's speech recognizer to expect (Android 13+). */
+export function voiceHints(lang: string): string[] {
+  const de = lang.startsWith('de');
+  const nums = Array.from({ length: 20 }, (_, i) => String(i + 1));
+  return de
+    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block']
+    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block'];
 }
 
 /**

@@ -75,5 +75,15 @@ describe('voice tagging', () => {
     // Our own block that went out stays a block error.
     expect(tags('12 block out')).toEqual(['12:block_error']);
   });
+
+  it('words that sound alike', () => {
+    expect(tags('seven past two one set five kil')).toEqual(['7:receive=2', '1:set', '5:kill']);
+    // "five" written as a time: the number stays, the rest of the phrase was not heard.
+    expect(tags('seven past two one set 5:00')).toEqual(['7:receive=2', '1:set']);
+    expect(tags('nine attic out')).toEqual(['9:attack_error']);
+    expect(tags('twelve receve perfect')).toEqual(['12:receive=3']);
+    expect(tags('four serwe error')).toEqual(['4:serve_error']);
+    expect(tags('Sieben Anname zwei')).toEqual(['7:receive=2']);
+  });
 });
 

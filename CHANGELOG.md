@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Fine scrubbing**
+- Match page: a second strip under the timeline with the 10 seconds around the current moment, to put the video on the exact ball contact (0.04 s steps; the video pauses while you drag, and the strip stays put). Saved tags show as marks on it.
+- "‹ 0.1 s / 0.1 s ›" steps for YouTube videos too (video files keep their frame steps).
+
+**Voice: words that sound alike**
+- Words a speech engine writes for ours are understood: "seven past two" is "seven pass two", "attic" is attack, "surf" serve, "ice" ace, "5:00" is 5; any word one letter off one of ours counts as that word ("serwe", "receve", "Anname"). On Android 13 and newer the phone's speech recognizer is also told which words to expect (shirt numbers and the actions), so it hears them more often in the first place.
+
 **Practice matches: rotations**
 - Each side gets its own line-up per set ("Line-up Near" / "Line-up Far" above the tag pad): positions 1-6, the libero, and who serves first (the other side's choice follows by itself). While tagging, both sides rotate with the points: the players on court come first on the pad, and the server of the side serving gets the quick "Serve" button.
 - Rotation stats (side-out and break per setter position) include practice matches, each side counted from its own view with its own line-up.

@@ -27,7 +27,7 @@ import { PracticeSheet } from '../components/PracticeSheet';
 import { sideOf, sideScore } from '../lib/practice';
 import type { Lineups } from '../lib/rotation';
 import { VoiceBar } from '../components/VoiceBar';
-import { Timeline } from '../components/Timeline';
+import { FineScrub, Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
@@ -455,6 +455,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 ) : tab === 'review' && reviewMode === 'rally' && suggested.length > 0 ? null : (
                 <>
                 <Timeline player={player} events={events} />
+                <FineScrub player={player} events={events} />
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>
@@ -463,7 +464,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   <button onClick={() => player.current?.seekBy(10)}>+10</button>
                   <div className="tp-row2">
                     <SpeedControl className="tp-rate" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
-                    {source?.type === 'file' && <FrameStep player={player} />}
+                    {source && <FrameStep player={player} />}
                     <button className="tp-keys" onClick={() => setShowKeys(true)} title="Keyboard shortcuts">Keys ?</button>
                     {cloud && <QualityControl className="tp-rate" quality={cloud.quality} options={available(cloudLink)}
                       onPick={(q) => { setQuality(q); saveQuality('coach', q); }} />}

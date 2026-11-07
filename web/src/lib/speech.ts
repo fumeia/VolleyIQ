@@ -1,5 +1,6 @@
 import { isApp } from './api';
 import { Native } from './native';
+import { voiceHints } from './voice';
 
 /**
  * Listening for voice tags, one phrase at a time: in the Android app with the phone's speech
@@ -28,7 +29,8 @@ export async function listen(lang: string, onText: (text: string, final: boolean
       Native.addListener('speech', (r) => onText(r.text, r.final)),
       Native.addListener('speechState', onState),
     ]);
-    await Native.startListening({ lang });
+    // The words we expect, so the recognizer prefers "pass" over "past" (Android 13+).
+    await Native.startListening({ lang, hints: voiceHints(lang) });
     onState({ listening: true });
     return { stop: () => { void Native.stopListening(); subs.forEach((s) => s.remove()); onState({ listening: false }); } };
   }

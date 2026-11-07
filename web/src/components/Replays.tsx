@@ -314,7 +314,7 @@ export function Replays({ token, matches, players, events, initialMatch, playlis
         <button className="btn" disabled={!source || idx >= clips.length - 1} onClick={() => play(clips[idx + 1])}>▶</button>
         <div className="replay-playback">
           <SpeedControl className="btn" rate={rate} youtube={source?.type === 'youtube'} onRate={(r) => { setRate(r); player.current?.setRate(r); }} />
-          {source?.type === 'file' && <FrameStep player={player} className="btn" />}
+          {source && <FrameStep player={player} className="btn" />}
           {!file && hostedPick && <QualityControl className="btn" quality={hostedPick.quality} options={available(link)}
             onPick={(q) => { setQuality(q); saveQuality('team', q); }} />}
         </div>

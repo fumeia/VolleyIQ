@@ -101,6 +101,8 @@ class VolleyIQPlugin : Plugin() {
     private var speechLang = "de-DE"
     /** The phone's offline model first; off again when it has none for the language (error 13). */
     private var preferOffline = true
+    /** Words to expect (shirt numbers, actions): Android 13+ prefers them when unsure. */
+    private var speechHints: List<String> = emptyList()
     /** Failures in a row (other than silence): told to the page only when they keep coming. */
     private var speechFailures = 0
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
@@ -108,6 +110,7 @@ class VolleyIQPlugin : Plugin() {
     @PluginMethod
     fun startListening(call: PluginCall) {
         speechLang = call.getString("lang") ?: "de-DE"
+        speechHints = runCatching { call.getArray("hints")?.toList<String>() }.getOrNull()?.take(50) ?: emptyList()
         preferOffline = true
         speechFailures = 0
         if (getPermissionState("microphone") != PermissionState.GRANTED) {
@@ -145,6 +148,9 @@ class VolleyIQPlugin : Plugin() {
             putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             // Gyms often have no signal: use the phone's offline speech model when it has one.
             putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
+            if (speechHints.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 33) {
+                putStringArrayListExtra("android.speech.extra.BIASING_STRINGS", ArrayList(speechHints))
+            }
             putExtra(android.speech.RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
         }
         runCatching { recognizer?.startListening(intent) }

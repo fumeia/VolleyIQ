@@ -54,3 +54,38 @@ export function Timeline({ player, events = [] }: { player: React.RefObject<Play
     </div>
   );
 }
+
+/**
+ * Fine scrubbing: a strip with the 10 seconds around the current moment, to put the video on the
+ * exact ball contact (tag times count to the tenth). Dragging pauses the video and moves it in
+ * 0.04 s steps; the strip stays put while you drag. Tags in view show as marks.
+ */
+export function FineScrub({ player, events = [], span = 10 }: { player: React.RefObject<PlayerHandle | null>; events?: VEvent[]; span?: number }) {
+  const [t, setT] = useState(0);
+  const [hold, setHold] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (hold == null) setT(player.current?.time() ?? 0); }, 150);
+    return () => clearInterval(timer);
+  }, [player, hold]);
+  const dur = player.current?.duration() ?? null;
+  const c = hold ?? t;
+  const lo = Math.max(0, Math.min(c - span / 2, (dur ?? Infinity) - span));
+  const hi = lo + span;
+  const at = (v: number) => `${((v - lo) / span) * 100}%`;
+  const tags = events.filter((e) => e.t != null && e.t >= lo && e.t <= hi && e.status === 'confirmed');
+  const seconds = Array.from({ length: Math.floor(hi) - Math.ceil(lo) + 1 }, (_, i) => Math.ceil(lo) + i);
+  return (
+    <div className="fine-scrub">
+      <span className="timeline-time">{fmtTime(t)}.{Math.floor((t % 1) * 10)}</span>
+      <div className="fine-track">
+        {seconds.map((s) => <span key={s} className="fine-tick" style={{ left: at(s) }}>{s % 5 === 0 ? fmtTime(s) : ''}</span>)}
+        {tags.map((e) => <span key={e.id} className="fine-tag" style={{ left: at(e.t!) }} />)}
+        <input type="range" min={lo} max={hi} step={0.04} value={Math.min(hi, Math.max(lo, t))} aria-label="Fine position (10 seconds around now)"
+          onPointerDown={() => { player.current?.pause(); setHold(t); }}
+          onChange={(e) => { const v = Number(e.target.value); setT(v); player.current?.seek(v); }}
+          onPointerUp={() => setHold(null)} onKeyUp={() => setHold(null)} onBlur={() => setHold(null)} />
+      </div>
+      <span className="timeline-time muted">±5 s</span>
+    </div>
+  );
+}

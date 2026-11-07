@@ -51,7 +51,7 @@ interface VolleyIQPlugin {
   installUpdate(o: { url: string; token: string | null }): Promise<void>;
   addListener(event: 'updateProgress', cb: (p: { done: number; total: number }) => void): Promise<{ remove: () => void }>;
   /** Voice tagging: Android's speech recognizer, listening until stopListening. */
-  startListening(o: { lang: string }): Promise<void>;
+  startListening(o: { lang: string; hints?: string[] }): Promise<void>;
   stopListening(): Promise<void>;
   addListener(event: 'speech', cb: (r: { text: string; final: boolean }) => void): Promise<{ remove: () => void }>;
   addListener(event: 'speechState', cb: (s: { listening: boolean; error?: string }) => void): Promise<{ remove: () => void }>;

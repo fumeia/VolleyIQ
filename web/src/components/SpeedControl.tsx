@@ -46,13 +46,17 @@ export function SpeedControl({ rate, onRate, youtube = false, className = '' }: 
   );
 }
 
-/** Step one frame back or forward (pauses first). Only for video files: YouTube cannot show single frames. */
+/**
+ * Step one frame back or forward (pauses first). YouTube cannot show single frames: there it steps
+ * a tenth of a second.
+ */
 export function FrameStep({ player, className = '' }: { player: React.RefObject<PlayerHandle | null>; className?: string }) {
-  const step = (dir: number) => { const p = player.current; if (!p) return; p.pause(); p.seekBy(dir * FRAME); };
+  const file = !!player.current?.fileUrl();
+  const step = (dir: number) => { const p = player.current; if (!p) return; p.pause(); p.seekBy(dir * (p.fileUrl() ? FRAME : 0.1)); };
   return (
     <>
-      <button className={className} onClick={() => step(-1)} title={t('One frame back')}>‹ {t('frame')}</button>
-      <button className={className} onClick={() => step(1)} title={t('One frame forward')}>{t('frame')} ›</button>
+      <button className={className} onClick={() => step(-1)} title={file ? t('One frame back') : '0.1 s back'}>‹ {file ? t('frame') : '0.1 s'}</button>
+      <button className={className} onClick={() => step(1)} title={file ? t('One frame forward') : '0.1 s forward'}>{file ? t('frame') : '0.1 s'} ›</button>
     </>
   );
 }
