@@ -6,6 +6,7 @@ import { cleanSheet } from './sheet.js';
 import { abortUpload, completeUpload, createUpload, deleteObject, presign } from './s3.js';
 import { cleanImages } from './vision.js';
 import { DEFAULTS as DETECTOR_DEFAULTS, tuneFromDb } from './tuning.js';
+import { trainFromDb } from './model.js';
 import { registerPlaylists, teamPlaylists } from './playlists.js';
 
 function bad(reply, msg, code = 400) {
@@ -750,12 +751,13 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
 
   // ---------- auto-detection results from the phone app ----------
   // The Android app analyses the video on the phone and posts its suggestions here.
-  app.post('/api/matches/:id/suggestions', coach, async (req, reply) => {
+  // A run's sound peaks with all their measurements can be a few MB.
+  app.post('/api/matches/:id/suggestions', { ...coach, bodyLimit: 15 * 1024 * 1024 }, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!match) return bad(reply, 'Match not found', 404);
     const { events = [], replace = true, params = null, candidates = null } = req.body ?? {};
-    // Sound peaks as [t, z, sustain]: only well-formed ones, at most 50,000.
-    const peaks = Array.isArray(candidates) ? candidates.filter((c) => Array.isArray(c) && c.length === 3 && c.every(Number.isFinite)).slice(0, 50000) : null;
+    // Sound peaks as [t, z, sustain] (older apps) or with all 10 measurements: only well-formed ones, at most 50,000.
+    const peaks = Array.isArray(candidates) ? candidates.filter((c) => Array.isArray(c) && (c.length === 3 || c.length === 10) && c.every(Number.isFinite)).slice(0, 50000) : null;
     if (!Array.isArray(events) || events.length > 10000) return bad(reply, 'events must be an array (max 10000)');
     // The run as detected (also the touches skipped below as already saved: those are hits).
     const RUN_KEYS = ['t', 'action', 'rally', 'poss', 'jersey', 'confidence', 'hint', 'set_no'];
@@ -767,6 +769,9 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
         db.prepare('INSERT INTO detection_runs (match_id, params, events, candidates) VALUES (?, ?, ?, ?)').run(match.id, p, JSON.stringify(runEvents), peaks?.length ? JSON.stringify(peaks) : null);
         db.prepare('DELETE FROM detection_runs WHERE match_id = ? AND id NOT IN (SELECT id FROM detection_runs WHERE match_id = ? ORDER BY id DESC LIMIT 10)').run(match.id, match.id);
       }
+      // A run on a match that is already tagged, only to learn from (the app's "only learn" option):
+      // the run and its sound peaks are kept, Review gets no suggestions.
+      if (params?.learnOnly === true) return 0;
       // Only unconfirmed auto suggestions are replaced; confirmed tags are never touched.
       if (replace) db.prepare("DELETE FROM events WHERE match_id = ? AND source = 'auto' AND status = 'suggested'").run(match.id);
       // A new run skips touches already saved (reviewed or tagged), so it only brings back what is missing.
@@ -911,11 +916,25 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
 
   // ---------- the detector's thresholds, learned from the tagged matches ----------
   // The app asks before each run; "off" keeps the defaults.
+  // The trained model, kept until a tag or a run changes (training takes a moment).
+  let modelCache = { key: '', value: null };
+  function soundModel() {
+    const key = JSON.stringify([
+      db.prepare('SELECT MAX(id) AS id, COUNT(*) AS n FROM detection_runs WHERE candidates IS NOT NULL').get(),
+      db.prepare("SELECT COUNT(*) AS n, SUM(COALESCE(t, 0)) AS st, MAX(id) AS id FROM events WHERE status = 'confirmed'").get(),
+    ]);
+    if (modelCache.key !== key) modelCache = { key, value: trainFromDb(db) };
+    return modelCache.value;
+  }
   app.get('/api/detector', coach, async () => {
     const r = tuneFromDb(db);
     const off = db.prepare("SELECT data FROM sv_cache WHERE key = 'detector:off'").get() != null;
-    const use = r.ready && !off && r.best.score > r.baseline.score;
-    return { ...r, off, use: use ? { threshold: r.best.threshold, sustainMax: r.best.sustainMax } : { ...DETECTOR_DEFAULTS } };
+    const m = soundModel();
+    const useRule = r.ready && !off && r.best.score > r.baseline.score;
+    const rule = useRule ? { threshold: r.best.threshold, sustainMax: r.best.sustainMax } : { ...DETECTOR_DEFAULTS };
+    // The model goes to the app when it beats the threshold rule on parts of the matches it did not learn from.
+    const useModel = m.ready && m.better && !off;
+    return { ...r, off, model: m.ready ? { ...m, model: undefined } : m, use: { ...rule, ...(useModel ? { model: m.model } : {}) } };
   });
   app.put('/api/detector', coach, async (req) => {
     if (req.body?.off) db.prepare("INSERT OR REPLACE INTO sv_cache (key, data) VALUES ('detector:off', '1')").run();

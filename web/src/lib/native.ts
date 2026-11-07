@@ -26,7 +26,12 @@ interface VolleyIQPlugin {
     matchId: number; uri: string; apiBase: string; token: string | null; roster: number[];
     readJerseys: boolean; detectCuts: boolean; sensitivity?: number;
     /** Learned from the tagged matches (server: /api/detector). */
-    threshold?: number; sustainMax?: number; ourHalf?: 'near' | 'far' | null; points?: number[] | null;
+    threshold?: number; sustainMax?: number;
+    /** The trained touch model (server: /api/detector), used instead of the thresholds when present. */
+    model?: unknown;
+    /** The match is already tagged: keep the run's sounds for learning, add no suggestions. */
+    learnOnly?: boolean;
+    ourHalf?: 'near' | 'far' | null; points?: number[] | null;
     /** Per set: from each side switch on, our half (and the court marking if it was re-marked). */
     segments?: Segment[] | null;
   }): Promise<{ id: string; uploadId: string }>;

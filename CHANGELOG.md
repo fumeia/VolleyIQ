@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**A trained model for the touch detection**
+- The phone now keeps 10 measurements of every sound it hears in a run (how far it stands out, how fast it fades, its height, how sharply it rises, how wide it is, how tonal, the band level against the surroundings, the energy before and after), not 3.
+- The server trains a small model on them from your tagged matches: the sound at each tagged touch is a touch, every sound in the pause between rallies is not, and the rhythm around each sound counts too (time to the sounds before and after, how many there are). Tag times are tapped by hand with a reaction-time lead; the training first finds how far the tags sit from the sound in each match and corrects for it.
+- It is tested on parts of the matches it did not learn from, next to the threshold rule on the same tags. Only when it finds more touches for less noise does the next run use it (Auto → "Learning from your tags" shows both, and the switch turns it off). It needs about 150 tagged touches lined up with a sound: one tagged match is plenty.
+- Auto → Options → "This match is already tagged: only learn from it": a run on a match you tagged by hand keeps its sounds for the learning and adds nothing to Review; it skips reading the picture, so it is much faster. On by default for a match with 100+ tagged touches.
+- Needs the new app: runs of older versions only kept 3 measurements per sound.
+
 **Fine scrubbing**
 - Match page: a second strip under the timeline with the 10 seconds around the current moment, to put the video on the exact ball contact (0.04 s steps; the video pauses while you drag, and the strip stays put). Saved tags show as marks on it.
 - "‹ 0.1 s / 0.1 s ›" steps for YouTube videos too (video files keep their frame steps).

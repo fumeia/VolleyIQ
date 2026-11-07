@@ -60,8 +60,9 @@ object Detection {
     }
 
     /**
-     * Every sound peak above a low floor, with its score and how long it lasts: [t, z, sustain].
-     * Kept with a run, so other thresholds can be tried afterwards against the tagged touches.
+     * Every sound peak above a low floor, with measurements of it, kept with a run so the server can
+     * learn from them against the tagged touches (thresholds, and the trained model in SoundModel):
+     * [t, z, sustain, height, rise, width, tonality, band level, energy before, energy after].
      */
     fun candidates(feat: AudioFeatures, whistles: List<Interval>, floor: Float = 3f, minGap: Double = 0.35): List<DoubleArray> {
         val flux = feat.flux
@@ -70,8 +71,33 @@ object Detection {
         return findPeaks(z, floor, max(1, (minGap * AudioSpec.FPS).toInt())).mapNotNull { p ->
             val t = peakTime(p)
             if (whistles.any { t >= it.start - 0.15 && t <= it.end + 0.15 }) null
-            else doubleArrayOf(t, z[p].toDouble(), sustain(flux, p).toDouble())
+            else measure(feat, p, t, z[p], sustain(flux, p))
         }
+    }
+
+    private fun mean(x: FloatArray, from: Int, to: Int): Double {
+        val a = max(0, from)
+        val b = min(x.size - 1, to)
+        if (b < a) return 0.0
+        var s = 0.0
+        for (i in a..b) s += x[i]
+        return s / (b - a + 1)
+    }
+
+    private fun measure(feat: AudioFeatures, p: Int, t: Double, z: Float, sus: Float): DoubleArray {
+        val flux = feat.flux
+        val h = flux[p].toDouble()
+        // How sharply it rises against just before, how many frames it stays above half its height.
+        val rise = h / (mean(flux, p - 6, p - 2) + 1e-6)
+        var l = p
+        while (l > 0 && flux[l - 1] >= h / 2) l--
+        var r = p
+        while (r < flux.size - 1 && flux[r + 1] >= h / 2) r++
+        val tonal = feat.tonality.getOrElse(p) { 0f }.toDouble()
+        val band = if (p < feat.bandDb.size) feat.bandDb[p] - mean(feat.bandDb, p - 100, p + 100) else 0.0
+        val pre = mean(flux, p - 30, p - 5) / (h + 1e-6)
+        val post = mean(flux, p + 12, p + 40) / (h + 1e-6)
+        return doubleArrayOf(t, z.toDouble(), sus.toDouble(), h, rise, (r - l + 1).toDouble(), tonal, band, pre, post)
     }
 
     const val DEFAULT_THRESHOLD = 8.0

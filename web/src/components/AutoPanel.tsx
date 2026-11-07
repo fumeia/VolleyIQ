@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, serverBase, type DetectorTuning, type Match, type Player, type VEvent } from '../lib/api';
+import { api, serverBase, type DetectorTuning, type SoundModelStatus, type Match, type Player, type VEvent } from '../lib/api';
 import { aiPrefs } from '../lib/aiCheck';
 import { AiCard } from './AiCard';
 import { DetectionReportCard } from './DetectionReportCard';
@@ -39,6 +39,8 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
   const roster = players.filter((p) => p.active && p.number != null).map((p) => p.number!);
   const [readJerseys, setReadJerseys] = useState(roster.length > 0);
   const [detectCuts, setDetectCuts] = useState(true);
+  // A match already tagged by hand: the run only teaches the detection (no suggestions in Review).
+  const [learnOnly, setLearnOnly] = useState(() => confirmed.filter((e) => e.t != null).length >= 100);
   // Remembered per match, so a re-run uses the same value unless you change it.
   const sensKey = `viq:sensitivity:${match.id}`;
   const [sensitivity, setSensitivityState] = useState(() => { try { return Number(localStorage.getItem(sensKey)) || 1; } catch { return 1; } });
@@ -109,6 +111,7 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
         readJerseys,
         detectCuts,
         sensitivity,
+        learnOnly,
         // The thresholds learned from the tagged matches (the defaults until there are enough).
         ...((await api.detector().catch(() => null))?.use ?? {}),
         ourHalf: cal?.ourHalf ?? null,
@@ -155,7 +158,11 @@ export function AutoPanel({ match, players, video, onCalibrate, onCalibration, g
       </div>
 
       <details className="auto-step">
-        <summary><b>3 · Options</b> <small className="muted">jerseys {readJerseys ? 'on' : 'off'} · {detectCuts ? 'edited video' : 'uncut'} · sensitivity {sensitivity.toFixed(1)}×</small></summary>
+        <summary><b>3 · Options</b> <small className="muted">{learnOnly ? 'only learn · ' : ''}jerseys {readJerseys ? 'on' : 'off'} · {detectCuts ? 'edited video' : 'uncut'} · sensitivity {sensitivity.toFixed(1)}×</small></summary>
+        <label className="toggle">
+          <input type="checkbox" checked={learnOnly} onChange={(e) => setLearnOnly(e.target.checked)} />
+          This match is already tagged: only learn from it <small className="muted">(the run teaches the detection from your tags; Review gets no suggestions, and the picture is not read, so it is faster)</small>
+        </label>
         <label className="toggle">
           <input type="checkbox" checked={readJerseys} onChange={(e) => setReadJerseys(e.target.checked)} />
           Read jersey numbers {roster.length === 0 && <small className="muted">(add numbers to the roster first)</small>}
@@ -200,7 +207,7 @@ function label(a: WorkState, u: WorkState | null | undefined) {
   if (!u || u.state === 'enqueued' || u.state === 'blocked') return 'Analysis done · waiting for a connection to upload…';
   if (u.state === 'running') return 'Uploading suggestions…';
   if (u.state === 'failed') return `Upload failed: ${u.error ?? ''}`;
-  if (u.state === 'succeeded') return `Done · ${u.count ?? 0} touches suggested. Open Review.`;
+  if (u.state === 'succeeded') return u.count ? `Done · ${u.count} touches suggested. Open Review.` : 'Done · no new touches for Review; the run is kept for learning (see "Learning from your tags").';
   return u.state;
 }
 
@@ -218,14 +225,14 @@ function LearnedDetector() {
   return (
     <details className="auto-step learned">
       <summary><b>Learning from your tags</b> <small className="muted">{
-        !d.ready ? `${d.touches} of ${150} tagged touches to start` : d.off ? 'switched off' : better ? `hears ${pct(d.best!.recall)} of touches (was ${pct(d.baseline.recall)})` : 'the standard settings are best so far'
+        d.off ? 'switched off' : d.model?.ready && d.model.better ? `trained model: hears ${pct(d.model.cv!.recall)} of touches` : !d.ready ? `${d.touches} of ${150} tagged touches to start` : better ? `hears ${pct(d.best!.recall)} of touches (was ${pct(d.baseline.recall)})` : 'the standard settings are best so far'
       }</small></summary>
       <p className="small muted">
         Each run keeps every sound it heard, also the faint ones it did not count. VolleyIQ then checks against the touches you tagged
         which settings would have heard the most of them with the least noise between rallies, and the next run uses those.
         Tag one or two sets of a match by hand before running the detection on it: each tagged set teaches it more.
       </p>
-      {!d.ready ? (
+      {!d.ready && !d.model?.ready ? (
         <p className="small">So far {d.touches} tagged touch{d.touches === 1 ? '' : 'es'} in {d.matches} match{d.matches === 1 ? '' : 'es'} with a run. Learning starts at 150 (about four sets).</p>
       ) : (
         <table className="small detection-table">
@@ -237,9 +244,10 @@ function LearnedDetector() {
         </table>
       )}
       {d.ready && <p className="small muted">From {d.touches} tagged touches in {d.matches} match{d.matches === 1 ? '' : 'es'}. The sensitivity slider still works on top of it.</p>}
+      <ModelStatus m={d.model} on={!d.off} />
       {d.ready && better && (
         <label className="toggle small">
-          <input type="checkbox" checked={!d.off} onChange={async (e) => { await api.setDetectorOff(!e.target.checked); load(); }} /> Use the learned settings
+          <input type="checkbox" checked={!d.off} onChange={async (e) => { await api.setDetectorOff(!e.target.checked); load(); }} /> Use what was learned (settings and model)
         </label>
       )}
     </details>
@@ -264,5 +272,38 @@ function DownloadYoutube({ match, onLocal }: { match: Match; onLocal: (v: LocalV
       <button className="btn" onClick={() => imp.start(`https://www.youtube.com/watch?v=${match.video_ref}`).catch((e) => setErr((e as Error).message))}>Download the YouTube video</button>
       {err && <span className="small error">{err}</span>}
     </>
+  );
+}
+
+/**
+ * The touch model trained on the tagged matches: how it did on the parts it did not learn from,
+ * next to the threshold rule on the same tags, and what it still needs.
+ */
+function ModelStatus({ m, on }: { m?: SoundModelStatus; on: boolean }) {
+  if (!m) return null;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  if (!m.ready) {
+    return (
+      <p className="small muted">
+        <b>Trained model:</b> {m.positives ? `${m.positives} of 150 touches lined up with a sound so far` : 'needs a detection run made with this app version on a match with tagged touches'}.
+        Run the detection again on a match you already tagged: its tags are the answers the model learns from.
+      </p>
+    );
+  }
+  return (
+    <div className="small">
+      <b>Trained model</b> <span className="muted">· {m.positives} touches and {m.negatives} sounds between rallies from {m.matches} match{m.matches === 1 ? '' : 'es'}</span>
+      <table className="small detection-table">
+        <thead><tr><th /><th>Touches heard</th><th>Noise between rallies</th></tr></thead>
+        <tbody>
+          <tr><td>Thresholds</td><td>{pct(m.rule!.recall)}</td><td>{m.rule!.noisePerMin.toFixed(1)} / min</td></tr>
+          <tr><td>Trained model</td><td><b>{pct(m.cv!.recall)}</b></td><td><b>{m.cv!.noisePerMin.toFixed(1)} / min</b></td></tr>
+        </tbody>
+      </table>
+      <p className="muted">
+        Tested on parts of the matches it did not learn from. {m.better ? (on ? 'The next run uses the model.' : 'Switched off: the next run uses the standard settings.') : 'Not better than the thresholds yet: the next run keeps the thresholds.'}
+        {m.offsets?.some((o) => Math.abs(o) >= 0.3) ? ` Your tags sat about ${m.offsets.map((o) => `${o > 0 ? '+' : ''}${o.toFixed(1)} s`).join(', ')} from the sound (reaction time); that is corrected for.` : ''}
+      </p>
+    </div>
   );
 }

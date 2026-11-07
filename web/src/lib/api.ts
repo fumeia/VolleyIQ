@@ -40,8 +40,20 @@ export interface LineupRead { shirt: string; side: 'near' | 'far' | null; servin
 export interface TuningResult { threshold: number; sustainMax: number; truth: number; found: number; recall: number; noise: number; noisePerMin: number; score: number }
 export interface DetectorTuning {
   ready: boolean; touches: number; matches: number; off: boolean; baseline: TuningResult; best?: TuningResult;
-  /** What the next run uses. */
-  use: { threshold: number; sustainMax: number };
+  /** What the next run uses: the thresholds, and the trained touch model when it beats them. */
+  use: { threshold: number; sustainMax: number; model?: SoundModelParams };
+  /** The touch model trained on the tagged matches (tested on parts it did not learn from). */
+  model?: SoundModelStatus;
+}
+export interface SoundModelParams { version: number; features: number; mean: number[]; std: number[]; w: number[]; b: number; cut: number }
+export interface SoundModelStatus {
+  ready: boolean; matches: number; touches: number; positives: number; negatives: number;
+  /** Tested result of the model, and of the threshold rule on the same tags. */
+  cv?: { cut: number; truth: number; found: number; recall: number; noise: number; noisePerMin: number };
+  rule?: { threshold: number; sustainMax: number; truth: number; found: number; recall: number; noise: number; noisePerMin: number };
+  better?: boolean;
+  /** Per match: how far the tags were from the sound (s). */
+  offsets?: number[];
 }
 /** The score of a match being tagged right now. */
 export interface LiveScore { match: { id: number; label: string; opponent: string | null; /** Practice match: the first side's name. */ ourName?: string }; sets: { set: number; us: number; them: number; done: boolean }[]; won: number; lost: number; updated: string }
