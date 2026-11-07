@@ -316,6 +316,11 @@ test('practice match: blocked attack + block point is one point; off the block a
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
   // Marked fully tagged.
   await page.getByRole('button', { name: /^Events/ }).click();
+  // Each tag shows whether it scores: the blocked attack +0 (counted with the block point), the block point +1.
+  const rows = page.locator('.evlist li');
+  await expect(rows.filter({ hasText: 'Attack Blocked' }).locator('.ev-pt')).toHaveText('+0');
+  await expect(rows.filter({ hasText: 'Attack Blocked' }).locator('.ev-pt')).toHaveClass(/ev-pt-paired/);
+  await expect(rows.filter({ hasText: 'Block Point' }).locator('.ev-pt')).toHaveText('+1');
   await page.getByRole('button', { name: 'Mark as fully tagged' }).click();
   await expect(page.locator('.final-box')).toContainText('Fully tagged');
 });

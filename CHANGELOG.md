@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Events list: +1 / +0 on every tag**
+- Each tag in the Events tab shows whether it scores a point as the match is read now: +1 (in your team's colour for your points, orange for theirs; in a practice match by side), +0 when it does not, and a dashed +0 for a tag that is counted together with the one next to it (a blocked attack with the block point, a dig error with the kill). Hover for who gets the point.
+
 **Practice matches: kill and dig error count once**
 - A kill and a dig error of the other side right next to it (within 3 s, either order) are one point for the attacker, like the blocked attack and the block point. The attacker keeps the kill and the defender the dig error in their stats. This works on the tags you already have, also for the live score on the public link. Matches marked "fully tagged" before keep their score until you unmark them.
 

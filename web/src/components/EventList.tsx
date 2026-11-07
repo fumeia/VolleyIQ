@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { actionLabel, ACTION_BY_CODE } from '../lib/actions';
+import { actionLabel, ACTION_BY_CODE, scoreOf } from '../lib/actions';
 import { api, type Player, type Playlist, type VEvent } from '../lib/api';
 import { findIssues } from '../lib/quality';
 import { fmtTime } from './TagPad';
@@ -21,6 +21,25 @@ interface Props {
   onPlayAll?: (list: VEvent[]) => void;
   /** The match's team: selected events can be added to its clip playlists. */
   playlistTeam?: number | null;
+  /** Show +1 / +0 on each tag: whether it scores a point as the match is read now. Practice: the sides' names. */
+  points?: { sides?: { a: string; b: string } | null };
+}
+
+/** +1 (and for whom) or +0 for a tag; a paired tag says which tag scores the rally instead. */
+function pointOf(e: VEvent, sides?: { a: string; b: string } | null): { text: string; cls: string; title: string } {
+  const would = ACTION_BY_CODE[e.action]?.score;
+  if (would && e.noPoint) {
+    const other = e.action === 'attack_blocked' ? 'the block point right after it' : e.action === 'dig_error' ? 'the kill right next to it' : 'the tag next to it';
+    return { text: '+0', cls: 'ev-pt-paired', title: `No point of its own: ${other} scores this rally. Still counts in the player's stats.` };
+  }
+  const s = scoreOf(e);
+  if (!s) return { text: '+0', cls: '', title: 'Not a point' };
+  if (sides) {
+    const own = e.side === 'b' ? 'b' : 'a';
+    const to = s === 'us' ? own : own === 'a' ? 'b' : 'a';
+    return { text: '+1', cls: `ev-pt-${to === 'a' ? 'us' : 'them'}`, title: `Point for ${sides[to]}` };
+  }
+  return { text: '+1', cls: `ev-pt-${s}`, title: s === 'us' ? 'Point for us' : 'Point for them' };
 }
 
 const KINDS: { label: string; codes: string[] }[] = [
@@ -53,7 +72,7 @@ const SORTS: { v: Sort; label: string }[] = [
 // rank them above saved ones when sorting by what was added last.
 const addedKey = (e: VEvent) => (e.id < 0 ? 1e12 - e.id : e.id);
 
-export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, onSetMany, filterable, onPlayAll, playlistTeam }: Props) {
+export function EventList({ events, players, onSeek, onEdit, activeId, limit, onDeleteMany, onSetMany, filterable, onPlayAll, playlistTeam, points }: Props) {
   const [fSet, setFSet] = useState<number | null>(null);
   const [fPlayer, setFPlayer] = useState<number | null>(null);
   const [fKind, setFKind] = useState<string | null>(null);
@@ -155,6 +174,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
           <button className="btn-ghost small" onClick={() => setSelected(new Set())}>Select</button>
         </div>
       ))}
+      {points && <p className="small muted ev-pt-legend"><span className="ev-pt ev-pt-us">+1</span> scores a point · <span className="ev-pt">+0</span> does not · <span className="ev-pt ev-pt-paired">+0</span> counted with the tag next to it (one point for the rally)</p>}
       <ul className={`evlist ${selected ? 'is-selecting' : ''}`}>
       {shown.map((e) => {
         const group = ACTION_BY_CODE[e.action]?.group ?? 'actions';
@@ -176,6 +196,7 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
             <span className={`ev-action g-${group}`}>
               {actionLabel(e)}{e.zone ? ` · Z${e.zone}` : ''}
             </span>
+            {points && (() => { const pt = pointOf(e, points.sides); return <span className={`ev-pt ${pt.cls}`} title={pt.title}>{pt.text}</span>; })()}
             {issues.has(e.id) && <span className="ev-warn" title={issues.get(e.id)}>⚠</span>}
             {e.status === 'suggested' && <span className="badge">AI {e.confidence != null ? Math.round(e.confidence * 100) + '%' : ''}</span>}
             {e.id < 0 && <span className="badge badge-pending" title="Waiting for connection">offline</span>}

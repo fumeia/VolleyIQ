@@ -607,6 +607,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             )}
             {tab === 'events' && (
               <EventList events={confirmed} players={players} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} onDeleteMany={deleteEvents} onSetMany={moveEventsToSet} filterable playlistTeam={match.team_id}
+                points={{ sides: practice?.names ?? null }}
                 onPlayAll={source ? (list) => setReel({ list, i: 0 }) : undefined} />
             )}
             {tab === 'review' && (
