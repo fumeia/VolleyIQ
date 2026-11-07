@@ -1013,7 +1013,7 @@ function CloudVideoBox({ match, local, onChanged, onConverted }: { match: Match;
   );
 }
 
-/** The server's 720p and 480p versions of the team video: waiting, in progress, ready or failed. */
+/** The server's smaller versions (720p, 480p, those below the video's own size) of the team video: waiting, in progress, ready or failed. */
 function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; videoKey: string; onDone: () => void }) {
   const [job, setJob] = useState<VideoJob | null | undefined>(undefined);
   const [hours, setHours] = useState<string | null>(null);
@@ -1040,20 +1040,29 @@ function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; vide
     setBusy(true);
     try { await api.convertVideo(matchId); setPoll((n) => n + 1); } finally { setBusy(false); }
   };
+  const stop = async () => {
+    setBusy(true);
+    try { await api.stopConvert(matchId); setPoll((n) => n + 1); } finally { setBusy(false); }
+  };
+  const stopBtn = <button className="link" disabled={busy} onClick={stop}>Stop</button>;
   const pct = (p: number) => `${Math.round(p * 100)}%`;
   if (!job) {
     return (
       <span className="small muted">No smaller versions for a weak connection yet.{' '}
-        <button className="link" disabled={busy} onClick={convert}>Make 720p and 480p versions</button></span>
+        <button className="link" disabled={busy} onClick={convert}>Make smaller versions</button></span>
     );
   }
   const night = hours ? ` The server converts between ${hours.replace('-', ':00 and ')}:00.` : '';
-  if (job.state === 'queued') return <span className="small muted">720p and 480p versions: waiting for the server{job.ahead ? ` (${job.ahead} video${job.ahead === 1 ? '' : 's'} first)` : ''}.{night}</span>;
+  if (job.state === 'stopped') {
+    return <span className="small muted">Smaller versions: stopped.{' '}
+      <button className="link" disabled={busy} onClick={convert}>Make them anyway</button></span>;
+  }
+  if (job.state === 'queued') return <span className="small muted">Smaller versions (720p, 480p, only those smaller than the video): waiting for the server{job.ahead ? ` (${job.ahead} video${job.ahead === 1 ? '' : 's'} first)` : ''}.{night} {stopBtn}</span>;
   if (job.state === 'paused') {
     return (
       <>
         <div className="progress"><div style={{ width: pct(Math.max(0.02, job.progress)) }} /></div>
-        <span className="small muted">720p and 480p versions: {pct(job.progress)}, paused until tonight.{night}</span>
+        <span className="small muted">Smaller versions: {pct(job.progress)}, paused until tonight.{night} {stopBtn}</span>
       </>
     );
   }
@@ -1061,15 +1070,16 @@ function ConversionStatus({ matchId, videoKey, onDone }: { matchId: number; vide
     return (
       <>
         <div className="progress"><div style={{ width: pct(Math.max(0.02, job.progress)) }} /></div>
-        <span className="small muted">Making 720p and 480p versions on the server: {pct(job.progress)}</span>
+        <span className="small muted">Making smaller versions on the server: {pct(job.progress)} {stopBtn}</span>
       </>
     );
   }
   if (job.state === 'failed') {
-    return <span className="small error">The 720p and 480p versions could not be made: {job.error}{' '}
+    return <span className="small error">The smaller versions could not be made: {job.error}{' '}
       <button className="link" disabled={busy} onClick={convert}>Try again</button></span>;
   }
-  return <span className="small muted">720p and 480p versions ready: pick the size under the video.</span>;
+  if (job.error) return <span className="small muted">{job.error}.</span>;
+  return <span className="small muted">Smaller versions ready: pick the size under the video.</span>;
 }
 
 function VersionsBox({ match, pending, onRestored }: { match: Match; pending: number; onRestored: () => Promise<unknown> }) {

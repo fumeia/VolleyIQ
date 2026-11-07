@@ -934,8 +934,16 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   app.post('/api/matches/:id/video/convert', coach, async (req, reply) => {
     const match = q.match.get(req.params.id);
     if (!storage || !match?.video_key) return bad(reply, 'No video in the cloud for this match', 404);
-    db.prepare("DELETE FROM video_jobs WHERE match_id = ? AND state != 'running'").run(match.id);
+    db.prepare("DELETE FROM video_jobs WHERE match_id = ? AND state NOT IN ('running', 'paused')").run(match.id);
+    // A running one that was just stopped finishes stopping by itself; a new one waits in line.
+    db.prepare("UPDATE video_jobs SET state = 'stopped' WHERE match_id = ? AND state IN ('running', 'paused')").run(match.id);
     db.prepare('INSERT INTO video_jobs (match_id, source_key) VALUES (?, ?)').run(match.id, match.video_key);
+    return { ok: true };
+  });
+  /** Stops making the smaller versions (a waiting or running conversion); "convert" starts it again. */
+  app.post('/api/matches/:id/video/convert/stop', coach, async (req, reply) => {
+    const r = db.prepare("UPDATE video_jobs SET state = 'stopped', updated_at = datetime('now') WHERE match_id = ? AND state IN ('queued', 'running', 'paused')").run(req.params.id);
+    if (!r.changes) return bad(reply, 'Nothing is being converted for this match', 404);
     return { ok: true };
   });
   // For the public link: only matches of that team.

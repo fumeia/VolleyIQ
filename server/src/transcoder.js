@@ -14,6 +14,15 @@ export const QUALITIES = [
 ];
 
 /**
+ * The sizes worth making from a video [height] pixels high: only those clearly smaller (at
+ * least 1.3 times fewer lines), so a 540p video gets none and a 720p one only 480p.
+ * Height unknown: both.
+ */
+export function qualitiesFor(height) {
+  return height ? QUALITIES.filter((o) => height >= o.height * 1.3) : QUALITIES;
+}
+
+/**
  * Whether [date] falls in the hours "22-7" (from 22:00 to 07:00, Swiss time by default).
  * No hours set: always.
  */
@@ -43,17 +52,20 @@ export function ffmpegArgs(input, outputs, { fps = null, start = null, length = 
 /** Length (seconds, for the progress) and frame rate of a video (ffprobe). */
 function probe(input) {
   return new Promise((resolve) => {
-    const p = spawn('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration:stream=avg_frame_rate', '-of', 'json', input]);
+    const p = spawn('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'format=duration:stream=avg_frame_rate,width,height', '-of', 'json', input]);
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.on('close', () => {
       try {
         const j = JSON.parse(out);
         const [a, b] = String(j.streams?.[0]?.avg_frame_rate ?? '0/1').split('/').map(Number);
-        resolve({ duration: Number(j.format?.duration) || null, fps: b ? a / b : null });
-      } catch { resolve({ duration: null, fps: null }); }
+        const st = j.streams?.[0] ?? {};
+        // A phone video filmed upright is stored lying down: the short side is what counts.
+        const short = st.width && st.height ? Math.min(st.width, st.height) : null;
+        resolve({ duration: Number(j.format?.duration) || null, fps: b ? a / b : null, height: short });
+      } catch { resolve({ duration: null, fps: null, height: null }); }
     });
-    p.on('error', () => resolve({ duration: null, fps: null }));
+    p.on('error', () => resolve({ duration: null, fps: null, height: null }));
   });
 }
 
@@ -64,7 +76,7 @@ const freeBytes = (dir) => { const s = fs.statfsSync(dir); return s.bavail * s.b
  * ffmpeg is paused (not stopped) and goes on where it was when they come round again.
  */
 /** Runs ffmpeg with [args] at the lowest priority; pauses it outside [hours]; reports out_time in seconds. */
-function runFfmpeg(args, { hours, timeZone, checkEveryMs, onTime, onPause }) {
+function runFfmpeg(args, { hours, timeZone, checkEveryMs, onTime, onPause, stopped = null }) {
   return new Promise((resolve, reject) => {
     // Lowest priority, so the rest of the server stays responsive.
     const p = spawn('nice', ['-n', '19', 'ffmpeg', ...args]);
@@ -75,13 +87,23 @@ function runFfmpeg(args, { hours, timeZone, checkEveryMs, onTime, onPause }) {
       if (!ok && !paused) { p.kill('SIGSTOP'); paused = true; onPause?.(true); }
       else if (ok && paused) { p.kill('SIGCONT'); paused = false; onPause?.(false); }
     }, checkEveryMs) : null;
+    // Stopped by the coach: ffmpeg ends (a paused one is woken first, so it can).
+    let cancelled = false;
+    const stopWatch = stopped ? setInterval(() => {
+      if (!stopped()) return;
+      cancelled = true;
+      p.kill('SIGTERM'); if (paused) p.kill('SIGCONT');
+    }, 3000) : null;
     p.stdout.on('data', (d) => {
       const m = String(d).match(/out_time_us=(\d+)/g);
       if (m) onTime?.(Number(m[m.length - 1].split('=')[1]) / 1e6);
     });
     p.stderr.on('data', (d) => { err = (err + d).slice(-800); });
-    p.on('error', (e) => { clearInterval(watch); reject(e); });
-    p.on('close', (code) => { clearInterval(watch); return code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${err.trim().split('\n').pop() ?? ''}`)); });
+    p.on('error', (e) => { clearInterval(watch); clearInterval(stopWatch); reject(e); });
+    p.on('close', (code) => {
+      clearInterval(watch); clearInterval(stopWatch);
+      if (cancelled) return reject(Object.assign(new Error('stopped'), { stopped: true }));
+      return code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${err.trim().split('\n').pop() ?? ''}`)); });
   });
 }
 
@@ -115,35 +137,45 @@ export async function runOnce(db, cfg, tmpDir, log = console.log, { hours = null
   try {
     const info = await probe(input);
     const total = info.duration;
+    const qualities = qualitiesFor(info.height);
+    if (!qualities.length) {
+      setJob({ state: 'done', progress: 1, error: `The video is ${info.height}p: no smaller versions needed` });
+      log(`job ${job.id}: ${info.height}p, nothing smaller to make`);
+      return true;
+    }
+    // Stopped (or removed) by the coach: neither running nor paused any more.
+    const stopped = () => !['running', 'paused'].includes(db.prepare('SELECT state FROM video_jobs WHERE id = ?').get(job.id)?.state);
     // 50/60 frames per second (phones, GoPro) are made 25/30 here: half the work. The original keeps every frame.
     const fps = info.fps && info.fps > 31 ? (Math.abs(info.fps - 50) < 2 ? 25 : 30) : null;
     const pieces = total ? Math.max(1, Math.ceil(total / pieceSeconds)) : 1;
-    log(`job ${job.id}: match ${job.match_id}, ${total ? Math.round(total / 60) + ' min' : 'length unknown'}${info.fps ? `, ${Math.round(info.fps)} fps` : ''}, ${pieces} piece${pieces === 1 ? '' : 's'}${resumed ? `, ${resumed} done before` : ''}`);
+    log(`job ${job.id}: match ${job.match_id}, ${total ? Math.round(total / 60) + ' min' : 'length unknown'}${info.height ? `, ${info.height}p` : ''}${info.fps ? `, ${Math.round(info.fps)} fps` : ''}, making ${qualities.map((o) => o.q + 'p').join(' and ')}, ${pieces} piece${pieces === 1 ? '' : 's'}${resumed ? `, ${resumed} done before` : ''}`);
     const pieceFile = (k, q) => path.join(dir, `piece-${String(k).padStart(3, '0')}-${q}.mp4`);
     let last = 0;
     for (let k = 0; k < pieces; k++) {
       if (fs.existsSync(path.join(dir, `piece-${k}.done`))) continue;
+      if (stopped()) throw Object.assign(new Error('stopped'), { stopped: true });
       const start = pieces > 1 ? k * pieceSeconds : null;
-      const outputs = QUALITIES.map((o) => ({ ...o, file: pieceFile(k, o.q) }));
+      const outputs = qualities.map((o) => ({ ...o, file: pieceFile(k, o.q) }));
       keepPieces = true;   // from here a stop keeps what is done
       await runFfmpeg(ffmpegArgs(input, outputs, { fps, start, length: pieces > 1 ? pieceSeconds : null }), {
-        hours, timeZone, checkEveryMs,
+        hours, timeZone, checkEveryMs, stopped,
         onTime: (t) => {
           if (!total) return;
           const progress = Math.min(0.97, (k * pieceSeconds + t) / total);
           if (progress - last >= 0.01) { last = progress; setJob({ progress }); }
         },
-        onPause: (p) => { setJob({ state: p ? 'paused' : 'running' }); log(`job ${job.id}: ${p ? `paused until ${hours.split('-')[0]}:00` : 'going on'}`); },
+        onPause: (p) => { if (stopped()) return; setJob({ state: p ? 'paused' : 'running' }); log(`job ${job.id}: ${p ? `paused until ${hours.split('-')[0]}:00` : 'going on'}`); },
       });
       fs.writeFileSync(path.join(dir, `piece-${k}.done`), '');
       if (total) setJob({ progress: Math.min(0.97, ((k + 1) * pieceSeconds) / total) });
     }
     keepPieces = false;
+    if (stopped()) throw Object.assign(new Error('stopped'), { stopped: true });
     // Still the same video? (A new upload or a delete while converting makes these useless.)
     const match = db.prepare('SELECT video_key FROM matches WHERE id = ?').get(job.match_id);
     if (match?.video_key !== job.source_key) { setJob({ state: 'done', progress: 1, error: 'video replaced meanwhile' }); return true; }
     const variants = {};
-    for (const o of QUALITIES) {
+    for (const o of qualities) {
       // Join the pieces without converting again (a single piece is the file itself).
       let file = pieceFile(0, o.q);
       if (pieces > 1) {
@@ -161,6 +193,11 @@ export async function runOnce(db, cfg, tmpDir, log = console.log, { hours = null
     setJob({ state: 'done', progress: 1 });
     log(`job ${job.id}: done`);
   } catch (e) {
+    if (e.stopped) {
+      log(`job ${job.id}: stopped`);
+      keepPieces = false;
+      return true;
+    }
     setJob({ state: 'failed', error: String(e.message ?? e).slice(0, 300) });
     log(`job ${job.id}: failed: ${e.message}`);
     keepPieces = false;

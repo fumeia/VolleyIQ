@@ -6,7 +6,7 @@ import type { Lineups } from './rotation';
 import type { MatchSheetFlow, SheetSet } from './sheetFlow';
 import type { VideoLink } from './videoQuality';
 
-export interface VideoJob { state: 'queued' | 'running' | 'paused' | 'done' | 'failed'; progress: number; error: string | null; updated_at: string; ahead: number }
+export interface VideoJob { state: 'queued' | 'running' | 'paused' | 'done' | 'failed' | 'stopped'; progress: number; error: string | null; updated_at: string; ahead: number }
 
 export interface Team {
   id: number; name: string; coach: string | null; player_count?: number; share_token?: string | null; show_tips?: number;
@@ -343,6 +343,7 @@ export const api = {
   /** The server's conversion into 720p and 480p (null: never asked for, e.g. uploaded before it existed). */
   videoStatus: (matchId: number) => req<{ job: VideoJob | null; hours: string | null }>('GET', `/api/matches/${matchId}/video/status`),
   convertVideo: (matchId: number) => req<{ ok: boolean }>('POST', `/api/matches/${matchId}/video/convert`),
+  stopConvert: (matchId: number) => req<{ ok: boolean }>('POST', `/api/matches/${matchId}/video/convert/stop`),
   deleteVideo: (matchId: number) => req<{ ok: boolean }>('DELETE', `/api/matches/${matchId}/video`),
   sharedVideo: (token: string, matchId: number) => req<VideoLink>('GET', `/api/share/team/${token}/video/${matchId}`),
   aiBudget: () => req<AiBudget>('GET', '/api/ai/budget'),

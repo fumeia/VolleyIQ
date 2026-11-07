@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Video conversion: only what makes sense, and a Stop button**
+- The server only makes the smaller versions that are clearly smaller than the uploaded video: a 1080p video gets 720p and 480p, a 720p video only 480p, a 540p (or smaller) video none at all ("The video is 540p: no smaller versions needed").
+- While the smaller versions wait, run or are paused, the match page has "Stop" next to the progress. "Make them anyway" starts it again.
+
 **Blocks: one point, not two**
 - An "Attack blocked" directly followed by a "Block point" of the other side is now one point (for the blocking side), not a point for each. Both players keep the play in their stats (the attacker a blocked attack, the blocker a block point). This works on the tags you already have; nothing in them changes.
 - Block point has a second step: "Where did the ball land? (skip if unsure)". New charts in Block and Defense: "Where our block points landed" and "Blocked attacks: where they came down on our side", to see where the cover was missing.

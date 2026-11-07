@@ -15,7 +15,7 @@ test('transcoder: reads the original from the bucket, uploads 720p and 480p, rec
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-tc-'));
   // A short test video, made here.
   const src = path.join(dir, 'src.mp4');
-  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=25', '-f', 'lavfi', '-i', 'sine', '-t', '3', '-pix_fmt', 'yuv420p', '-shortest', src]);
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1920x1080:rate=25', '-f', 'lavfi', '-i', 'sine', '-t', '3', '-pix_fmt', 'yuv420p', '-shortest', src]);
   const stored = {};
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
@@ -72,7 +72,7 @@ test('transcoder hours: only at night, across midnight, Swiss time', async () =>
 test('transcoder: pieces are joined, and pieces done before a restart are not converted again', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-tc2-'));
   const src = path.join(dir, 'src.mp4');
-  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=25', '-f', 'lavfi', '-i', 'sine', '-t', '3', '-pix_fmt', 'yuv420p', '-shortest', src]);
+  execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1920x1080:rate=25', '-f', 'lavfi', '-i', 'sine', '-t', '3', '-pix_fmt', 'yuv420p', '-shortest', src]);
   const bodies = {};
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
@@ -114,6 +114,58 @@ test('transcoder: pieces are joined, and pieces done before a restart are not co
     const secs = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out]).toString());
     assert.ok(secs > 2.7 && secs < 3.3, `joined length ${secs}`);
     assert.equal(fs.existsSync(jobDir), false, 'pieces removed once uploaded');
+    db.close();
+  } finally {
+    server.close();
+  }
+});
+
+test('transcoder: only sizes clearly smaller than the original', async () => {
+  const { qualitiesFor } = await import('../src/transcoder.js');
+  assert.deepEqual(qualitiesFor(1080).map((o) => o.q), ['720', '480']);
+  assert.deepEqual(qualitiesFor(720).map((o) => o.q), ['480']);
+  assert.deepEqual(qualitiesFor(540).map((o) => o.q), []);
+  assert.deepEqual(qualitiesFor(null).map((o) => o.q), ['720', '480']);
+});
+
+test('transcoder: a 540p video gets no smaller versions; a stopped job stops', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-tc-'));
+  const make = (size, file) => { execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', `testsrc=size=${size}:rate=25`, '-t', '3', '-pix_fmt', 'yuv420p', file]); return file; };
+  let src = make('960x540', path.join(dir, 'a.mp4'));
+  const puts = [];
+  const server = http.createServer((req, res) => {
+    if (req.method === 'PUT' || req.method === 'POST') { puts.push(req.url); res.writeHead(200, { etag: '"e"' }); return res.end('<InitiateMultipartUploadResult><UploadId>u1</UploadId></InitiateMultipartUploadResult>'); }
+    const b = fs.readFileSync(src);
+    const r = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+    if (!r) { res.writeHead(200, { 'content-length': b.length, 'accept-ranges': 'bytes' }); return res.end(b); }
+    const from = Number(r[1]), to = r[2] ? Number(r[2]) : b.length - 1;
+    res.writeHead(206, { 'content-length': to - from + 1, 'content-range': `bytes ${from}-${to}/${b.length}`, 'accept-ranges': 'bytes' });
+    res.end(b.subarray(from, to + 1));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const cfg = s3Config({ S3_ENDPOINT: `http://127.0.0.1:${server.address().port}`, S3_BUCKET: 'b', S3_ACCESS_KEY: 'a', S3_SECRET_KEY: 's', S3_PATH_STYLE: 'true', S3_REGION: 'hel1' });
+    const db = openDb(dir);
+    const m = db.prepare("INSERT INTO matches (label, video_key) VALUES ('m', 'matches/1/abc.mp4')").run().lastInsertRowid;
+    db.prepare('INSERT INTO video_jobs (match_id, source_key) VALUES (?, ?)').run(m, 'matches/1/abc.mp4');
+    assert.equal(await runOnce(db, cfg, path.join(dir, 'tmp'), () => {}), true);
+    const job = db.prepare('SELECT * FROM video_jobs').get();
+    assert.equal(job.state, 'done');
+    assert.match(job.error, /540p: no smaller versions needed/);
+    assert.equal(db.prepare('SELECT video_variants FROM matches').get().video_variants, null);
+    assert.deepEqual(puts, [], 'nothing converted or uploaded');
+
+    // Stopped by the coach while it runs: no upload, the job stays stopped.
+    src = make('1280x720', path.join(dir, 'b.mp4'));
+    const j2 = db.prepare('INSERT INTO video_jobs (match_id, source_key) VALUES (?, ?)').run(m, 'matches/1/abc.mp4').lastInsertRowid;
+    const logs = [];
+    const log = (msg) => { logs.push(msg); if (/pieces/.test(msg)) db.prepare("UPDATE video_jobs SET state = 'stopped' WHERE id = ?").run(j2); };
+    assert.equal(await runOnce(db, cfg, path.join(dir, 'tmp'), log, { pieceSeconds: 1 }), true);
+    assert.equal(db.prepare('SELECT state FROM video_jobs WHERE id = ?').get(j2).state, 'stopped');
+    assert.match(logs.join('\n'), /making 480p/);
+    assert.match(logs.join('\n'), /stopped/);
+    assert.deepEqual(puts, []);
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'tmp')), [], 'pieces removed');
     db.close();
   } finally {
     server.close();
