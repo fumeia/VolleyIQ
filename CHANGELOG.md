@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Practice matches: kill and dig error count once**
+- A kill and a dig error of the other side right next to it (within 3 s, either order) are one point for the attacker, like the blocked attack and the block point. The attacker keeps the kill and the defender the dig error in their stats. This works on the tags you already have, also for the live score on the public link. Matches marked "fully tagged" before keep their score until you unmark them.
+
 **Practice matches: line-ups kept, analysis reworked**
 - Fix: saving the sides of a set (Near / Far / Out) deleted the second side's line-ups of all sets. They are kept now. Line-ups lost this way need to be entered again.
 - On the server, `node src/restore-lineups.js` brings deleted line-ups of the second side back from the nightly backups (only missing ones, only when the players fit the set's sides; backups from before practice matches are skipped; `--apply` to save).

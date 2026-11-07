@@ -45,3 +45,35 @@ describe('blocked attack + block point', () => {
     expect([s.blockErrors, s.blockTouches, s.errors, s.points]).toEqual([1, 1, 1, 0]);
   });
 });
+
+describe('kill + dig error of the other side', () => {
+  it('is one point for the attacker, in either order; both players keep the play', () => {
+    const events = [
+      ev('kill', 'a', 10, { player_id: 3 }),
+      ev('dig_error', 'b', 10.6, { player_id: 7 }),
+      ev('dig_error', 'a', 20, { player_id: 4 }),
+      ev('kill', 'b', 20.3, { player_id: 8 }),
+    ];
+    expect(scoreBySet(events)).toEqual([{ set: 1, us: 2, them: 2 }]);
+    const paired = pairBlocks(events);
+    expect(scoreBySet(paired)).toEqual([{ set: 1, us: 1, them: 1 }]);
+    expect(statLine(paired.filter((e) => e.player_id === 3)).kills).toBe(1);
+    expect(statLine(paired.filter((e) => e.player_id === 7)).digErrors).toBe(1);
+    // The dig error tagged after the kill is read just before it, so both end the same rally.
+    expect(paired.find((e) => e.player_id === 7)!.t).toBeLessThan(10);
+  });
+
+  it('counts once from both sides of a practice match, and the dig error stays in that rally', () => {
+    const m = { id: 1, practice: { names: { a: 'Near', b: 'Far' }, sets: {} }, final: null };
+    const events = [ev('serve', 'b', 5, { player_id: 9 }), ev('kill', 'a', 8, { player_id: 3 }), ev('dig_error', 'b', 8.5, { player_id: 7 }), ev('serve', 'a', 20, { player_id: 3 })];
+    const all = expandPractice(pairBlocksOf(events, [m]), [m]);
+    expect(scoreBySet(all)).toEqual([{ set: 1, us: 1, them: 0 }]);
+  });
+
+  it('leaves alone: the same side, a gap, and matches marked with rules 2', () => {
+    expect(pairBlocks([ev('kill', 'a', 10), ev('dig_error', 'a', 10.5)]).some((e) => e.noPoint)).toBe(false);
+    expect(pairBlocks([ev('kill', 'a', 10), ev('dig_error', 'b', 15)]).some((e) => e.noPoint)).toBe(false);
+    const old = { id: 1, final: { at: '2026-11-07', rules: 2 } };
+    expect(pairBlocksOf([ev('kill', 'a', 10), ev('dig_error', 'b', 10.5)], [old]).some((e) => e.noPoint)).toBe(false);
+  });
+});

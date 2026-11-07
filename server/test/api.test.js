@@ -470,6 +470,13 @@ test('a blocked attack answered by the block point of the other side is one poin
   const live = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
   // Near: its kill. Far: the block point only (not the blocked attack too).
   assert.deepEqual([live.sets[0].us, live.sets[0].them], [1, 1]);
+  // A kill and the other side's dig error right after it (or right before): one point for the attacker.
+  await post({ action: 'kill', side: 'b', t: 40 });
+  await post({ action: 'dig_error', side: 'a', t: 40.6 });
+  await post({ action: 'dig_error', side: 'b', t: 60 });
+  await post({ action: 'kill', side: 'a', t: 60.4 });
+  const live2 = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
+  assert.deepEqual([live2.sets[0].us, live2.sets[0].them], [2, 2]);
   // Marked fully tagged: a detection run adds nothing.
   const final = { at: '2026-11-07T12:00:00Z', rules: 2 };
   assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { final } })).json().final, final);
