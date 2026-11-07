@@ -1380,3 +1380,30 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .fine-tag { position: absolute; top: 9px; width: 2px; height: 12px; margin-left: -1px; background: var(--accent); opacity: .7; pointer-events: none; z-index: 1; }
 
 .final-box { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: 420px; }
+
+/* Practice match analysis: the two sides of a set next to each other. */
+.practice-analysis .segmented { align-self: flex-start; }
+.practice-set { display: flex; flex-direction: column; gap: 10px; }
+.practice-set-score { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.practice-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.practice-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.practice-col-head { font-size: 13px; overflow-wrap: anywhere; }
+.practice-col.side-a .practice-col-head { color: var(--accent); }
+.mini-court { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mini-pos { background: var(--surface); padding: 4px 2px; display: flex; flex-direction: column; align-items: center; min-width: 0; line-height: 1.15; }
+.mini-pos b { font-size: 13px; }
+.mini-pos small { font-size: 10.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-pos.is-setter { background: var(--accent-soft); }
+.mini-court > .mini-pos:nth-child(-n+3) { border-bottom: 2px solid var(--muted); }
+.mini-libero { grid-column: 1 / -1; background: var(--surface); font-size: 11px; text-align: center; padding: 2px; color: var(--muted); }
+.practice-roster { margin: 0; padding-left: 16px; font-size: 13px; }
+.practice-side-detail { margin-top: 8px; }
+.practice-players { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.practice-players li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+.practice-players li > .small { grid-column: 1; grid-row: 2; }
+.practice-players li > .val { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-weight: 700; }
+.practice-changes { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.practice-changes li { display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.practice-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.practice-timeline li p { margin: 4px 0; }
+.findings .val, .practice-changes .val { white-space: normal; }

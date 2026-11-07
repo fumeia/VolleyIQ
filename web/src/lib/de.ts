@@ -99,4 +99,8 @@ export const DE: Record<string, string> = {
   'Team, hall or town': 'Team, Halle oder Ort', 'Videos': 'Videos', 'To check': 'Zu prüfen', 'With video': 'Mit Video',
   'Reading Swiss Volley…': 'Swiss Volley wird gelesen…', '1 game': '1 Spiel', '{n} games': '{n} Spiele', 'Show more ({n} left)': 'Mehr zeigen (noch {n})',
   'No games for these filters.': 'Keine Spiele für diese Filter.', 'Video': 'Video', 'Not played yet.': 'Noch nicht gespielt.',
+  'Include practice matches ({n})': 'Trainingsspiele einbeziehen ({n})',
+  'practice': 'Training',
+  'Practice': 'Training',
+  'Practice match: here "us" is each side seen from itself and "them" the other side; both sides count. The Practice topic compares the two sides set by set.': 'Trainingsspiel: «wir» ist hier jede Seite aus ihrer eigenen Sicht, «sie» die andere Seite; beide Seiten zählen. Das Thema Training vergleicht die zwei Seiten Satz für Satz.',
 };

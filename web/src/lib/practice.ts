@@ -58,3 +58,11 @@ export function lineupsOf(m: Pick<Match, 'lineups' | 'practice'>): Lineups | nul
   if (!b) return m.lineups ?? null;
   return { ...(m.lineups ?? {}), ...Object.fromEntries(Object.entries(b).map(([k, v]) => [`b${k}`, v])) };
 }
+
+/** A season without its practice matches (both sides ours would skew the team's numbers), unless [include]. */
+export function seasonScope<M extends Pick<Match, 'id' | 'practice'>, E extends Pick<VEvent, 'match_id'>>(matches: M[], events: E[], include: boolean): { matches: M[]; events: E[]; practiceCount: number } {
+  const practiceCount = matches.filter((m) => m.practice).length;
+  if (include || !practiceCount) return { matches, events, practiceCount };
+  const keep = new Set(matches.filter((m) => !m.practice).map((m) => m.id));
+  return { matches: matches.filter((m) => keep.has(m.id)), events: events.filter((e) => keep.has(e.match_id)), practiceCount };
+}

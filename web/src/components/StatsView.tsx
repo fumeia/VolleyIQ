@@ -7,6 +7,7 @@ import { DefenseSection } from './analysis/DefenseSection';
 import { ErrorsSection } from './analysis/ErrorsSection';
 import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
+import { PracticeSection } from './analysis/PracticeSection';
 import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
@@ -44,7 +45,7 @@ const COLUMNS: Record<Exclude<Tab, 'roles'>, { h: string; v: (s: StatLine) => Ce
 
 const roleName = (code: string) => ROLES.find((r) => r.code === code)?.label ?? code;
 
-type Section = 'overview' | 'rotations' | 'attack' | 'servepass' | 'setting' | 'defense' | 'errors' | 'players' | 'tables' | 'court';
+type Section = 'practice' | 'overview' | 'rotations' | 'attack' | 'servepass' | 'setting' | 'defense' | 'errors' | 'players' | 'tables' | 'court';
 const SECTIONS: [Section, string][] = [
   ['overview', 'Overview'], ['rotations', 'Rotations'], ['attack', 'Attack'], ['servepass', 'Serve & pass'], ['setting', 'Setting'], ['defense', 'Defence'],
   ['errors', 'Errors'], ['players', 'Players'], ['tables', 'Tables'], ['court', 'Court maps'],
@@ -61,6 +62,12 @@ export function StatsView({ players, events, matches, onPlay }: {
   });
   const pickSection = (s: Section) => { setSection(s); try { localStorage.setItem('viq:statsSection', s); } catch { /* private mode */ } };
   const [tab, setTab] = useState<Tab>('overview');
+  // One practice match: its own topic (the two sides of each set), shown first.
+  const practice = matches?.length === 1 && matches[0].practice ? matches[0] : null;
+  const sections = practice ? [['practice', 'Practice'] as [Section, string], ...SECTIONS] : SECTIONS;
+  const [practicePicked, setPracticePicked] = useState(true);
+  const shown: Section = practice && practicePicked ? 'practice' : section === 'practice' ? 'overview' : section;
+  const choose = (k: Section) => { setPracticePicked(k === 'practice'); if (k !== 'practice') pickSection(k); };
 
   const rows = useMemo(() => playerStats(players, confirmed).filter((r) => r.count > 0), [players, confirmed]);
   const roles = useMemo(() => roleStats(players, confirmed), [players, confirmed]);
@@ -72,8 +79,8 @@ export function StatsView({ players, events, matches, onPlay }: {
     <div className="stats">
       {/* All topics visible at once, so none is missed. */}
       <div className="stats-sections" data-tour="sections">
-        {SECTIONS.map(([k, label]) => (
-          <button key={k} className={`sec-btn sec-${k} ${section === k ? 'on' : ''}`} onClick={() => pickSection(k)} aria-pressed={section === k}>{tr(label)}</button>
+        {sections.map(([k, label]) => (
+          <button key={k} className={`sec-btn sec-${k} ${shown === k ? 'on' : ''}`} onClick={() => choose(k)} aria-pressed={shown === k}>{tr(label)}</button>
         ))}
       </div>
       <details className="tone-note muted small" data-tour="tone">
@@ -81,16 +88,18 @@ export function StatsView({ players, events, matches, onPlay }: {
         <p>{tr(TONE_NOTE)}</p>
       </details>
 
-      {section === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
-      {section === 'rotations' && <RotationsSection players={players} events={confirmed} matches={matches} />}
-      {section === 'attack' && <AttackSection players={players} events={confirmed} />}
-      {section === 'servepass' && <ServePassSection players={players} events={confirmed} />}
-      {section === 'setting' && <SettingSection players={players} events={confirmed} />}
-      {section === 'defense' && <DefenseSection players={players} events={confirmed} />}
-      {section === 'errors' && <ErrorsSection players={players} events={confirmed} />}
-      {section === 'players' && <PlayersSection players={players} events={confirmed} />}
+      {practice && shown !== 'practice' && <p className="muted small">{tr('Practice match: here "us" is each side seen from itself and "them" the other side; both sides count. The Practice topic compares the two sides set by set.')}</p>}
+      {shown === 'practice' && practice && <PracticeSection match={practice} players={players} events={confirmed} />}
+      {shown === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
+      {shown === 'rotations' && <RotationsSection players={players} events={confirmed} matches={matches} />}
+      {shown === 'attack' && <AttackSection players={players} events={confirmed} />}
+      {shown === 'servepass' && <ServePassSection players={players} events={confirmed} />}
+      {shown === 'setting' && <SettingSection players={players} events={confirmed} />}
+      {shown === 'defense' && <DefenseSection players={players} events={confirmed} />}
+      {shown === 'errors' && <ErrorsSection players={players} events={confirmed} />}
+      {shown === 'players' && <PlayersSection players={players} events={confirmed} />}
 
-      {section === 'tables' && <>
+      {shown === 'tables' && <>
       <div className="tabs">
         {(['overview', 'attack', 'serve', 'pass', 'block', 'roles'] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>
@@ -127,7 +136,7 @@ export function StatsView({ players, events, matches, onPlay }: {
 
       </>}
 
-      {section === 'court' && <CourtMaps players={players} events={confirmed} />}
+      {shown === 'court' && <CourtMaps players={players} events={confirmed} />}
     </div>
     </PlayContext.Provider>
   );

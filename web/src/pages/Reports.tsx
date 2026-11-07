@@ -1,3 +1,5 @@
+import { seasonScope } from '../lib/practice';
+import { PracticeToggle } from '../components/PracticeToggle';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { StatsView } from '../components/StatsView';
@@ -29,6 +31,7 @@ export function Reports() {
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [showTips, setShowTips] = useState(false);
+  const [withPractice, setWithPractice] = useState(false);
 
   useEffect(() => {
     api.teams().then((t) => {
@@ -46,10 +49,13 @@ export function Reports() {
     api.team(teamId).then((t) => { setToken(t.share_token ?? null); setShowTips(!!t.show_tips); }).catch(() => setToken(null));
   }, [teamId]);
 
+  // All matches: the practice matches only when switched on (both sides ours would skew the team's numbers).
+  const season = useMemo(() => seasonScope(data?.matches ?? [], data?.events ?? [], withPractice), [data, withPractice]);
   const events = useMemo(
-    () => (data ? (matchId === 'all' ? data.events : data.events.filter((e) => e.match_id === matchId)) : []),
-    [data, matchId],
+    () => (data ? (matchId === 'all' ? season.events : data.events.filter((e) => e.match_id === matchId)) : []),
+    [data, matchId, season],
   );
+  const scoped = matchId === 'all' ? season.matches : (data?.matches ?? []).filter((m) => m.id === matchId);
   const rows = useMemo(() => (data ? playerStats(data.players, events).filter((r) => r.count) : []), [data, events]);
 
   return (
@@ -62,9 +68,10 @@ export function Reports() {
         {data && (
           <select className="input" value={matchId} onChange={(e) => setMatchId(e.target.value === 'all' ? 'all' : Number(e.target.value))}>
             <option value="all">All matches ({data.matches.length})</option>
-            {data.matches.map((m) => <option key={m.id} value={m.id}>{m.played_on} · {m.label}</option>)}
+            {data.matches.map((m) => <option key={m.id} value={m.id}>{m.played_on} · {m.label}{m.practice ? ' (practice)' : ''}</option>)}
           </select>
         )}
+        {data && matchId === 'all' && <PracticeToggle count={season.practiceCount} on={withPractice} set={setWithPractice} />}
       </div>
       <nav className="tabs">
         <button className={`tab ${view === 'stats' ? 'on' : ''}`} onClick={() => setView('stats')}>Charts & stats</button>
@@ -74,7 +81,7 @@ export function Reports() {
       </nav>
       {!teams.length && <p className="muted">Create a team first.</p>}
       {data && view === 'report' && (matchId === 'all' ? (
-        <SeasonReportView title={teams.find((t) => t.id === teamId)?.name ?? 'Team'} matches={data.matches} players={data.players} events={events} />
+        <SeasonReportView title={teams.find((t) => t.id === teamId)?.name ?? 'Team'} matches={season.matches} players={data.players} events={events} />
       ) : (
         <MatchReportView match={{ ...data.matches.find((m) => m.id === matchId)!, team_name: teams.find((t) => t.id === teamId)?.name }}
           players={data.players} events={events} />
@@ -100,7 +107,7 @@ export function Reports() {
               {active.map((x) => <button key={x.id} className={`chip ${x.id === p.id ? 'on' : ''}`} onClick={() => setPlayerId(x.id)}>#{x.number ?? '–'} {x.name}</button>)}
             </div>
             <PlayerLearning player={p} players={data.players} events={events}
-              matches={matchId === 'all' ? data.matches : data.matches.filter((m) => m.id === matchId)}
+              matches={scoped}
               showTips={showTips}
               tipsToggle={teamId != null && (
                 <label className="toggle small">
@@ -123,11 +130,11 @@ export function Reports() {
         return (
           <PrintReport title={one ? `${team} – ${one.opponent ?? one.label}` : `${team} · season report`}
             subtitle={one ? `${one.label}${one.played_on ? ` · ${one.played_on}` : ''}` : `${data.matches.length} match${data.matches.length === 1 ? "" : "es"}`}
-            players={data.players} events={events} matches={one ? [one] : data.matches} onClose={() => setPrinting(false)} />
+            players={data.players} events={events} matches={one ? [one] : season.matches} onClose={() => setPrinting(false)} />
         );
       })()}
       {data && view === 'stats' && (
-        <StatsView players={data.players} events={events} matches={matchId === 'all' ? data.matches : data.matches.filter((m) => m.id === matchId)} />
+        <StatsView players={data.players} events={events} matches={scoped} />
       )}
       {data && view === 'board' && (
         <div className="boards">

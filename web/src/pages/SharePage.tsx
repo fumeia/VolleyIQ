@@ -1,3 +1,5 @@
+import { seasonScope } from '../lib/practice';
+import { PracticeToggle } from '../components/PracticeToggle';
 import { useEffect, useState } from 'react';
 import { getLang, publicLanguage, setLang, t } from '../lib/i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -67,6 +69,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const [data, setData] = useState<TeamShare | null>(null);
   // The viewer's own choice for the practice tips (remembered on this device); until they pick, the team's setting.
   const [tips, setTips] = useState<boolean | null>(() => { try { const v = localStorage.getItem('viq:showTips'); return v == null ? null : v === '1'; } catch { return null; } });
+  const [withPractice, setWithPractice] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -82,7 +85,10 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const tab: View = player ? 'players' : view;
   const scope = match ? `${base}/m/${match.id}` : base;
   const statsLink = match ? scope : `${base}/stats`;
-  const events = match ? data.events.filter((e) => e.match_id === match.id) : data.events;
+  // The season (all matches) leaves the practice matches out unless the viewer switches them on.
+  const season = seasonScope(data.matches, data.events, withPractice);
+  const practiceToggle = !match && <PracticeToggle count={season.practiceCount} on={withPractice} set={setWithPractice} />;
+  const events = match ? data.events.filter((e) => e.match_id === match.id) : season.events;
   const active = data.players
     .map((p) => ({ p, n: data.events.filter((e) => e.player_id === p.id).length }))
     .filter((r) => r.n > 0)
@@ -90,7 +96,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const matchPicker = (to: (id: number | null) => string) => (
     <select className="input" value={match?.id ?? ''} onChange={(e) => navigate(to(e.target.value ? Number(e.target.value) : null))}>
       <option value="">{t('All matches ({n})', { n: data.matches.length })}</option>
-      {[...data.matches].reverse().map((m) => <option key={m.id} value={m.id}>{m.played_on ?? ''} {m.opponent ?? m.label}</option>)}
+      {[...data.matches].reverse().map((m) => <option key={m.id} value={m.id}>{m.played_on ?? ''} {m.opponent ?? m.label}{m.practice ? ` (${t('practice')})` : ''}</option>)}
     </select>
   );
 
@@ -99,7 +105,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
     body = (
       <>
         <Link to={`${base}/players`} className="back-link">← {t('All players')}</Link>
-        <PlayerLearning player={player} players={data.players} events={data.events} matches={data.matches} showTips={tips ?? !!data.team.show_tips}
+        <PlayerLearning player={player} players={data.players} events={season.events} matches={season.matches} showTips={tips ?? !!data.team.show_tips}
           tipsToggle={
             <label className="toggle small" data-tour="tips">
               <input type="checkbox" checked={tips ?? !!data.team.show_tips} onChange={(e) => {
@@ -128,21 +134,21 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   } else if (tab === 'trends') {
     body = (
       <>
-        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}/trends` : `${base}/trends`))}</div>
+        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}/trends` : `${base}/trends`))}{practiceToggle}</div>
         {match
           ? <MatchReportView match={{ ...match, team_name: data.team.name }} players={data.players} events={events} />
-          : <SeasonReportView title={data.team.name} matches={data.matches} players={data.players} events={data.events} />}
+          : <SeasonReportView title={data.team.name} matches={season.matches} players={data.players} events={season.events} />}
       </>
     );
   } else if (tab === 'matches') {
     body = <MatchCenter token={token!} />;
   } else if (tab === 'overview') {
-    body = <TeamOverview token={token!} base={base} players={data.players} events={data.events} matches={data.matches} teamName={data.team.name} />;
+    body = <>{practiceToggle}<TeamOverview token={token!} base={base} players={data.players} events={season.events} matches={season.matches} teamName={data.team.name} /></>;
   } else {
     body = (
       <>
-        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}` : `${base}/stats`))}</div>
-        <StatsView players={data.players} events={events} matches={match ? [match] : data.matches} />
+        <div className="row wrap" data-tour="match-picker">{matchPicker((id) => (id ? `${base}/m/${id}` : `${base}/stats`))}{practiceToggle}</div>
+        <StatsView players={data.players} events={events} matches={match ? [match] : season.matches} />
       </>
     );
   }

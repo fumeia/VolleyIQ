@@ -319,3 +319,46 @@ test('practice match: blocked attack + block point is one point; off the block a
   await page.getByRole('button', { name: 'Mark as fully tagged' }).click();
   await expect(page.locator('.final-box')).toContainText('Fully tagged');
 });
+
+test('practice match analysis: the sides of each set, combinations, a player across sets; season leaves practice out', async ({ page, login }, info) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Mix team ${Date.now()}` } })).json();
+  const ids: number[] = [];
+  for (const [n, name, role] of [[1, 'Ann Set', 'S'], [2, 'Bea Hit', 'OH'], [3, 'Cay Mid', 'MB'], [4, 'Dot Set', 'S'], [5, 'Eve Hit', 'OH'], [6, 'Fay Opp', 'OPP']] as const) {
+    ids.push((await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number: n, role } })).json()).id);
+  }
+  const [ann, bea, cay, dot, eve, fay] = ids;
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Mixed practice', team_id: team.id, mode: 'live' } })).json();
+  await page.request.patch(`/api/matches/${match.id}`, { data: {
+    practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ann, bea, cay], b: [dot, eve, fay] }, 2: { a: [ann, cay, eve], b: [dot, bea, fay] } },
+      lineupsB: { 1: { order: [dot, eve, fay, null, null, null], weServeFirst: false } } },
+    lineups: { 1: { order: [ann, bea, cay, null, null, null], weServeFirst: true } },
+  } });
+  let t = 0;
+  const tag = (set: number, side: string, player: number, action: string) => page.request.post(`/api/matches/${match.id}/events`, { data: { action, player_id: player, side, set_no: set, t: t += 2 } });
+  for (let i = 0; i < 4; i++) { await tag(1, 'a', ann, 'set'); await tag(1, 'a', bea, 'kill'); }
+  await tag(1, 'b', dot, 'set'); await tag(1, 'b', eve, 'attack_error');
+  for (let i = 0; i < 4; i++) { await tag(2, 'b', dot, 'set'); await tag(2, 'b', bea, 'attack_error'); }
+  await tag(2, 'a', ann, 'set'); await tag(2, 'a', eve, 'kill');
+  // A normal match too, so the season has something without the practice match.
+  const real = await (await page.request.post('/api/matches', { data: { label: 'League game', team_id: team.id, mode: 'live' } })).json();
+  await page.request.post(`/api/matches/${real.id}/events`, { data: { action: 'ace', player_id: cay, set_no: 1, t: 1 } });
+
+  await page.goto('/reports');
+  await page.locator('select').first().selectOption({ label: team.name });
+  await expect(page.getByText('Include practice matches (1)')).toBeVisible();
+  await page.locator('select').nth(1).selectOption(String(match.id));
+  await expect(page.locator('.practice-set').first()).toContainText('Ann setting');
+  await expect(page.locator('.practice-set').first()).toContainText('Dot setting');
+  await expect(page.locator('.practice-set').first().locator('.practice-set-score')).toHaveText('5 : 0');
+  await page.screenshot({ path: info.outputPath('practice-sets.png'), fullPage: true });
+  await page.getByRole('tab', { name: 'Combinations' }).click();
+  await expect(page.locator('.findings')).toContainText('Best setter and hitter: #1 Ann setting #2 Bea');
+  await expect(page.locator('.practice-changes')).toContainText('#2 Bea');
+  await page.screenshot({ path: info.outputPath('practice-combos.png'), fullPage: true });
+  await page.getByRole('tab', { name: 'Players' }).click();
+  await page.locator('.chips').getByRole('button', { name: '#2 Bea' }).click();
+  await expect(page.locator('.practice-timeline li')).toHaveCount(2);
+  await expect(page.locator('.practice-timeline li').nth(1)).toContainText('#4 Dot setting');
+  await page.screenshot({ path: info.outputPath('practice-player.png'), fullPage: true });
+});
