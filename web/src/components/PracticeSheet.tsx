@@ -30,7 +30,7 @@ export function PracticeSheet({ match, players, set, onSave, onClose }: {
   async function save() {
     setBusy(true);
     try {
-      await onSave({ names, sets: { ...p.sets, [String(set)]: { a: of('a'), b: of('b'), near } } });
+      await onSave({ ...p, names, sets: { ...p.sets, [String(set)]: { a: of('a'), b: of('b'), near } } });
       onClose();
     } finally { setBusy(false); }
   }

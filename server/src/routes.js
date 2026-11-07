@@ -261,7 +261,9 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
         && typeof p.sets === 'object' && p.sets !== null && Object.entries(p.sets).length <= 5
         && Object.entries(p.sets).every(([k, v]) => /^[1-5]$/.test(k) && ids(v?.a) && ids(v?.b) && (v.near == null || v.near === 'a' || v.near === 'b')));
       if (!ok) return bad(reply, 'practice: { names: { a, b }, sets: { "1".."5": { a: [player ids], b: [player ids] } } }');
-      const [lineupsB, lbOk] = cleanLineups(p?.lineupsB ?? null);
+      // Saving the sides without the second side's line-ups keeps the ones saved before.
+      const old = m.practice ? JSON.parse(m.practice) : null;
+      const [lineupsB, lbOk] = cleanLineups(p && 'lineupsB' in p ? p.lineupsB : old?.lineupsB ?? null);
       if (!lbOk) return bad(reply, `practice.lineupsB: ${LINEUPS_FORMAT}`);
       practice = p === null ? null : JSON.stringify({
         ...(lineupsB ? { lineupsB } : {}),

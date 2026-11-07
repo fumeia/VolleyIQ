@@ -348,13 +348,18 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   await page.locator('select').first().selectOption({ label: team.name });
   await expect(page.getByText('Include practice matches (1)')).toBeVisible();
   await page.locator('select').nth(1).selectOption(String(match.id));
-  await expect(page.locator('.practice-set').first()).toContainText('Ann setting');
-  await expect(page.locator('.practice-set').first()).toContainText('Dot setting');
+  await expect(page.locator('.practice-set').first()).toContainText("Ann's side");
+  await expect(page.locator('.practice-set').first()).toContainText("Dot's side");
+  // The "?" opens what the table shows.
+  await page.getByRole('button', { name: 'What "Set by set" shows' }).click();
+  await expect(page.locator('.help-text')).toContainText('whole side');
   await expect(page.locator('.practice-set').first().locator('.practice-set-score')).toHaveText('5 : 0');
   await page.screenshot({ path: info.outputPath('practice-sets.png'), fullPage: true });
   await page.getByRole('tab', { name: 'Combinations' }).click();
   await expect(page.locator('.findings')).toContainText('Best setter and hitter: #1 Ann setting #2 Bea');
   await expect(page.locator('.practice-changes')).toContainText('#2 Bea');
+  await expect(page.locator('.practice-changes')).toContainText('setter #1 Ann → #4 Dot');
+  await expect(page.getByRole('button', { name: 'What "Setters" shows' })).toBeVisible();
   await page.screenshot({ path: info.outputPath('practice-combos.png'), fullPage: true });
   await page.getByRole('tab', { name: 'Players' }).click();
   await page.locator('.chips').getByRole('button', { name: '#2 Bea' }).click();

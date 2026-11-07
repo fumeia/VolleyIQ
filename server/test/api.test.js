@@ -432,6 +432,13 @@ test('practice match: sides per set, the side on each tag, the live score per si
   const practice = { names: { a: 'Blue', b: 'White' }, sets: { 1: { a: [a.id], b: [b.id] } } };
   assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice } })).json().practice, practice);
   assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice: { names: { a: '' }, sets: {} } } })).statusCode, 400);
+  // The second side's line-ups survive saving the sides without them; null removes them.
+  const lineupsB = { 1: { order: [b.id, null, null, null, null, null], libero: null, weServeFirst: false } };
+  await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice: { ...practice, lineupsB } } });
+  const kept = (await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice } })).json().practice;
+  assert.deepEqual(kept.lineupsB, lineupsB);
+  assert.equal((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice: { ...practice, lineupsB: null } } })).json().practice.lineupsB, undefined);
+  await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { practice } });
   const post = (payload) => app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { set_no: 1, ...payload } });
   assert.equal((await post({ action: 'kill', player_id: b.id, side: 'b' })).json().side, 'b');
   await post({ action: 'kill', player_id: a.id, side: 'a' });
