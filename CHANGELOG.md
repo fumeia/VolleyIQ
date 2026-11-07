@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.2.0 (2026-11-07)
+
 **Replays keep your filters**
 - The match, skill, player, set, points / errors, playlist, clip length, speed and corrections switch you pick on Replays stay when you go to another tab and come back (until the app or browser tab is closed).
 
