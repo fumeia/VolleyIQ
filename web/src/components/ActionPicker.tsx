@@ -12,7 +12,7 @@ export function ActionPicker({ value, onPick }: { value?: ActionCode | null; onP
             const tone = a.score === 'us' ? 'points' : a.score === 'them' ? 'errors' : code === 'receive' ? 'receive' : 'actions';
             return (
               <button key={code} className={`act act-${tone} ${value === code ? 'is-on' : ''}`} onClick={() => onPick(code)}>
-                {code === 'receive' ? 'Pass' : SHORT[code] ?? a.short}
+                {code === 'receive' ? 'Receive' : SHORT[code] ?? a.short}
               </button>
             );
           })}

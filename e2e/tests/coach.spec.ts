@@ -271,3 +271,22 @@ test('practice line-up: only this side\'s players, any of them in the six, only 
   await expect(libero).not.toContainText('#9 Mat');
   await expect(libero).not.toContainText('#2 Nico');
 });
+
+test('practice match: after the near side serves, a far player gets Receive first', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Receive team ${Date.now()}` } })).json();
+  const near = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Near Server', number: 4, role: 'OH' } })).json()).id;
+  const far = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Far Passer', number: 8, role: 'OH' } })).json()).id;
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Receive test', team_id: team.id, mode: 'live' } })).json();
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [near], b: [far] } } } } });
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'serve', player_id: near, side: 'a', set_no: 1 } });
+  await page.goto(`/m/${match.id}`);
+  await page.locator('.pad-side-b .jersey', { hasText: 'Far' }).click();
+  await expect(page.locator('.pad-likely button').first()).toHaveText('Receive');
+  // The same side again: what follows its own serve (a dig, a block, a free ball).
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.locator('.pad-side-a .jersey', { hasText: 'Near' }).click();
+  await expect(page.locator('.pad-likely')).not.toContainText('Receive');
+  // The receive row says so too.
+  await expect(page.locator('.skill-row', { hasText: 'Receive' }).first()).toBeVisible();
+});

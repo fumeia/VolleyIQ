@@ -84,7 +84,7 @@ export function wantsSpots(code: ActionCode, location: 'points' | 'zones' | 'off
 /** The action pad, one row per skill: you know the skill first, then the outcome. */
 export const SKILLS: { label: string; codes: ActionCode[] }[] = [
   { label: 'Serve', codes: ['serve', 'ace', 'serve_error'] },
-  { label: 'Pass', codes: ['receive'] },
+  { label: 'Receive', codes: ['receive'] },
   { label: 'Set', codes: ['set', 'assist', 'set_error', 'assist_error'] },
   { label: 'Attack', codes: ['attack', 'kill', 'attack_error', 'attack_blocked'] },
   { label: 'Block', codes: ['block_touch', 'block_point', 'block_error', 'block_miss'] },
@@ -92,7 +92,7 @@ export const SKILLS: { label: string; codes: ActionCode[] }[] = [
 ];
 /** Labels inside a skill row (the row already names the skill). */
 export const SHORT: Partial<Record<ActionCode, string>> = {
-  serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Pass → tap court',
+  serve: 'In play', ace: 'Ace', serve_error: 'Error', receive: 'Receive → tap court',
   set: 'Set', assist: 'Bump set', set_error: 'Error', assist_error: 'Bump err',
   attack: 'In play', kill: 'Kill', attack_error: 'Error', attack_blocked: 'Blocked',
   block_touch: 'Touch', block_point: 'Point', block_error: 'Error', block_miss: 'No touch',

@@ -394,6 +394,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       onCourt={onCourt}
       server={server}
       lastAction={lastTag?.action ?? null}
+      lastSide={practice && lastTag ? (lastTag.side ?? 'a') : null}
+      sideOf={practice ? (id) => sideOf(practice, setNo, id) : undefined}
       farAt={(t, pid) => {
         const far = !!match.calibration && ourHalfAt(match.calibration, t ?? getTime() ?? 0) === 'far';
         if (!practice) return far;

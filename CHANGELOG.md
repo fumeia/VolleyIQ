@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Practice matches: the other side's answer comes first**
+- The quick row at the top of the tag pad now knows whose turn it is: a player of the other side than the last touch gets what answers it (after a serve: Receive first; after an attack: Dig, Block touch, No touch; after a set: Block touch, Dig). Before, it always offered what follows your own team's touch (after a serve: Dig, Block touch, Free ball), so Receive was missing there.
+- The pass row is called "Receive" ("Receive → tap court").
+
 **Line-up sheet: the right players**
 - The libero choices are only players with the libero (L) or middle (MB) role who are not in the six (liberos first). Before, every player not in the six was listed, setters and outside hitters too.
 - Practice matches: each side's line-up only offers the players you put on that side for the set.

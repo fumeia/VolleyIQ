@@ -28,6 +28,9 @@ interface Props {
   onCourt?: number[];
   /** Our server when we serve (from the rotation): one tap starts the serve. */
   server?: Player | null;
+  /** Practice match: the side of the previous tag, and of a player (the other side's touch comes next). */
+  lastSide?: 'a' | 'b' | null;
+  sideOf?: (playerId: number) => 'a' | 'b' | null;
   /** The previous tag of this rally: the likely next actions come first. */
   lastAction?: ActionCode | null;
   /** Whether we play on the far half at video time t (court drawn as the camera sees it). */
@@ -35,6 +38,18 @@ interface Props {
   /** Practice match: the two sides of this set (both our players), shown as two groups with a +1 each. */
   sides?: { names: { a: string; b: string }; a: number[]; b: number[] } | null;
 }
+
+/** What the other side usually does after a touch (practice matches: both sides are tagged). */
+const OTHER_NEXT: Partial<Record<ActionCode, ActionCode[]>> = {
+  serve: ['receive', 'freeball', 'dig'],
+  attack: ['dig', 'block_touch', 'block_miss'],
+  set: ['block_touch', 'dig', 'freeball'],
+  assist: ['block_touch', 'dig', 'freeball'],
+  freeball: ['dig', 'set', 'freeball'],
+  receive: ['dig', 'block_touch', 'freeball'],
+  dig: ['dig', 'block_touch', 'freeball'],
+  block_touch: ['dig', 'set', 'attack'],
+};
 
 /** What usually follows a touch of ours, for the "likely" row. */
 const NEXT: Partial<Record<ActionCode | 'start', ActionCode[]>> = {
@@ -71,7 +86,7 @@ export const isTyping = (e: KeyboardEvent) => {
   return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 };
 
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides, lastSide, sideOf }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   // The video is sticky at the top; keep it in view. When a player is picked we
@@ -187,7 +202,9 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const likely = (NEXT[lastAction ?? 'start'] ?? []).filter((c) => ACTION_BY_CODE[c]);
+  // Practice: a player of the other side than the last touch answers it (their serve → our receive).
+  const otherSide = !!(draft?.player && lastSide && sideOf && sideOf(draft.player.id) && sideOf(draft.player.id) !== lastSide);
+  const likely = ((otherSide ? OTHER_NEXT[lastAction ?? 'serve'] : NEXT[lastAction ?? 'start']) ?? []).filter((c) => ACTION_BY_CODE[c]);
 
   if (draft?.action && settings.location === 'zones' && draft.action.code !== 'receive') {
     return (
@@ -263,7 +280,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           <Fragment key={row.label}>
           <div className="skill-row">
             <span className="skill-label">{row.label}</span>
-            {row.label === 'Pass' && settings.receiveMode !== 'court'
+            {row.label === 'Receive' && settings.receiveMode !== 'court'
               ? [0, 1, 2, 3].map((v) => (
                 <button key={v} className={`act act-receive r${v}`} onClick={() => chooseAction(ACTION_BY_CODE.receive, v)}>{v}</button>
               ))
