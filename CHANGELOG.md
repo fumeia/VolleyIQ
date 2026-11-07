@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Line-up sheet: the right players**
+- The libero choices are only players with the libero (L) or middle (MB) role who are not in the six (liberos first). Before, every player not in the six was listed, setters and outside hitters too.
+- Practice matches: each side's line-up only offers the players you put on that side for the set.
+
 **AI check rides out a shaky connection**
 - "AI check all rallies" no longer stops when Wi-Fi or mobile data drops for a moment: a request that fails is tried again after 5, 10, 20, 40 s … (about 3 minutes in all), with "Waiting for the connection…" in the notification. A longer outage pauses the job; Android starts it again by itself once the phone is online, and it goes on with the next rally (the rallies already checked are remembered, none is sent twice). A short hiccup of the AI service is tried twice more before that rally is skipped.
 

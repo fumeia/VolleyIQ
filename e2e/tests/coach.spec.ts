@@ -245,3 +245,29 @@ test('practice match: far side tapped as seen, saved from its own half', async (
   expect(ev.fy).toBeLessThan(9);
   expect(ev.y).toBeGreaterThan(9);
 });
+
+test('practice line-up: only this side\'s players, any of them in the six, only liberos and middles as libero', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Lineup team ${Date.now()}` } })).json();
+  const ids: Record<string, number> = {};
+  for (const [name, number, role] of [['Nico Las', 2, 'OH'], ['Mat Eo', 9, 'S'], ['Hong Li', 17, 'L'], ['Mark Us', 6, 'MB'], ['Other Side', 11, 'OH']] as const) {
+    ids[name] = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
+  }
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Lineup test', team_id: team.id, mode: 'live' } })).json();
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ids['Other Side']], b: [ids['Nico Las'], ids['Mat Eo'], ids['Hong Li'], ids['Mark Us']], near: 'a' } } } } });
+  await page.goto(`/m/${match.id}`);
+  await page.locator('.practice-bar').getByRole('button', { name: /Line-up Far/ }).click();
+  const sheet = page.locator('.sheet');
+  // Only Far's players are offered; the near side's player is not.
+  await expect(sheet.locator('.chips').first()).not.toContainText('Other');
+  // The OH goes into position 1.
+  await sheet.locator('.lineup-slot', { hasText: '1 · serves' }).click();
+  await sheet.locator('.chips').first().getByRole('button', { name: /#2 Nico/ }).click();
+  await expect(sheet.locator('.lineup-slot', { hasText: '1 · serves' })).toContainText('#2 Nico');
+  // Libero choices: the libero and the middle only, no OH or setter.
+  const libero = sheet.locator('.chips').nth(1);
+  await expect(libero).toContainText('#17 Hong');
+  await expect(libero).toContainText('#6 Mark');
+  await expect(libero).not.toContainText('#9 Mat');
+  await expect(libero).not.toContainText('#2 Nico');
+});

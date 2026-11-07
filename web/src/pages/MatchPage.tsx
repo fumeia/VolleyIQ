@@ -720,6 +720,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       {lineupSet != null && (!practice || lineupSide === 'a') && (
         <LineupSheet match={match} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
           title={practice ? practice.names.a : undefined}
+          poolFor={practice ? (n) => practice.sets[String(n)]?.a ?? null : undefined}
           serveFirstFor={practice ? (n) => { const o = practice.lineupsB?.[String(n)]; return o ? !o.weServeFirst : undefined; } : undefined}
           onSave={async (lineups) => {
             // Practice: the other side serves first when this one does not.
@@ -731,6 +732,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       {lineupSet != null && practice && lineupSide === 'b' && (
         <LineupSheet match={{ ...match, lineups: practice.lineupsB ?? null }} players={players} initialSet={lineupSet} getTime={getTime} onClose={() => setLineupSet(null)} player={player}
           title={practice.names.b}
+          poolFor={(n) => practice.sets[String(n)]?.b ?? null}
           serveFirstFor={(n) => { const o = match.lineups?.[String(n)]; return o ? !o.weServeFirst : undefined; }}
           onSave={async (lineupsB) => {
             const own = match.lineups ? syncServe(match.lineups, lineupsB) : null;

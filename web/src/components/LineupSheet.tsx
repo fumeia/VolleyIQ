@@ -20,19 +20,23 @@ interface Props {
   title?: string;
   /** Practice match: who serves first in a set without a line-up yet (the opposite of the other side). */
   serveFirstFor?: (set: number) => boolean | undefined;
+  /** Practice match: the players of this side, per set (only they are offered). */
+  poolFor?: (set: number) => number[] | null;
 }
 
 // Court positions as seen from behind our baseline: front row 4-3-2 at the net, back row 5-6-1.
 const GRID = [4, 3, 2, 5, 6, 1];
 
 /** Starting six per set (position 1 = server), libero and who serves first. */
-export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose, player, title, serveFirstFor }: Props) {
+export function LineupSheet({ match, players, initialSet, getTime, onSave, onClose, player, title, serveFirstFor, poolFor }: Props) {
   const [all, setAll] = useState<Lineups>(() => match.lineups ?? {});
   const [set, setSet] = useState(initialSet);
   const [slot, setSlot] = useState<number | null>(1);
   const [subOut, setSubOut] = useState<number | null>(null);
   const now = getTime();
-  const roster = players.filter((p) => p.active).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  // A practice match offers only this side's players of the set (everyone when the sides are not set yet).
+  const pool = poolFor?.(set);
+  const roster = players.filter((p) => p.active && (!pool?.length || pool.includes(p.id))).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
   const empty: Lineup = { order: [null, null, null, null, null, null], libero: null, weServeFirst: true };
   // A new set starts from the previous set's six (without its substitutions).
   const prev = all[String(set - 1)];
@@ -88,12 +92,16 @@ export function LineupSheet({ match, players, initialSet, getTime, onSave, onClo
         <label className="field-label">Libero (replaces the middles in the back row)</label>
         <div className="chips">
           <button className={`chip ${!cur.libero ? 'on' : ''}`} onClick={() => put({ ...cur, libero: null })}>None</button>
-          {roster.filter((p) => !cur.order.includes(p.id)).map((p) => (
-            <button key={p.id} className={`chip ${cur.libero === p.id ? 'on' : ''}`} onClick={() => put({ ...cur, libero: p.id })}>
-              #{p.number ?? '–'} {p.name.split(' ')[0]}
-            </button>
-          ))}
+          {/* Only liberos and middles (not in the six), and whoever is the libero now. */}
+          {roster.filter((p) => p.id === cur.libero || ((p.role === 'L' || p.role === 'MB') && !cur.order.includes(p.id)))
+            .sort((a, b) => (a.role === 'L' ? 0 : 1) - (b.role === 'L' ? 0 : 1))
+            .map((p) => (
+              <button key={p.id} className={`chip ${cur.libero === p.id ? 'on' : ''}`} onClick={() => put({ ...cur, libero: p.id })}>
+                #{p.number ?? '–'} {p.name.split(' ')[0]} <small>{p.role}</small>
+              </button>
+            ))}
         </div>
+        {!roster.some((p) => p.role === 'L') && <span className="small muted">No player with the libero role (L){pool?.length ? ' on this side' : ''}: set roles on the team page.</span>}
         <label className="field-label">Substitutions in set {set}</label>
         {subs.map((x) => (
           <div key={`${x.t}-${x.out}`} className="sides-row">
