@@ -321,7 +321,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     const team = db.prepare('SELECT id, name, show_tips FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     // The court marking goes along so the Replays tab draws the court the way the camera sees it.
-    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, practice, final, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
+    const matches = db.prepare('SELECT id, label, opponent, played_on, sheet, calibration, lineups, practice, final, video_type, video_ref, video_key FROM matches WHERE team_id = ? ORDER BY played_on, id').all(team.id)
       // Which video to load for the Replays tab: a YouTube id, or the file name of the coach's copy (never the file).
       .map(({ video_type, video_ref, video_key, ...m }) => ({
         ...m,

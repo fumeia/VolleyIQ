@@ -61,7 +61,12 @@ async function main() {
       const file = path.join(tmp, 'b.db');
       fs.writeFileSync(file, zlib.gunzipSync(Buffer.from(await res.arrayBuffer())));
       const b = new Database(file, { readonly: true });
-      backups.push(b.prepare('SELECT id, practice FROM matches WHERE practice IS NOT NULL').all());
+      // Backups from before practice matches existed have no such column: nothing in them.
+      const hasPractice = b.prepare('PRAGMA table_info(matches)').all().some((c) => c.name === 'practice');
+      const rows = hasPractice ? b.prepare('SELECT id, practice FROM matches WHERE practice IS NOT NULL').all() : [];
+      const withB = rows.filter((r) => parse(r.practice)?.lineupsB).length;
+      console.log(`  ${key.replace('backups/volleyiq-', '').replace('.db.gz', '')}: ${hasPractice ? `${rows.length} practice match${rows.length === 1 ? '' : 'es'}, ${withB} with second-side line-ups` : 'from before practice matches'}`);
+      backups.push(rows);
       b.close();
       fs.rmSync(file, { force: true });
     }

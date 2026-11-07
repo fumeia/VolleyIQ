@@ -450,6 +450,10 @@ test('practice match: sides per set, the side on each tag, the live score per si
   const shared = (await app.inject({ url: `/api/share/team/${token}` })).json();
   assert.deepEqual(shared.events.map((e) => e.side), ['b', 'a', 'b']);
   assert.equal(shared.matches[0].practice.names.b, 'White');
+  // The line-ups go along (rotations and the practice analysis on the public link need them).
+  await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { lineups: { 1: { order: [a.id, null, null, null, null, null], libero: null, weServeFirst: true } } } });
+  const again = (await app.inject({ url: `/api/share/team/${token}` })).json();
+  assert.deepEqual(again.matches[0].lineups['1'].order[0], a.id);
   await app.close();
 });
 
