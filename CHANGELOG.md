@@ -4,6 +4,7 @@
 
 **Practice matches: line-ups kept, analysis reworked**
 - Fix: saving the sides of a set (Near / Far / Out) deleted the second side's line-ups of all sets. They are kept now. Line-ups lost this way need to be entered again.
+- On the server, `node src/restore-lineups.js` brings deleted line-ups of the second side back from the nightly backups (only missing ones, only when the players fit the set's sides; `--apply` to save).
 - A line-up goes to the side whose players it holds, also after "Swap near and far". A libero who plays in the six (no middle left) counts as the middle there.
 - Sides are called after their setter ("Tobi's side"); the set table is the whole side's numbers. Sets without tags say so instead of showing zeros.
 - Players are judged by what they did in their position: hitters by attack efficiency, passers and liberos by their passes, setters by how the hitters did after their sets. No more points-based pairs (a libero scores no points).
