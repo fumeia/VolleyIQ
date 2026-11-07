@@ -4,6 +4,7 @@
 
 **Video conversion: only what makes sense, and a Stop button**
 - The server only makes the smaller versions that are clearly smaller than the uploaded video: a 1080p video gets 720p and 480p, a 720p video only 480p, a 540p (or smaller) video none at all ("The video is 540p: no smaller versions needed").
+- Downloaded videos are named after the date and the match ("2026-11-07 Home vs Away.mp4"), without "VolleyIQ" in front.
 - While the smaller versions wait, run or are paused, the match page has "Stop" next to the progress. "Make them anyway" starts it again.
 
 **Blocks: one point, not two**

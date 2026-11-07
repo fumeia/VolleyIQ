@@ -907,7 +907,7 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
    * same as downloads (the browser saves the file instead of playing it), with their sizes.
    */
   const videoLink = (m) => {
-    const name = `VolleyIQ ${m.played_on ?? ''} ${m.label ?? ''}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w .-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'VolleyIQ match';
+    const name = `${m.played_on ?? ''} ${m.label ?? ''}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w .-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'match';
     const download = (key, q) => presign(storage, 'GET', key, { expires: 6 * 3600, query: { 'response-content-disposition': `attachment; filename="${name}${q ? ` ${q}p` : ''}.mp4"` } });
     const variants = Object.entries(variantsOf(m));
     return {
