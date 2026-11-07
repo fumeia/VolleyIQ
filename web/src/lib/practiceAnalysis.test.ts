@@ -78,3 +78,15 @@ describe('practice match analysis', () => {
     expect(f).not.toMatch(/Lia.*points/);
   });
 });
+
+describe('practice: where the points came from', () => {
+  it("splits each side's points into its own kills, aces, blocks and the other side's errors", async () => {
+    const { pointSources } = await import('./practiceAnalysis');
+    const s = sideSets(match, players, events);
+    // Set 1: Ann's side 4 kills + Eve's attack error = 5; Dot's side nothing.
+    expect(pointSources(s[0])).toEqual({ kills: 4, aces: 0, blocks: 0, fromErrors: 1, other: 0 });
+    expect(pointSources(s[1])).toEqual({ kills: 0, aces: 0, blocks: 0, fromErrors: 0, other: 0 });
+    // Set 2: Ann's side won 4 points, all from Bea's attack errors.
+    expect(pointSources(s.find((x) => x.set === 2 && x.side === 'a')!).fromErrors).toBe(4);
+  });
+});

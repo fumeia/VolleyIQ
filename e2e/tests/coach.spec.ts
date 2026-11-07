@@ -371,4 +371,10 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   await expect(page.locator('.practice-timeline li')).toHaveCount(2);
   await expect(page.locator('.practice-timeline li').nth(1)).toContainText('#4 Dot setting');
   await page.screenshot({ path: info.outputPath('practice-player.png'), fullPage: true });
+  // Errors: per side, no "us" and "them".
+  await page.locator('.stats-sections').getByRole('button', { name: 'Errors' }).click();
+  await expect(page.locator('.practice-analysis')).toContainText('Where the points came from');
+  await expect(page.locator('.practice-analysis')).toContainText("Set 1 · Ann's side");
+  await expect(page.locator('.stats')).not.toContainText('rallies we lost');
+  await page.screenshot({ path: info.outputPath('practice-errors.png'), fullPage: true });
 });

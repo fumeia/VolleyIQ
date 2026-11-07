@@ -312,3 +312,23 @@ export function findings(players: Player[], sides: SideSet[]): Finding[] {
   if (ps.length > 1) out.push({ tone: 'good', text: `Best passer: ${name(ps[0].player)}, ${ps[0].avg!.toFixed(2)} on ${ps[0].n} passes${ps[0].perfect ? `, ${ps[0].perfect} perfect` : ''}.` });
   return out;
 }
+
+/* ------------------------------------------------------------ errors */
+
+export interface PointSources { kills: number; aces: number; blocks: number; fromErrors: number; other: number }
+
+/**
+ * Where a side's points in a set came from: its own kills, aces and block points, or the other
+ * side's errors (serve, attack, set, pass, dig, block). "other": points tagged without saying how.
+ */
+export function pointSources(s: SideSet): PointSources {
+  let kills = 0, aces = 0, blocks = 0, fromErrors = 0;
+  for (const e of s.events) {
+    if (scoreOf(e) !== 'us') continue;
+    if (e.action === 'kill') kills++;
+    else if (e.action === 'ace') aces++;
+    else if (e.action === 'block_point') blocks++;
+    else if (e.action === 'opp_error') fromErrors++;
+  }
+  return { kills, aces, blocks, fromErrors, other: Math.max(0, s.pointsFor - kills - aces - blocks - fromErrors) };
+}

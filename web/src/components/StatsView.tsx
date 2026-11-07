@@ -7,7 +7,7 @@ import { DefenseSection } from './analysis/DefenseSection';
 import { ErrorsSection } from './analysis/ErrorsSection';
 import { OverviewSection } from './analysis/OverviewSection';
 import { PlayersSection } from './analysis/PlayersSection';
-import { PracticeSection } from './analysis/PracticeSection';
+import { PracticeErrors, PracticeSection } from './analysis/PracticeSection';
 import { RotationsSection } from './analysis/RotationsSection';
 import { ServePassSection } from './analysis/ServePassSection';
 import { SettingSection } from './analysis/SettingSection';
@@ -88,7 +88,7 @@ export function StatsView({ players, events, matches, onPlay }: {
         <p>{tr(TONE_NOTE)}</p>
       </details>
 
-      {practice && shown !== 'practice' && <p className="muted small">{tr('Practice match: here "us" is each side seen from itself and "them" the other side; both sides count. The Practice topic compares the two sides set by set.')}</p>}
+      {practice && shown !== 'practice' && shown !== 'errors' && <p className="muted small">{tr('Practice match: here "us" is each side seen from itself and "them" the other side; both sides count. The Practice topic compares the two sides set by set.')}</p>}
       {shown === 'practice' && practice && <PracticeSection match={practice} players={players} events={confirmed} />}
       {shown === 'overview' && <OverviewSection players={players} events={confirmed} matches={matches} />}
       {shown === 'rotations' && <RotationsSection players={players} events={confirmed} matches={matches} />}
@@ -96,7 +96,7 @@ export function StatsView({ players, events, matches, onPlay }: {
       {shown === 'servepass' && <ServePassSection players={players} events={confirmed} />}
       {shown === 'setting' && <SettingSection players={players} events={confirmed} />}
       {shown === 'defense' && <DefenseSection players={players} events={confirmed} />}
-      {shown === 'errors' && <ErrorsSection players={players} events={confirmed} />}
+      {shown === 'errors' && (practice ? <PracticeErrors match={practice} players={players} events={confirmed} /> : <ErrorsSection players={players} events={confirmed} />)}
       {shown === 'players' && <PlayersSection players={players} events={confirmed} />}
 
       {shown === 'tables' && <>

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Practice matches: Errors per side**
+- The Errors topic of a practice match no longer adds both sides together as "us" and "them". It shows, for each set and side, where its points came from (its own kills, aces and block points, or the other side's errors), the errors each side made by kind, each player's errors next to their points, and how attacks and serves failed. Each table has a "?" with what it shows.
+
 ## v1.2.0 (2026-11-07)
 
 **Replays keep your filters**
