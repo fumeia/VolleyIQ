@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**AI check rides out a shaky connection**
+- "AI check all rallies" no longer stops when Wi-Fi or mobile data drops for a moment: a request that fails is tried again after 5, 10, 20, 40 s … (about 3 minutes in all), with "Waiting for the connection…" in the notification. A longer outage pauses the job; Android starts it again by itself once the phone is online, and it goes on with the next rally (the rallies already checked are remembered, none is sent twice). A short hiccup of the AI service is tried twice more before that rally is skipped.
+
 **A trained model for the touch detection**
 - The phone now keeps 10 measurements of every sound it hears in a run (how far it stands out, how fast it fades, its height, how sharply it rises, how wide it is, how tonal, the band level against the surroundings, the energy before and after), not 3.
 - The server trains a small model on them from your tagged matches: the sound at each tagged touch is a touch, every sound in the pause between rallies is not, and the rhythm around each sound counts too (time to the sounds before and after, how many there are). Tag times are tapped by hand with a reaction-time lead; the training first finds how far the tags sit from the sound in each match and corrects for it.

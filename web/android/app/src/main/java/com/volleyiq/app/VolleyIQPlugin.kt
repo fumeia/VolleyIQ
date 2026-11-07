@@ -356,6 +356,8 @@ class VolleyIQPlugin : Plugin() {
         val request = OneTimeWorkRequestBuilder<AiCheckWorker>()
             .setInputData(workDataOf(AiCheckWorker.KEY_JOB to file.absolutePath))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            // A lost connection: the job runs again (with growing pauses) once the phone is online.
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag("aicheck-$matchId")
             .build()

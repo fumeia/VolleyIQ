@@ -187,7 +187,7 @@ export function AiCard({ match, players, suggested, fileUrl, localUri, reload, a
       {native && job && (jobRunning || job.state === 'failed') ? (
         <div className="job">
           <div className="progress"><div style={{ width: `${Math.round(Math.max(0.02, job.progress) * 100)}%` }} /></div>
-          <span className="small">{job.state === 'failed' ? `Stopped: ${job.error ?? 'failed'}` : job.message ?? 'AI check…'}</span>
+          <span className="small">{job.state === 'failed' ? `Stopped: ${job.error ?? 'failed'}` : job.message ?? (job.state === 'enqueued' ? 'Waiting for the connection, then it goes on where it stopped…' : 'AI check…')}</span>
           {jobRunning ? <button className="btn-ghost small" onClick={() => Native.cancelAiCheck({ matchId: match.id })}>Stop</button>
             : <button className="btn-ghost small" onClick={() => setJob(null)}>OK</button>}
           {jobRunning && <span className="small muted">Runs in the background: you can leave the app.</span>}
