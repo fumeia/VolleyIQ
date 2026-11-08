@@ -42,6 +42,7 @@ import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
+import { PlaybackCheck } from '../components/PlaybackCheck';
 
 type Tab = 'tag' | 'events' | 'review' | 'ai' | 'edits';
 
@@ -938,6 +939,12 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             <button className="btn wide" onClick={() => { setShowSettings(false); setLineupSet(setNo); }}>
               Line-up for set {setNo}{lineup ? ' ✓' : ''} (on-court players first)
             </button>
+            {!isLive && isApp() && local && (
+              <details className="auto-step">
+                <summary><b>Video playback check</b> <small className="muted">for a phone video that stutters</small></summary>
+                <PlaybackCheck uri={local.uri} />
+              </details>
+            )}
             {!isLive && source?.type === 'file' && (
               <details className="auto-step">
                 <summary><b>Roster from the video</b> <small className="muted">read the shirt numbers with AI</small></summary>

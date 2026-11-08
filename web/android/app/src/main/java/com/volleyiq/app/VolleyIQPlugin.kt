@@ -22,6 +22,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.volleyiq.app.analysis.Detection
+import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
@@ -403,6 +404,58 @@ class VolleyIQPlugin : Plugin() {
         val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
         val info = work.getWorkInfosForUniqueWork("video-$matchId").get().firstOrNull()
         call.resolve(JSObject().put("work", info?.let(::toJs)))
+    }
+
+    /**
+     * What the phone sees in a video file: format, H.264 profile, bit depth, frame rate, and which
+     * decoder would play it (hardware or software). Shown in the match's playback check.
+     */
+    @PluginMethod
+    fun videoInfo(call: PluginCall) {
+        val uri = call.getString("uri") ?: return call.reject("uri required")
+        try {
+            val u = if (uri.startsWith("/")) Uri.fromFile(File(uri)) else Uri.parse(uri)
+            val ex = android.media.MediaExtractor()
+            ex.setDataSource(context, u, null)
+            val out = JSObject()
+            for (i in 0 until ex.trackCount) {
+                val f = ex.getTrackFormat(i)
+                val mime = f.getString(android.media.MediaFormat.KEY_MIME) ?: continue
+                if (!mime.startsWith("video/")) continue
+                fun int(k: String) = if (f.containsKey(k)) runCatching { f.getInteger(k) }.getOrNull() else null
+                out.put("mime", mime)
+                out.put("width", int(android.media.MediaFormat.KEY_WIDTH))
+                out.put("height", int(android.media.MediaFormat.KEY_HEIGHT))
+                out.put("fps", if (f.containsKey(android.media.MediaFormat.KEY_FRAME_RATE)) runCatching { f.getInteger(android.media.MediaFormat.KEY_FRAME_RATE).toDouble() }.getOrElse { runCatching { f.getFloat(android.media.MediaFormat.KEY_FRAME_RATE).toDouble() }.getOrNull() } else null)
+                out.put("profile", int(android.media.MediaFormat.KEY_PROFILE))
+                out.put("level", int(android.media.MediaFormat.KEY_LEVEL))
+                out.put("bitrate", int(android.media.MediaFormat.KEY_BIT_RATE))
+                out.put("colorTransfer", int(android.media.MediaFormat.KEY_COLOR_TRANSFER))
+                out.put("durationUs", if (f.containsKey(android.media.MediaFormat.KEY_DURATION)) f.getLong(android.media.MediaFormat.KEY_DURATION) else null)
+                // A decoder that says it can play this exact format (profile, level, size, frame rate).
+                val list = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS)
+                val name = runCatching { list.findDecoderForFormat(f) }.getOrNull()
+                out.put("decoder", name)
+                val info = list.codecInfos.firstOrNull { it.name == name }
+                if (info != null && Build.VERSION.SDK_INT >= 29) out.put("hardware", info.isHardwareAccelerated)
+                // Every decoder for this type, hardware ones first, with whether it lists the profile.
+                val all = JSArray()
+                for (c in list.codecInfos) {
+                    if (c.isEncoder || c.supportedTypes.none { it.equals(mime, true) }) continue
+                    val caps = runCatching { c.getCapabilitiesForType(mime) }.getOrNull()
+                    val hw = if (Build.VERSION.SDK_INT >= 29) c.isHardwareAccelerated else !c.name.startsWith("OMX.google.") && !c.name.startsWith("c2.android.")
+                    val profile = int(android.media.MediaFormat.KEY_PROFILE)
+                    val prof = profile == null || caps?.profileLevels?.any { it.profile == profile } == true
+                    all.put(JSObject().put("name", c.name).put("hardware", hw).put("profileOk", prof))
+                }
+                out.put("decoders", all)
+                break
+            }
+            ex.release()
+            call.resolve(out)
+        } catch (e: Exception) {
+            call.reject(e.message ?: "Could not read the video")
+        }
     }
 
     /** A URL the WebView plays a phone video from (the app's own local web server). */

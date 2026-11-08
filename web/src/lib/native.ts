@@ -59,8 +59,17 @@ interface VolleyIQPlugin {
   startListening(o: { lang: string; hints?: string[] }): Promise<void>;
   stopListening(): Promise<void>;
   localVideoUrl(o: { uri: string }): Promise<{ url: string }>;
+  videoInfo(o: { uri: string }): Promise<VideoInfo>;
   addListener(event: 'speech', cb: (r: { text: string; final: boolean }) => void): Promise<{ remove: () => void }>;
   addListener(event: 'speechState', cb: (s: { listening: boolean; error?: string }) => void): Promise<{ remove: () => void }>;
+}
+
+/** What the phone sees in a video file (VolleyIQPlugin.videoInfo). */
+export interface VideoInfo {
+  mime?: string; width?: number; height?: number; fps?: number; profile?: number; level?: number;
+  bitrate?: number; colorTransfer?: number; durationUs?: number;
+  decoder?: string | null; hardware?: boolean;
+  decoders?: { name: string; hardware: boolean; profileOk: boolean }[];
 }
 
 export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');
