@@ -1429,3 +1429,8 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .other-actions { align-self: flex-start; margin: 0 0 4px; }
 .playback-check { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; word-break: break-word; }
 code.cmd { display: block; padding: 6px 8px; border-radius: 6px; background: var(--bg); font-size: 12px; word-break: break-all; user-select: all; }
+/* Playback test: only the video on the screen. */
+body.video-plain .topbar, body.video-plain .bottombar, body.video-plain .ws-head, body.video-plain .ws-panel,
+body.video-plain .ws-video > :not(.video-wrap), body.video-plain .video-wrap > :not(.video-box) { display: none !important; }
+body.video-plain .video-box { position: fixed; inset: 0; z-index: 900; aspect-ratio: auto; max-height: none !important; width: 100% !important; }
+.plain-test { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 901; padding: 8px; border-radius: 8px; background: rgba(0,0,0,.75); color: #fff; display: flex; flex-direction: column; gap: 6px; }

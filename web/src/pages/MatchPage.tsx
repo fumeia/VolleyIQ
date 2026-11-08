@@ -42,7 +42,7 @@ import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
-import { PlaybackCheck } from '../components/PlaybackCheck';
+import { PlainVideoTest, PlaybackCheck } from '../components/PlaybackCheck';
 
 type Tab = 'tag' | 'events' | 'review' | 'ai' | 'edits';
 
@@ -82,6 +82,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [tab, setTab] = useState<Tab>(initial.events.some((e) => e.status === 'suggested') ? 'review' : 'tag');
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [plainTest, setPlainTest] = useState(false);
   // Clip reel: the filtered events, each from 3 s before to 2 s after.
   const [reel, setReel] = useState<{ list: VEvent[]; i: number } | null>(null);
   useEffect(() => {
@@ -923,6 +924,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
           }} />
       )}
 
+      {plainTest && <PlainVideoTest onClose={() => setPlainTest(false)} />}
       {showKeys && <KeyHelp onClose={() => setShowKeys(false)} />}
       {showSettings && (
         <div className="sheet-backdrop" onClick={() => setShowSettings(false)}>
@@ -957,7 +959,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             {!isLive && isApp() && local && (
               <details className="auto-step">
                 <summary><b>Video playback check</b> <small className="muted">for a phone video that stutters</small></summary>
-                <PlaybackCheck uri={local.uri} />
+                <PlaybackCheck uri={local.uri} onPlain={() => { setShowSettings(false); setPlainTest(true); }} />
               </details>
             )}
             {!isLive && source?.type === 'file' && (
@@ -981,7 +983,17 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               </button>
             )}
             {!isLive && source && (
-              <button className="btn wide" onClick={() => {
+              <button className="btn wide" onClick={async () => {
+                if (isApp()) {
+                  // Only this phone's copy changes; the team video in storage stays as it is.
+                  try {
+                    const v = await Native.pickVideo();
+                    setLocalVideo(match.id, v);
+                    setLocal(v);
+                    setShowSettings(false);
+                  } catch (e) { if ((e as { code?: string }).code !== 'CANCELLED') flash((e as Error).message); }
+                  return;
+                }
                 setLocalVideo(match.id, null);
                 setLocal(null);
                 setMatch({ ...match, video_type: null, video_ref: null });

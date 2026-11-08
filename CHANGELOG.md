@@ -6,6 +6,8 @@
 - A video picked from the phone stuttered in the app, even in slow motion, while the same file played smoothly from the team link in a browser. The app handed the video to its web view piece by piece through a slow internal bridge. It now plays the video from a small web server inside the app that only this phone can reach (protected by a random key), so the web view streams it like a video from the internet. If that server is ever unavailable, the app falls back to the previous way on its own.
 - Match settings in the app: "Video playback check" for a phone video. It shows the file's format (size, frame rate, H.264 profile), which decoder the phone uses for it (hardware or software), the app's web engine version, and frames shown and dropped per second while the video plays.
 - A 10-bit phone video (H.264 High 10, for example from a DJI camera) now gets a note under the video: phones have no hardware decoder for it, so it plays with dropped frames. The note gives the one-line ffmpeg command for an 8-bit copy that plays smoothly.
+- "Change video" in the app now picks a new file on this phone right away and leaves the team video in storage as it is (before, it fell back to the storage video, so a new phone file could only be chosen after deleting the upload).
+- The playback check also counts how often the page is drawn, and can show the video alone on a plain page with the same numbers.
 
 ## v1.4.0 (2026-11-08)
 
