@@ -386,4 +386,12 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   // Rotations: each side's rotations per set.
   await page.locator('.stats-sections').getByRole('button', { name: 'Rotations' }).click();
   await expect(page.locator('.stats')).toContainText('Rotations per side');
+  // Public player page: the practice matches can be switched on, and that stays for the visit.
+  const token = (await (await page.request.post(`/api/teams/${team.id}/share`, { data: {} })).json()).share_token;
+  await page.goto(`/s/t/${token}/p/${bea}`);
+  const toggle = page.getByLabel(/Include practice matches \(1\)/);
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await page.goto(`/s/t/${token}/stats`);
+  await expect(page.getByLabel(/Include practice matches \(1\)/)).toBeChecked();
 });

@@ -1,5 +1,6 @@
 import { seasonScope } from '../lib/practice';
 import { PracticeToggle } from '../components/PracticeToggle';
+import { useKept } from '../lib/useKept';
 import { useEffect, useState } from 'react';
 import { getLang, publicLanguage, setLang, t } from '../lib/i18n';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -69,7 +70,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const [data, setData] = useState<TeamShare | null>(null);
   // The viewer's own choice for the practice tips (remembered on this device); until they pick, the team's setting.
   const [tips, setTips] = useState<boolean | null>(() => { try { const v = localStorage.getItem('viq:showTips'); return v == null ? null : v === '1'; } catch { return null; } });
-  const [withPractice, setWithPractice] = useState(false);
+  // Practice matches in the season views: off by default, kept for the visit across the public pages.
+  const [withPractice, setWithPractice] = useKept(`viq:withPractice:${token}`, false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -105,6 +107,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
     body = (
       <>
         <Link to={`${base}/players`} className="back-link">← {t('All players')}</Link>
+        {practiceToggle}
         <PlayerLearning player={player} players={data.players} events={season.events} matches={season.matches} showTips={tips ?? !!data.team.show_tips}
           tipsToggle={
             <label className="toggle small" data-tour="tips">

@@ -4,6 +4,7 @@
 
 **Stats: the main charts first**
 - Every Stats topic now opens with its few main charts for a player looking at their own game; the rest are behind "More charts" at the bottom of the topic (kept open for the visit once opened). Overview: score progression (season: attack and pass per match), volume vs efficiency, how we scored. Attack: attackers, which shots work, shot chart. Serve & pass: servers, receivers, side-out by the first pass. Setting: setters, set distribution, in vs out of system. Defence: defenders, blockers. Errors: points given away per player, how attacks and serves failed. Rotations: the rotation report and pass / first ball per rotation.
+- Public player pages have the "Include practice matches" switch too (before, practice matches were left out there without a way to add them). The choice stays for the visit across Overview, Stats, Trends and the player pages.
 - Practice matches: Overview shows the score of each set with the sides' names and each player's volume vs efficiency, without the "us" and "them" tiles and charts. Rotations shows each side's rallies won per rotation, set by set.
 
 **Practice matches: Errors per side**
