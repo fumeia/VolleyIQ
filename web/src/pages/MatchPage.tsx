@@ -12,7 +12,7 @@ import { CalibrationOverlay, CalibrationPanel, useCalibration } from '../compone
 import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
-import { OFF_BLOCK, TOUCHED_OUT, actionLabel, scoreOf } from '../lib/actions';
+import { OFF_BLOCK, RECYCLE, TOUCHED_OUT, actionLabel, scoreOf } from '../lib/actions';
 import { pairBlocks, rulesOf, RULES } from '../lib/pairs';
 import { outcome } from '../lib/rallyReview';
 import { zoneOf } from '../lib/court';
@@ -96,6 +96,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [showTimeout, setShowTimeout] = useState(false);
   // A kill off the block was just tagged in a practice match: which blocker touched it?
   const [offBlockAsk, setOffBlockAsk] = useState<{ t: number | null; fx: number | null; other: 'a' | 'b' } | null>(null);
+  // Practice: a recycle asks who of the other side blocked it (one or two players).
+  const [recycleAsk, setRecycleAsk] = useState<{ t: number | null; x: number | null; other: 'a' | 'b' } | null>(null);
+  const [blockers, setBlockers] = useState<number[]>([]);
   // Practice match: both sides are our players; the sides are set per set.
   const practice = match.practice ?? null;
   const [sidesOpen, setSidesOpen] = useState(false);
@@ -225,6 +228,10 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     // Practice: a kill off the block asks which blocker of the other side touched it.
     if (practice && e.action === 'kill' && e.value === OFF_BLOCK && sidesNow) {
       setOffBlockAsk({ t: e.t ?? null, fx: e.fx ?? null, other: side === 'b' ? 'a' : 'b' });
+    }
+    if (practice && e.action === 'attack' && e.value === RECYCLE && sidesNow) {
+      setBlockers([]);
+      setRecycleAsk({ t: e.t ?? null, x: e.y != null && e.x != null ? e.x : null, other: side === 'b' ? 'a' : 'b' });
     }
     const p = players.find((x) => x.id === e.player_id);
     const who = p ? `#${p.number} ` : '';
@@ -744,6 +751,38 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   }}>#{p.number ?? '–'} {p.name.split(' ')[0]}</button>
                 ))}
               <button className="chip" onClick={() => setOffBlockAsk(null)}>Not sure</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {recycleAsk && practice && sidesNow && (
+        <div className="sheet-backdrop" onClick={() => setRecycleAsk(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Who blocked the recycle">
+            <div className="sheet-head"><b>Recycle: who of {practice.names[recycleAsk.other]} was at the block?</b><button className="btn-ghost" onClick={() => setRecycleAsk(null)} aria-label="Close">✕</button></div>
+            <p className="small muted">Tap one or two players. Each gets a block touch at that spot of the net.</p>
+            <div className="chips">
+              {players.filter((p) => sidesNow[recycleAsk.other].includes(p.id))
+                .sort((a, b) => (onCourt?.includes(b.id) ? 1 : 0) - (onCourt?.includes(a.id) ? 1 : 0) || (a.number ?? 99) - (b.number ?? 99))
+                .map((p) => {
+                  const on = blockers.includes(p.id);
+                  return (
+                    <button key={p.id} className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
+                      onClick={() => setBlockers((b) => (on ? b.filter((x) => x !== p.id) : [...b, p.id].slice(-2)))}>#{p.number ?? '–'} {p.name.split(' ')[0]}</button>
+                  );
+                })}
+            </div>
+            <div className="row wrap">
+              <button className="btn btn-primary" disabled={!blockers.length} onClick={() => {
+                const ask = recycleAsk;
+                setRecycleAsk(null);
+                // Right after the attack, at the net where it hit the block (seen from the blocker's half).
+                blockers.forEach((id, i) => {
+                  const p = players.find((x) => x.id === id);
+                  commit({ action: 'block_touch', player_id: id, jersey: p?.number ?? null, side: ask.other,
+                    t: ask.t == null ? null : ask.t + 0.05 + i * 0.01, ...(ask.x != null ? { x: Math.max(0, Math.min(9, 9 - ask.x)), y: 9 } : {}) });
+                });
+              }}>{blockers.length === 2 ? 'Save both' : 'Save'}</button>
+              <button className="btn-ghost" onClick={() => setRecycleAsk(null)}>Skip</button>
             </div>
           </div>
         </div>

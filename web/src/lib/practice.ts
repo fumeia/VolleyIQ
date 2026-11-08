@@ -84,6 +84,13 @@ export function nextSide(events: Pick<VEvent, 'id' | 'action' | 'value' | 'side'
     if (['receive', 'dig', 'set', 'assist', 'freeball', 'block_touch', 'block_miss'].includes(e.action)) {
       // A block touch that sent the ball out ended the rally: no change.
       if (e.action === 'block_touch' && e.value === 2) continue;
+      // The block on a recycle (one or two blockers): the ball goes back to the attacking side.
+      if (e.action === 'block_touch') {
+        let j = i - 1;
+        while (j >= 0 && list[j].action === 'block_touch' && (list[j].side === 'b' ? 'b' : 'a') === own) j--;
+        const before = list[j];
+        if (before && before.action === 'attack' && before.value === 3 && (before.side === 'b' ? 'b' : 'a') !== own) return other;
+      }
       return own;
     }
     // Rally over (point, error, ace) or a team tag: look further back.

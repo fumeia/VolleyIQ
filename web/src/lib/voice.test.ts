@@ -52,6 +52,11 @@ describe('voice tagging', () => {
     expect(tags('Sieben mit einer perfekten Annahme')).toEqual(['7:receive=3']);
   });
 
+  it('recycle off the block', () => {
+    expect(tags('five recycle')).toEqual(['5:attack=3']);
+    expect(tags('9 attack recycled')).toEqual(['9:attack=3']);
+    expect(tags('Neun Recycle')).toEqual(['9:attack=3']);
+  });
   it('tips and feints', () => {
     expect(tags('five tip kill')).toEqual(['5:kill=1']);
     expect(tags('seven feints, out')).toEqual(['7:attack_error=1']);

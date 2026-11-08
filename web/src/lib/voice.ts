@@ -1,4 +1,4 @@
-import { ATTACK_CODES, OFF_BLOCK, TIP, type ActionCode } from './actions';
+import { ATTACK_CODES, OFF_BLOCK, RECYCLE, TIP, type ActionCode } from './actions';
 
 /**
  * Spoken tags. A phrase is a shirt number and what that player did, several in a row:
@@ -75,6 +75,8 @@ const ERROR_OF: Partial<Record<ActionCode, ActionCode>> = {
 };
 const POINT_WORDS = ['point', 'punkt'];
 /** A tip or feint: a soft placed attack ("5 tip kill", "Finte Punkt", "neun legt den Ball"). */
+/** Hit off the block on purpose so that it comes back to us ("5 recycle", "neun Recycle"). */
+const RECYCLE_WORDS = ['recycle', 'recycles', 'recycled', 'recycling', 'recyclen', 'recyceln', 'recycelt', 'rezykliert'];
 const TIP_WORDS = ['tip', 'tips', 'tipped', 'tipping', 'feint', 'feints', 'feinted', 'dink', 'dinks', 'finte', 'finten', 'lob', 'lobt', 'legt', 'gelegt', 'leger'];
 
 function actionOf(w: string): ActionCode | null {
@@ -148,8 +150,8 @@ export function voiceHints(lang: string): string[] {
   const de = lang.startsWith('de');
   const nums = Array.from({ length: 20 }, (_, i) => String(i + 1));
   return de
-    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block']
-    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block'];
+    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Recycle', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block']
+    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'recycle', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block'];
 }
 
 /**
@@ -225,6 +227,13 @@ export function parseVoice(text: string): VoiceCommand[] {
     }
     // "… off the block, in play": they still played it.
     if (x === 'play' && w[i - 1] === 'in' && cur?.value === OFF_BLOCK) { cur.action = 'attack'; continue; }
+    if (RECYCLE_WORDS.includes(x)) {
+      // Always in play: the ball comes back to the attacking side.
+      if (isAttack(cur) && cur!.jersey === jersey) { cur!.action = 'attack'; cur!.value = RECYCLE; cur!.heard += ` ${x}`; continue; }
+      cur = { kind: 'tag', jersey, action: 'attack', value: RECYCLE, heard: jersey != null ? `${jersey} ${x}` : x };
+      out.push(cur);
+      continue;
+    }
     if (TIP_WORDS.includes(x)) {
       if (isAttack(cur) && cur!.jersey === jersey) { cur!.value = TIP; cur!.heard += ` ${x}`; continue; }
       cur = { kind: 'tag', jersey, action: 'attack', value: TIP, heard: jersey != null ? `${jersey} ${x}` : x };

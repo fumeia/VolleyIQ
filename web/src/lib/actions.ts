@@ -69,8 +69,10 @@ export const REVIEW_ACTIONS: ActionCode[] = [
  * Blocks are placed along the net: the spot of a block (touch, point, error), and the
  * first spot of a block without a touch (then where the ball went).
  */
-export function isNetSpot(code: ActionCode, first: boolean): boolean {
-  return ['block_touch', 'block_error'].includes(code) || ((code === 'block_miss' || code === 'block_point') && first);
+export function isNetSpot(code: ActionCode, first: boolean, value?: number | null): boolean {
+  return ['block_touch', 'block_error'].includes(code) || ((code === 'block_miss' || code === 'block_point') && first)
+    // A recycle: where along the net it hit their block.
+    || (code === 'attack' && value === 3 && !first);
 }
 
 /** "Fast" court mode: the court spots that matter most for the stats. */

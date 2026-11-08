@@ -87,6 +87,10 @@ describe('nextSide: whose players come first on the tag pad', async () => {
     expect(nextSide([e('serve', 'a'), e('receive', 'b', 2)], 1)).toBe('b');
     expect(nextSide([e('serve', 'a'), e('receive', 'b', 2), e('set', 'b'), e('attack', 'b')], 1)).toBe('a');
     expect(nextSide([e('attack', 'b', 3)], 1)).toBe('b');
+    // The blockers of a recycle (one or two) are tagged after it: the attacking side still plays next.
+    expect(nextSide([e('attack', 'b', 3), e('block_touch', 'a'), e('block_touch', 'a')], 1)).toBe('b');
+    // A block touch after an ordinary attack: the blocking side plays it.
+    expect(nextSide([e('attack', 'b'), e('block_touch', 'a')], 1)).toBe('a');
     expect(nextSide([e('attack', 'b', 2)], 1)).toBe('a');
     expect(nextSide([e('attack', 'b', 1)], 1)).toBe('a');
   });

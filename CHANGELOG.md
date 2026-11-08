@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Recycle: where it hit the block, and who blocked**
+- A recycle's second step is "Where along the net did it hit their block?" with the net slider (as for a block touch), instead of a landing spot.
+- Practice matches: then a sheet lists the other side's players; tap one or two blockers and save. Each gets a block touch at that spot of the net. The attacking side stays on top of the tag pad.
+- Voice: "five recycle", "9 attack recycled", "Neun Recycle".
+
 **Practice matches: the next side comes first on the tag pad**
 - After a serve or an attack that stays in play, the other side's players move to the top of the tag pad, right under the video, so the pass or the dig is one tap away without scrolling. After a pass, set, dig or block the same side stays on top; after an error, ace or point nothing moves.
 - New attack: "Recycle" in the Off block row (also in an attack's edit sheet): hit off the opponent's block on purpose so that it comes back and your side plays it again. Counts as an attack in play off the block; the attacking side stays on top of the tag pad.

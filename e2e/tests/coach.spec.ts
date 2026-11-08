@@ -429,3 +429,33 @@ test('every set matches the official result: the Events tab offers "Mark as full
   await expect(page.locator('.final-box')).toContainText('Fully tagged');
   await expect(box.getByRole('button', { name: 'Mark as fully tagged' })).toHaveCount(0);
 });
+
+test('practice match: a recycle asks where it hit the block and who blocked (up to two)', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Recycle team ${Date.now()}` } })).json();
+  const mk = async (name: string, number: number, role: string) => (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
+  const near = await mk('Ash Win', 3, 'OH');
+  const far1 = await mk('Kon Stantin', 5, 'MB');
+  const far2 = await mk('Nic Olas', 2, 'OPP');
+  const match = await (await page.request.post('/api/matches', { data: { label: 'Recycle test', team_id: team.id, mode: 'live' } })).json();
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [near], b: [far1, far2] } } } } });
+  await page.goto(`/m/${match.id}`);
+  await page.locator('.pad-side-a .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.skill-offblock').getByRole('button', { name: 'Recycle' }).click();
+  // Where from: skipped. Where it hit the block: the net slider.
+  const skip = page.getByRole('button', { name: /^Skip: not sure where from/ });
+  if (await skip.isVisible().catch(() => false)) await skip.click();
+  await expect(page.getByText('Where along the net did it hit their block?').first()).toBeVisible();
+  await page.getByRole('button', { name: '✓ Set here' }).click();
+  const ask = page.getByRole('dialog', { name: 'Who blocked the recycle' });
+  await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await ask.getByRole('button', { name: /#2 Nic/ }).click();
+  await ask.getByRole('button', { name: 'Save both' }).click();
+  await expect(ask).toHaveCount(0);
+  const list = page.locator('.ws-content');
+  await expect(list).toContainText(/#3 Ash\s*Recycled off the block/);
+  await expect(list).toContainText(/#5 Kon\s*Block Touch/);
+  await expect(list).toContainText(/#2 Nic\s*Block Touch/);
+  // The ball is back with Near: Near's players stay on top.
+  await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-a/);
+});

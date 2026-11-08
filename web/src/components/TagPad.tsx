@@ -224,7 +224,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
   if (draft?.action) {
     const a = draft.action;
     const first = draft.stage === 'from';
-    const prompt = (first ? a.fromPrompt : a.toPrompt) ?? 'Where?';
+    const prompt = (first ? a.fromPrompt : draft.value === RECYCLE && a.code === 'attack' ? 'Where along the net did it hit their block?' : a.toPrompt) ?? 'Where?';
     const steps = a.court === 'path' && settings.fromTap ? ` (${first ? 1 : 2}/2)` : '';
     return (
       <div className="pad" ref={padRef}>
@@ -246,10 +246,10 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           from={draft.from}
           flip={!!farAt?.(draft.t, draft.player?.id ?? null)}
           names={sides && draft.player ? (sides.b.includes(draft.player.id) ? { us: sides.names.b, them: sides.names.a } : { us: sides.names.a, them: sides.names.b }) : undefined}
-          net={isNetSpot(a.code, first || a.court !== 'path') ? {} : undefined}
+          net={isNetSpot(a.code, first || a.court !== 'path', draft.value) ? {} : undefined}
           showTarget={a.code === 'receive' && !first}
           onPick={(p) => (first ? setDraft({ ...draft, from: p, stage: 'to' }) : finish(draft, { point: p }))}
-          skipLabel={first ? 'Skip: not sure where from ▶' : 'Skip: no landing spot ✓'}
+          skipLabel={first ? 'Skip: not sure where from ▶' : draft.value === RECYCLE ? 'Skip: not sure where ✓' : 'Skip: no landing spot ✓'}
           onSkip={() => (first ? setDraft({ ...draft, stage: 'to' }) : finish(draft))}
           extra={a.code === 'receive' ? (
             <div className="pad-grid pad-grid-4 receive-quick">
