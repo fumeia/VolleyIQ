@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.4.0 (2026-11-08)
+
 **Server install more reliable**
 - Building the server image sometimes failed when the database module's ready-made binary could not be downloaded (its fallback, compiling it, had no compiler in the image). The build now has the tools for that fallback in a separate step; the server image itself stays as small as before. This also made the "Server" checks on GitHub fail now and then.
 
