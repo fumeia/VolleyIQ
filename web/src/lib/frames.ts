@@ -25,6 +25,8 @@ async function openVideo(url: string) {
   v.muted = true;
   v.preload = 'auto';
   v.playsInline = true;
+  // The app's local video server is another origin: ask for CORS so the frames can be read.
+  if (url.startsWith('http://127.0.0.1:')) v.crossOrigin = 'anonymous';
   v.src = url;
   await new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error('The video did not load')), 10000);

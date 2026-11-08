@@ -3,8 +3,7 @@
 ## Unreleased
 
 **Smooth video from the phone**
-- A video picked from the phone stuttered in the app, more and more the further into the match: the app framework answered every piece the video player asked for with the file from its very first byte, so the phone read the whole file up to the playing position again and again. The app now serves the video itself and jumps straight to the requested place, so playback and jumping around are as smooth deep in a match as at the start.
-- Fixed in the next build: in test build 202 the phone video did not load at all ("The video could not be loaded"). The video player moves to the requested place itself, so the app now leaves that to it and only makes the move instant.
+- A video picked from the phone stuttered in the app, even in slow motion, while the same file played smoothly from the team link in a browser. The app handed the video to its web view piece by piece through a slow internal bridge. It now plays the video from a small web server inside the app that only this phone can reach (protected by a random key), so the web view streams it like a video from the internet. If that server is ever unavailable, the app falls back to the previous way on its own.
 
 ## v1.4.0 (2026-11-08)
 

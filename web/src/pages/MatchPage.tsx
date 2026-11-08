@@ -36,7 +36,7 @@ import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
 import { OPP_POINT_VALUE, TheyScored, type TheyScoredResult } from '../components/TheyScored';
 import { api, ApiError, serverBase, type Match, type MatchBundle, type MatchVersion, type EditSuggestion, type VideoJob, type Player, type VEvent } from '../lib/api';
-import { isApp, localVideo, Native, playableUrl, setLocalVideo, type LocalVideo, type WorkState } from '../lib/native';
+import { hookedUrl, isApp, localVideo, Native, playableUrl, setLocalVideo, type LocalVideo, type WorkState } from '../lib/native';
 import { scoreBySet } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
@@ -147,13 +147,23 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   }, [isLive, !!local, match.video_key, cloudTry, cloudFresh]);
   const cloud = cloudLink ? urlFor(cloudLink, quality) : null;
   const cloudUrl = cloud?.url ?? null;
+  // The phone video's address from the app (its local video server); the website plays it as is.
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!local) { setLocalUrl(null); return; }
+    if (!isApp()) { setLocalUrl(local.uri); return; }
+    let live = true;
+    setLocalUrl(null);
+    playableUrl(local.uri).then((u) => { if (live) setLocalUrl(u); });
+    return () => { live = false; };
+  }, [local?.uri]);
   const source = useMemo(() => {
     if (isLive) return null;
-    if (local) return { type: 'file' as const, url: isApp() ? playableUrl(local.uri) : local.uri };
+    if (local) return localUrl ? { type: 'file' as const, url: localUrl } : null;
     if (cloudUrl) return { type: 'file' as const, url: cloudUrl, remote: true, group: `match-${match.id}` };
     if (match.video_type === 'youtube' && match.video_ref) return { type: 'youtube' as const, id: match.video_ref };
     return null;
-  }, [isLive, local, cloudUrl, match.video_type, match.video_ref]);
+  }, [isLive, local, localUrl, cloudUrl, match.video_type, match.video_ref]);
 
   const suggested = events.filter((e) => e.status === 'suggested');
   // Keep the rally review open after its last rally, so its Undo stays reachable.
@@ -575,7 +585,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
               <>
                 <div className="video-wrap">
                   <VideoPlayer ref={player} source={source} onStateChange={setPlaying}
-                    onError={() => { if (cloudUrl && cloudTry < 1) setCloudTry((n) => n + 1); }} />
+                    onError={() => {
+                      // The phone's own video server refused (should not happen): the request hook instead.
+                      if (local && localUrl?.startsWith('http://127.0.0.1:')) setLocalUrl(hookedUrl(local.uri));
+                      else if (cloudUrl && cloudTry < 1) setCloudTry((n) => n + 1);
+                    }} />
                   <VideoClock player={player} />
                   {calibrating && <CalibrationOverlay session={calib} aspect={player.current?.aspect() ?? 16 / 9} />}
                 </div>
@@ -615,6 +629,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                 </>
                 )}
               </>
+            ) : local ? (
+              <div className="video-box video-empty">Loading video…</div>
             ) : (
               <>
                 {match.video_type === 'local' && !local && (

@@ -58,6 +58,7 @@ interface VolleyIQPlugin {
   /** Voice tagging: Android's speech recognizer, listening until stopListening. */
   startListening(o: { lang: string; hints?: string[] }): Promise<void>;
   stopListening(): Promise<void>;
+  localVideoUrl(o: { uri: string }): Promise<{ url: string }>;
   addListener(event: 'speech', cb: (r: { text: string; final: boolean }) => void): Promise<{ remove: () => void }>;
   addListener(event: 'speechState', cb: (s: { listening: boolean; error?: string }) => void): Promise<{ remove: () => void }>;
 }
@@ -67,14 +68,23 @@ export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');
 export { isApp };
 
 /**
- * URL the WebView can play for a content:// or file:// video on the phone. On Android it is served
- * by the app with proper byte ranges (VideoServer.kt): Capacitor's own file URLs send the file from
- * its start for every piece, so playback stutters more and more the further into the video.
+ * URL the WebView can play for a content:// or file:// video on the phone. On Android the app
+ * serves it from its own web server on the phone (LocalVideoServer.kt), so the WebView streams it
+ * like a video from the internet; handing it over through the WebView's request hook stuttered.
  */
-export const playableUrl = (uri: string) =>
-  Capacitor.getPlatform() === 'android'
-    ? `${window.location.origin}/_viq_video/?u=${encodeURIComponent(uri.startsWith('/') ? `file://${uri}` : uri)}`
-    : Capacitor.convertFileSrc(uri);
+export async function playableUrl(uri: string): Promise<string> {
+  if (Capacitor.getPlatform() !== 'android') return Capacitor.convertFileSrc(uri);
+  try {
+    return (await Native.localVideoUrl({ uri })).url;
+  } catch {
+    // Older native part or the server could not start.
+    return hookedUrl(uri);
+  }
+}
+
+/** The same video through the WebView's request hook (VideoServer.kt): the fallback. */
+export const hookedUrl = (uri: string) =>
+  `${window.location.origin}/_viq_video/?u=${encodeURIComponent(uri.startsWith('/') ? `file://${uri}` : uri)}`;
 
 /** Which phone video belongs to a match (kept on this phone only). */
 export interface LocalVideo { uri: string; name: string }

@@ -405,6 +405,17 @@ class VolleyIQPlugin : Plugin() {
         call.resolve(JSObject().put("work", info?.let(::toJs)))
     }
 
+    /** A URL the WebView plays a phone video from (the app's own local web server). */
+    @PluginMethod
+    fun localVideoUrl(call: PluginCall) {
+        val uri = call.getString("uri") ?: return call.reject("uri required")
+        try {
+            call.resolve(JSObject().put("url", LocalVideoServer.urlFor(context, uri)))
+        } catch (e: Exception) {
+            call.reject(e.message ?: "The video server did not start")
+        }
+    }
+
     @PluginMethod
     fun cancelVideoUpload(call: PluginCall) {
         val matchId = call.getInt("matchId") ?: return call.reject("matchId required")
