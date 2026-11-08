@@ -19,6 +19,9 @@ import java.io.InputStream
  * to the playing position again for every piece: the deeper into a long match, the more the
  * picture stutters. Here "/_viq_video/?u=<content:// or file uri>" is served from exactly the
  * requested byte (a seek on the file), in pieces of at most [CHUNK] bytes.
+ *
+ * The WebView moves to the start of a range itself, by calling skip() on the stream it gets
+ * (Chromium's InputStreamReader), so the stream starts at byte 0 and its skip() is a seek.
  */
 class VideoServingClient(bridge: Bridge) : BridgeWebViewClient(bridge) {
     private val context = bridge.context
@@ -43,7 +46,7 @@ class VideoServingClient(bridge: Bridge) : BridgeWebViewClient(bridge) {
         val headers = mutableMapOf("Accept-Ranges" to "bytes", "Cache-Control" to "no-store")
         if (range == null || size <= 0) {
             if (size > 0) headers["Content-Length"] = size.toString()
-            return WebResourceResponse(type, null, 200, "OK", headers, Closing(input, pfd, Long.MAX_VALUE))
+            return WebResourceResponse(type, null, 200, "OK", headers, Seeking(input, pfd, 0, if (size > 0) size else Long.MAX_VALUE))
         }
         val (a, b) = range.destructured
         var from = a.toLongOrNull() ?: 0L
@@ -55,12 +58,10 @@ class VideoServingClient(bridge: Bridge) : BridgeWebViewClient(bridge) {
             return WebResourceResponse(type, null, 416, "Range Not Satisfiable", headers, null)
         }
         to = minOf(to, size - 1, from + CHUNK - 1)
-        // The point of it all: jump straight to the requested byte.
-        input.channel.position(from)
         val length = to - from + 1
         headers["Content-Range"] = "bytes $from-$to/$size"
         headers["Content-Length"] = length.toString()
-        return WebResourceResponse(type, null, 206, "Partial Content", headers, Closing(input, pfd, length))
+        return WebResourceResponse(type, null, 206, "Partial Content", headers, Seeking(input, pfd, from, to + 1))
     }
 
     private fun open(source: Uri): ParcelFileDescriptor? {
@@ -74,19 +75,35 @@ class VideoServingClient(bridge: Bridge) : BridgeWebViewClient(bridge) {
 
     private fun notFound() = WebResourceResponse("text/plain", "utf-8", 404, "Not Found", emptyMap(), null)
 
-    /** Reads at most [limit] bytes, then closes the file. */
-    private class Closing(private val input: InputStream, private val pfd: ParcelFileDescriptor, private var limit: Long) : InputStream() {
+    /**
+     * The file from byte 0 up to [end]: skip() jumps (no reading through), reads stop at [end].
+     * available() says 0, so the WebView skips to the range start and reads to the end. Should a
+     * WebView read without skipping first, the stream starts at [from] instead.
+     */
+    private class Seeking(private val input: FileInputStream, private val pfd: ParcelFileDescriptor, private val from: Long, private val end: Long) : InputStream() {
+        private val channel = input.channel
+        private var moved = false
+        private fun pos(): Long {
+            if (!moved) { moved = true; if (from > 0) channel.position(from) }
+            return channel.position()
+        }
+        override fun available() = 0
+        override fun skip(n: Long): Long {
+            if (n <= 0) return 0
+            moved = true
+            val at = channel.position()
+            val to = minOf(at + n, end)
+            channel.position(to)
+            return to - at
+        }
         override fun read(): Int {
-            if (limit <= 0) return -1
-            val r = input.read()
-            if (r >= 0) limit--
-            return r
+            if (pos() >= end) return -1
+            return input.read()
         }
         override fun read(b: ByteArray, off: Int, len: Int): Int {
-            if (limit <= 0) return -1
-            val n = input.read(b, off, minOf(len.toLong(), limit).toInt())
-            if (n > 0) limit -= n
-            return n
+            val left = end - pos()
+            if (left <= 0) return -1
+            return input.read(b, off, minOf(len.toLong(), left).toInt())
         }
         override fun close() {
             runCatching { input.close() }
