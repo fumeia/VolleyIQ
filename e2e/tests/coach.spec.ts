@@ -310,7 +310,11 @@ test('practice match: blocked attack + block point is one point; off the block a
     if (await skip.isVisible().catch(() => false)) await skip.click();
   }
   const ask = page.getByRole('dialog', { name: 'Who touched it on the block' });
+  // Where along the net, then who: one popup.
+  await expect(ask).toContainText('Where along the net did it touch their block?');
+  await ask.getByRole('button', { name: '✓ Here' }).click();
   await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await ask.getByRole('button', { name: 'Save' }).click();
   await expect(page.locator('.ws-content')).toContainText(/#5 Kon\s*Block touched out/);
   // One point for Near (the kill), none for the touch.
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
@@ -335,6 +339,19 @@ test('practice match: blocked attack + block point is one point; off the block a
   await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'attack', player_id: far, side: 'b', set_no: 1, t: 64 } });
   await page.reload();
   await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-a/);
+  // Off the block, in play: the same popup; Kon gets a plain block touch, no point, Far plays next.
+  await page.locator('.pad-side .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.skill-offblock').getByRole('button', { name: 'In play' }).click();
+  for (let i = 0; i < 2; i++) {
+    const skip = page.getByRole('button', { name: /^Skip/ });
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+  }
+  await ask.getByRole('button', { name: /^Skip: not sure where/ }).click();
+  await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await ask.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.ws-content')).toContainText(/#5 Kon\s*Block Touch/);
+  await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
+  await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-b/);
 });
 
 test('practice match analysis: the sides of each set, combinations, a player across sets; season leaves practice out', async ({ page, login }, info) => {
@@ -447,7 +464,7 @@ test('practice match: a recycle asks where it hit the block and who blocked (up 
   if (await skip.isVisible().catch(() => false)) await skip.click();
   await expect(page.getByText('Where along the net did it hit their block?').first()).toBeVisible();
   await page.getByRole('button', { name: '✓ Set here' }).click();
-  const ask = page.getByRole('dialog', { name: 'Who blocked the recycle' });
+  const ask = page.getByRole('dialog', { name: 'Who touched it on the block' });
   await ask.getByRole('button', { name: /#5 Kon/ }).click();
   await ask.getByRole('button', { name: /#2 Nic/ }).click();
   await ask.getByRole('button', { name: 'Save both' }).click();
