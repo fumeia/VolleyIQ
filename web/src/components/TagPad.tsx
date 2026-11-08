@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ACTIONS, ACTION_BY_CODE, ATTACK_CODES, OFF_BLOCK, SHORT, SKILLS, TIP, actionLabel, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
+import { ACTIONS, ACTION_BY_CODE, ATTACK_CODES, OFF_BLOCK, RECYCLE, SHORT, SKILLS, TIP, actionLabel, isNetSpot, wantsSpots, type ActionCode, type ActionDef } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { courtFields, receiveGrade, type Pt } from '../lib/court';
 import { SpotSheet } from './SpotSheet';
@@ -37,6 +37,8 @@ interface Props {
   farAt?: (t: number | null, playerId?: number | null) => boolean;
   /** Practice match: the two sides of this set (both our players), shown as two groups with a +1 each. */
   sides?: { names: { a: string; b: string }; a: number[]; b: number[] } | null;
+  /** Practice match: the side that plays the ball next goes first (right under the video). */
+  firstSide?: 'a' | 'b' | null;
 }
 
 /** What the other side usually does after a touch (practice matches: both sides are tagged). */
@@ -86,7 +88,7 @@ export const isTyping = (e: KeyboardEvent) => {
   return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 };
 
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides, lastSide, sideOf }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides, lastSide, sideOf, firstSide }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   // The video is sticky at the top; keep it in view. When a player is picked we
@@ -310,6 +312,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
             <span className="skill-label" title="Played off the opponent's block (block-out, tool)">Off block</span>
             <button className="act act-points" onClick={() => chooseAction(ACTION_BY_CODE.kill, OFF_BLOCK)}>Kill</button>
             <button className="act act-actions" onClick={() => chooseAction(ACTION_BY_CODE.attack, OFF_BLOCK)}>In play</button>
+            <button className="act act-actions" title="Hit off their block on purpose: it comes back and your side plays it again" onClick={() => chooseAction(ACTION_BY_CODE.attack, RECYCLE)}>Recycle</button>
           </div>
           )}
           </Fragment>
@@ -328,7 +331,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
       )}
       {sides ? (
         <>
-          {(['a', 'b'] as const).map((k) => (
+          {(firstSide === 'b' ? (['b', 'a'] as const) : (['a', 'b'] as const)).map((k) => (
             <div key={k} className={`pad-side pad-side-${k}`}>
               <span className="pad-side-name">{sides.names[k]}</span>
               <div className="pad-grid pad-players">{roster.filter((p) => sides[k].includes(p.id)).map(jersey)}</div>

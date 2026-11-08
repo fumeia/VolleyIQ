@@ -25,7 +25,7 @@ import { ReadNumbers } from '../components/ReadNumbers';
 import { TimeoutSheet } from '../components/TimeoutSheet';
 import { ResumeSheet } from '../components/ResumeSheet';
 import { PracticeSheet } from '../components/PracticeSheet';
-import { sideOf, sideScore } from '../lib/practice';
+import { nextSide, sideOf, sideScore } from '../lib/practice';
 import type { Lineups } from '../lib/rotation';
 import { VoiceBar } from '../components/VoiceBar';
 import { FineScrub, Timeline } from '../components/Timeline';
@@ -416,6 +416,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         return side === 'a' ? aFar : !aFar;
       }}
       sides={practice && sidesNow ? { names: practice.names, a: sidesNow.a, b: sidesNow.b } : null}
+      firstSide={practice ? nextSide(events, setNo) : null}
     />
   );
 

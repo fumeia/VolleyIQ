@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ACTION_BY_CODE, ACTIONS, ATTACK_CODES, SHOTS, shotOf, type ActionCode } from '../lib/actions';
+import { ACTION_BY_CODE, ACTIONS, ATTACK_CODES, RECYCLE, SHOTS, shotOf, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import { fmtTime } from './TagPad';
 import { courtFields } from '../lib/court';
@@ -61,8 +61,9 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
         {ATTACK_CODES.includes(d.action!) && (
           <div className="chips tight" aria-label="Kind of attack">
             {SHOTS.map((sh) => (
-              <button key={sh.key} className={`chip ${shotOf({ action: d.action!, value: d.value }) === sh.key ? 'on' : ''}`} onClick={() => set({ value: sh.value })}>{sh.label}</button>
+              <button key={sh.key} className={`chip ${shotOf({ action: d.action!, value: d.value }) === sh.key && d.value !== RECYCLE ? 'on' : ''}`} onClick={() => set({ value: sh.value })}>{sh.label}</button>
             ))}
+            {d.action === 'attack' && <button className={`chip ${d.value === RECYCLE ? 'on' : ''}`} title="Hit off their block on purpose, played again by your side" onClick={() => set({ value: RECYCLE })}>Recycle</button>}
           </div>
         )}
         <div className="chips tight">

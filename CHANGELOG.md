@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Practice matches: the next side comes first on the tag pad**
+- After a serve or an attack that stays in play, the other side's players move to the top of the tag pad, right under the video, so the pass or the dig is one tap away without scrolling. After a pass, set, dig or block the same side stays on top; after an error, ace or point nothing moves.
+- New attack: "Recycle" in the Off block row (also in an attack's edit sheet): hit off the opponent's block on purpose so that it comes back and your side plays it again. Counts as an attack in play off the block; the attacking side stays on top of the tag pad.
+
 ## v1.3.0 (2026-11-08)
 
 **Player pages: matches against practice, and the trend over the season**

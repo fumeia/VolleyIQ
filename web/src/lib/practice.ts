@@ -66,3 +66,27 @@ export function seasonScope<M extends Pick<Match, 'id' | 'practice'>, E extends 
   const keep = new Set(matches.filter((m) => !m.practice).map((m) => m.id));
   return { matches: matches.filter((m) => keep.has(m.id)), events: events.filter((e) => keep.has(e.match_id)), practiceCount };
 }
+
+/**
+ * Practice match: the side that plays the ball next, from the tags of the set so far, so the tag
+ * pad can put its players first. A serve or an attack in play sends the ball over (the other side);
+ * a recycle off the block, a pass, dig, set, free ball or block keeps it on the same side; a tag
+ * that ends the rally (point, error, ace) changes nothing, so the order stays as it was.
+ */
+export function nextSide(events: Pick<VEvent, 'id' | 'action' | 'value' | 'side' | 't' | 'set_no' | 'status'>[], set: number): Side | null {
+  const list = events.filter((e) => (e.set_no ?? 1) === set && e.status !== 'suggested').sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i];
+    const own: Side = e.side === 'b' ? 'b' : 'a';
+    const other: Side = own === 'a' ? 'b' : 'a';
+    if (e.action === 'serve') return other;
+    if (e.action === 'attack') return e.value === 3 ? own : other; // 3: RECYCLE (lib/actions)
+    if (['receive', 'dig', 'set', 'assist', 'freeball', 'block_touch', 'block_miss'].includes(e.action)) {
+      // A block touch that sent the ball out ended the rally: no change.
+      if (e.action === 'block_touch' && e.value === 2) continue;
+      return own;
+    }
+    // Rally over (point, error, ace) or a team tag: look further back.
+  }
+  return null;
+}

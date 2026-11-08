@@ -77,3 +77,23 @@ describe('practice matches', () => {
   });
 });
 
+
+describe('nextSide: whose players come first on the tag pad', async () => {
+  const { nextSide } = await import('./practice');
+  let n = 0;
+  const e = (action: string, side: 'a' | 'b', value: number | null = null) => ({ id: ++n, action, side, value, t: n, set_no: 1, status: 'confirmed' }) as never;
+  it('a serve or an attack in play sends the ball over; a pass, set or recycle keeps it', () => {
+    expect(nextSide([e('serve', 'a')], 1)).toBe('b');
+    expect(nextSide([e('serve', 'a'), e('receive', 'b', 2)], 1)).toBe('b');
+    expect(nextSide([e('serve', 'a'), e('receive', 'b', 2), e('set', 'b'), e('attack', 'b')], 1)).toBe('a');
+    expect(nextSide([e('attack', 'b', 3)], 1)).toBe('b');
+    expect(nextSide([e('attack', 'b', 2)], 1)).toBe('a');
+    expect(nextSide([e('attack', 'b', 1)], 1)).toBe('a');
+  });
+  it('an error or a point changes nothing; another set or no tags: no preference', () => {
+    expect(nextSide([e('serve', 'a'), e('receive', 'b', 2), e('attack_error', 'b')], 1)).toBe('b');
+    expect(nextSide([e('set', 'a'), e('serve_error', 'b')], 1)).toBe('a');
+    expect(nextSide([e('serve', 'a')], 2)).toBe(null);
+    expect(nextSide([], 1)).toBe(null);
+  });
+});

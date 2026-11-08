@@ -133,13 +133,17 @@ export type RoleCode = (typeof ROLES)[number]['code'];
 
 /**
  * Attack actions, and the kind of shot in their value: none = a hit, TIP = a tip / feint,
- * OFF_BLOCK = played off the opponent's block (block-out, tool).
+ * OFF_BLOCK = played off the opponent's block (block-out, tool), RECYCLE = hit off the block on
+ * purpose so that it comes back and the attacking side plays it again (an attack in play only).
  */
 export const ATTACK_CODES: ActionCode[] = ['attack', 'kill', 'attack_error', 'attack_blocked'];
 export const TIP = 1;
 export const OFF_BLOCK = 2;
+export const RECYCLE = 3;
 export const isTip = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === TIP;
-export const isOffBlock = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && e.value === OFF_BLOCK;
+/** Off the block, a recycle included (the stats count it with the attacks played off the block). */
+export const isOffBlock = (e: { action: ActionCode; value?: number | null }) => ATTACK_CODES.includes(e.action) && (e.value === OFF_BLOCK || e.value === RECYCLE);
+export const isRecycle = (e: { action: ActionCode; value?: number | null }) => e.action === 'attack' && e.value === RECYCLE;
 /** A block touch that sent the ball out (the attack scored "off the block"): a block error without its own point. */
 export const TOUCHED_OUT = 2;
 export const isTouchedOut = (e: { action: ActionCode; value?: number | null }) => e.action === 'block_touch' && e.value === TOUCHED_OUT;
@@ -155,6 +159,7 @@ export function actionLabel(e: { action: ActionCode; value?: number | null }) {
   const def = ACTION_BY_CODE[e.action];
   if (!def) return e.action;
   if (isTip(e)) return TIP_LABEL[e.action]!;
+  if (isRecycle(e)) return 'Recycled off the block';
   if (isOffBlock(e)) return OFF_BLOCK_LABEL[e.action]!;
   if (isTouchedOut(e)) return 'Block touched out';
   return e.action === 'receive' && e.value != null ? `Receive ${e.value}` : def.label;

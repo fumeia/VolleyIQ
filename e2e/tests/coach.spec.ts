@@ -323,6 +323,18 @@ test('practice match: blocked attack + block point is one point; off the block a
   await expect(rows.filter({ hasText: 'Block Point' }).locator('.ev-pt')).toHaveText('+1');
   await page.getByRole('button', { name: 'Mark as fully tagged' }).click();
   await expect(page.locator('.final-box')).toContainText('Fully tagged');
+  // After a serve of Near, Far's players come first on the tag pad (to tag the pass).
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'serve', player_id: near, side: 'a', set_no: 1, t: 60 } });
+  await page.reload();
+  await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-b/);
+  // Far recycles off the block: still Far's ball.
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'attack', value: 3, player_id: far, side: 'b', set_no: 1, t: 62 } });
+  await page.reload();
+  await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-b/);
+  // Far attacks in play: Near is next.
+  await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'attack', player_id: far, side: 'b', set_no: 1, t: 64 } });
+  await page.reload();
+  await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-a/);
 });
 
 test('practice match analysis: the sides of each set, combinations, a player across sets; season leaves practice out', async ({ page, login }, info) => {
