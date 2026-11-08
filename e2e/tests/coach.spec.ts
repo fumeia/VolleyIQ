@@ -467,6 +467,7 @@ test('practice match: a recycle asks where it hit the block and who blocked (up 
   const ask = page.getByRole('dialog', { name: 'Who touched it on the block' });
   await ask.getByRole('button', { name: /#5 Kon/ }).click();
   await ask.getByRole('button', { name: /#2 Nic/ }).click();
+  await page.screenshot({ path: test.info().outputPath('block-ask.png') });
   await ask.getByRole('button', { name: 'Save both' }).click();
   await expect(ask).toHaveCount(0);
   const list = page.locator('.ws-content');

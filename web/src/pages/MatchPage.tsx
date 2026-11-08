@@ -13,6 +13,7 @@ import { VideoPlayer, type PlayerHandle } from '../components/VideoPlayer';
 import { VideoSource } from '../components/VideoSource';
 import { VideoClock } from '../components/VideoClock';
 import { NetSpot } from '../components/NetSpot';
+import { useBelowVideo } from '../components/SpotSheet';
 import { OFF_BLOCK, RECYCLE, TOUCHED_OUT, actionLabel, scoreOf } from '../lib/actions';
 import { pairBlocks, rulesOf, RULES } from '../lib/pairs';
 import { outcome } from '../lib/rallyReview';
@@ -429,6 +430,57 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     />
   );
 
+  // Shown in place of the tag pad, right under the video (which stays in view, not dimmed).
+  const blockPanel = blockAsk && practice && sidesNow ? (() => {
+        const ask = blockAsk;
+        const aFar = (sidesNow.near ?? 'a') === 'b';
+        const blockerFar = ask.other === 'a' ? aFar : !aFar;
+        const title = ask.kind === 'recycle' ? `Recycle: who of ${practice.names[ask.other]} was at the block?`
+          : ask.kind === 'kill' ? `Off the block: who of ${practice.names[ask.other]} touched it?` : `Off the block, in play: who of ${practice.names[ask.other]} touched it?`;
+        return (
+          <BelowVideo label="Who touched it on the block">
+            <div className="block-ask-body">
+              <div className="sheet-head"><b>{title}</b><button className="btn-ghost" onClick={() => setBlockAsk(null)} aria-label="Close">✕</button></div>
+              {ask.stage === 'net' ? (
+                <>
+                  <p className="small">Where along the net did it touch their block?</p>
+                  <div className="spot-court"><NetSpot flip={blockerFar} label="✓ Here" onPick={(pt) => setBlockAsk({ ...ask, x: pt.x, stage: 'who' })} /></div>
+                  <div className="spot-actions"><button className="btn" onClick={() => setBlockAsk({ ...ask, stage: 'who' })}>Skip: not sure where ▶</button></div>
+                </>
+              ) : (
+                <>
+                  <p className="small muted">Tap one or two players. {ask.kind === 'kill' ? 'They get "Block touched out" (a block error, no extra point: the kill scored).' : 'Each gets a block touch.'}</p>
+                  <div className="chips">
+                    {players.filter((p) => sidesNow[ask.other].includes(p.id))
+                      .sort((a, b) => (onCourt?.includes(b.id) ? 1 : 0) - (onCourt?.includes(a.id) ? 1 : 0) || (a.number ?? 99) - (b.number ?? 99))
+                      .map((p) => {
+                        const on = blockers.includes(p.id);
+                        return (
+                          <button key={p.id} className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
+                            onClick={() => setBlockers((b) => (on ? b.filter((x) => x !== p.id) : [...b, p.id].slice(-2)))}>#{p.number ?? '–'} {p.name.split(' ')[0]}</button>
+                        );
+                      })}
+                  </div>
+                  <div className="spot-actions">
+                    <button className="btn btn-primary" disabled={!blockers.length} onClick={() => {
+                      setBlockAsk(null);
+                      blockers.forEach((id, i) => {
+                        const p = players.find((x) => x.id === id);
+                        // A kill: just before it (the touch sent it out); in play or a recycle: right after the attack.
+                        const t = ask.t == null ? null : ask.kind === 'kill' ? Math.max(0, ask.t - 0.05 - i * 0.01) : ask.t + 0.05 + i * 0.01;
+                        commit({ action: 'block_touch', value: ask.kind === 'kill' ? TOUCHED_OUT : null, player_id: id, jersey: p?.number ?? null, side: ask.other,
+                          t, ...(ask.x != null ? { x: ask.x, y: 9 } : {}) });
+                      });
+                    }}>{blockers.length === 2 ? 'Save both' : 'Save'}</button>
+                    <button className="btn" onClick={() => setBlockAsk(null)}>Not sure</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </BelowVideo>
+        );
+  })() : null;
+
   return (
     <div className={`workspace ${isLive ? 'is-live' : ''} ${voice && !paused ? 'voice-on' : ''} ${voice && !paused && bigVideo ? 'voice-big' : ''}`}>
       <header className="ws-head">
@@ -554,7 +606,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <span className="small muted">Back on the bench? Enter the score as it is now and carry on tagging.</span>
                     <button className="btn btn-primary" onClick={() => setResumeOpen(true)}>Resume</button>
                   </div>
-                ) : pad}
+                ) : blockPanel ?? pad}
                 {!paused && !practice && zeroPass && (
                   <div className="zero-pass small">
                     <span>Pass 0 by {playerLabel(players, zeroPass) || '?'}: was it their ace?</span>
@@ -735,55 +787,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         <PracticeSheet match={match} players={players} set={setNo} onClose={() => { setSidesOpen(false); setSidesLater(setNo); }}
           onSave={async (p) => { setMatch(await api.updateMatch(match.id, { practice: p })); flash(`Sides of set ${setNo} saved`); }} />
       )}
-      {blockAsk && practice && sidesNow && (() => {
-        const ask = blockAsk;
-        const aFar = (sidesNow.near ?? 'a') === 'b';
-        const blockerFar = ask.other === 'a' ? aFar : !aFar;
-        const title = ask.kind === 'recycle' ? `Recycle: who of ${practice.names[ask.other]} was at the block?`
-          : ask.kind === 'kill' ? `Off the block: who of ${practice.names[ask.other]} touched it?` : `Off the block, in play: who of ${practice.names[ask.other]} touched it?`;
-        return (
-          <div className="sheet-backdrop" onClick={() => setBlockAsk(null)}>
-            <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Who touched it on the block">
-              <div className="sheet-head"><b>{title}</b><button className="btn-ghost" onClick={() => setBlockAsk(null)} aria-label="Close">✕</button></div>
-              {ask.stage === 'net' ? (
-                <>
-                  <p className="small">Where along the net did it touch their block?</p>
-                  <NetSpot flip={blockerFar} label="✓ Here" onPick={(pt) => setBlockAsk({ ...ask, x: pt.x, stage: 'who' })} />
-                  <button className="btn-ghost small" onClick={() => setBlockAsk({ ...ask, stage: 'who' })}>Skip: not sure where</button>
-                </>
-              ) : (
-                <>
-                  <p className="small muted">Tap one or two players. {ask.kind === 'kill' ? 'They get "Block touched out" (a block error, no extra point: the kill scored).' : 'Each gets a block touch.'}</p>
-                  <div className="chips">
-                    {players.filter((p) => sidesNow[ask.other].includes(p.id))
-                      .sort((a, b) => (onCourt?.includes(b.id) ? 1 : 0) - (onCourt?.includes(a.id) ? 1 : 0) || (a.number ?? 99) - (b.number ?? 99))
-                      .map((p) => {
-                        const on = blockers.includes(p.id);
-                        return (
-                          <button key={p.id} className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
-                            onClick={() => setBlockers((b) => (on ? b.filter((x) => x !== p.id) : [...b, p.id].slice(-2)))}>#{p.number ?? '–'} {p.name.split(' ')[0]}</button>
-                        );
-                      })}
-                  </div>
-                  <div className="row wrap">
-                    <button className="btn btn-primary" disabled={!blockers.length} onClick={() => {
-                      setBlockAsk(null);
-                      blockers.forEach((id, i) => {
-                        const p = players.find((x) => x.id === id);
-                        // A kill: just before it (the touch sent it out); in play or a recycle: right after the attack.
-                        const t = ask.t == null ? null : ask.kind === 'kill' ? Math.max(0, ask.t - 0.05 - i * 0.01) : ask.t + 0.05 + i * 0.01;
-                        commit({ action: 'block_touch', value: ask.kind === 'kill' ? TOUCHED_OUT : null, player_id: id, jersey: p?.number ?? null, side: ask.other,
-                          t, ...(ask.x != null ? { x: ask.x, y: 9 } : {}) });
-                      });
-                    }}>{blockers.length === 2 ? 'Save both' : 'Save'}</button>
-                    <button className="btn-ghost" onClick={() => setBlockAsk(null)}>Not sure</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })()}
       {resumeOpen && (
         <ResumeSheet match={match} players={players} confirmed={confirmed} setNo={setNo} onClose={() => setResumeOpen(false)}
           onSave={async (gaps, setNow) => {
@@ -1300,4 +1303,10 @@ function FinalBox({ match, onChanged }: { match: Match; onChanged: (m: Match) =>
       )}
     </div>
   );
+}
+
+/** A panel in the space under the video, like the court spot steps: the video stays in view. */
+function BelowVideo({ label, children }: { label: string; children: React.ReactNode }) {
+  const box = useBelowVideo();
+  return <div className="spot-sheet block-ask" role="dialog" aria-label={label} style={{ top: box.top, left: box.left }}>{children}</div>;
 }

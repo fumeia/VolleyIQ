@@ -3,7 +3,7 @@
 ## Unreleased
 
 **Off the block: one popup for where and who**
-- Practice matches: after "Off block → Kill" and "Off block → In play", one popup asks where along the net it touched their block (net slider, or skip) and lists the other side's players: tap one or two and save. After a kill they get "Block touched out" (a block error, no extra point: still one point for the rally); in play they get a block touch, and their side comes first on the tag pad. A recycle uses the same popup (its net spot is already set).
+- Practice matches: after "Off block → Kill" and "Off block → In play", one popup asks where along the net it touched their block (net slider, or skip) and lists the other side's players: tap one or two and save. After a kill they get "Block touched out" (a block error, no extra point: still one point for the rally); in play they get a block touch, and their side comes first on the tag pad. A recycle uses the same popup (its net spot is already set). It opens in the space under the video, like the court spot steps, so the video stays in view.
 
 **Recycle: where it hit the block, and who blocked**
 - A recycle's second step is "Where along the net did it hit their block?" with the net slider (as for a block touch), instead of a landing spot.
