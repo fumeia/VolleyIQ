@@ -8,5 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VolleyIQPlugin.class);
         super.onCreate(savedInstanceState);
+        // Videos from the phone with proper byte ranges (smooth playback deep into a long match).
+        if (getBridge() != null) getBridge().setWebViewClient(new VideoServingClient(getBridge()));
     }
 }

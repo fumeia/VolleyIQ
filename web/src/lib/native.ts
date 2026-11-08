@@ -66,8 +66,15 @@ export const Native = registerPlugin<VolleyIQPlugin>('VolleyIQ');
 
 export { isApp };
 
-/** URL the WebView can play for a content:// or file:// video on the phone. */
-export const playableUrl = (uri: string) => Capacitor.convertFileSrc(uri);
+/**
+ * URL the WebView can play for a content:// or file:// video on the phone. On Android it is served
+ * by the app with proper byte ranges (VideoServer.kt): Capacitor's own file URLs send the file from
+ * its start for every piece, so playback stutters more and more the further into the video.
+ */
+export const playableUrl = (uri: string) =>
+  Capacitor.getPlatform() === 'android'
+    ? `${window.location.origin}/_viq_video/?u=${encodeURIComponent(uri.startsWith('/') ? `file://${uri}` : uri)}`
+    : Capacitor.convertFileSrc(uri);
 
 /** Which phone video belongs to a match (kept on this phone only). */
 export interface LocalVideo { uri: string; name: string }
