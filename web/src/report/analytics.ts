@@ -1,3 +1,4 @@
+import { tagOrder } from '../lib/actions';
 import { sideScore } from '../lib/practice';
 import { type ActionCode } from '../lib/actions';
 import type { Match, Player, VEvent } from '../lib/api';
@@ -7,7 +8,7 @@ import { fmtEff } from './ui';
 
 /** Everything the report cards need, derived from confirmed tags only. */
 
-const byTime = (a: VEvent, b: VEvent) => (a.set_no ?? 1) - (b.set_no ?? 1) || (a.t ?? 1e12) - (b.t ?? 1e12) || a.id - b.id;
+const byTime = (a: VEvent, b: VEvent) => (a.set_no ?? 1) - (b.set_no ?? 1) || (a.t ?? 1e12) - (b.t ?? 1e12) || tagOrder(a.id) - tagOrder(b.id);
 
 export interface FlowPoint { i: number; us: number; them: number }
 

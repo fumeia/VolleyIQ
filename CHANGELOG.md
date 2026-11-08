@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Chained tags: one tag asks for the rest of the rally**
+- Practice matches: right after the tag, a panel under the video lists the other side's players (one tap, or "Not sure"):
+  - Attack blocked: who blocked it (one or two players, each gets a block point).
+  - Block point: whose attack it was (they get the blocked attack).
+  - Kill: who could not keep it up (dig error), or "Nobody touched it".
+  - Ace: who it was served at (receive 0), or "Nobody touched it".
+  Each still counts as one point for the rally; two block points of a double block too.
+- Straight to the pass: in a practice match, tapping a player of the other side right after a serve goes straight to the pass; in a real match, the first tap after the opponent's point does. After a set, tapping a player of the same side shows the attack choices first. "Other actions" brings back all of them.
+- Stats: "How the kills ended" (Attack) and "How the aces ended" (Serve & pass), under More charts: straight down against touched but not kept up, per player.
+- Fix: tags without a video time (live tagging) that were not saved yet could be read in the wrong order, so for example a blocked attack and its block point were counted as two points. They now keep the order they were tagged in.
+
 **Off the block: one popup for where and who**
 - Practice matches: after "Off block → Kill" and "Off block → In play", one popup asks where along the net it touched their block (net slider, or skip) and lists the other side's players: tap one or two and save. After a kill they get "Block touched out" (a block error, no extra point: still one point for the rally); in play they get a block touch, and their side comes first on the tag pad. A recycle uses the same popup (its net spot is already set). It opens in the space under the video, like the court spot steps, so the video stays in view.
 

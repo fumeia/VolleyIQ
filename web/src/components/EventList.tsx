@@ -29,7 +29,7 @@ interface Props {
 function pointOf(e: VEvent, sides?: { a: string; b: string } | null): { text: string; cls: string; title: string } {
   const would = ACTION_BY_CODE[e.action]?.score;
   if (would && e.noPoint) {
-    const other = e.action === 'attack_blocked' ? 'the block point right after it' : e.action === 'dig_error' ? 'the kill right next to it' : 'the tag next to it';
+    const other = e.action === 'attack_blocked' ? 'the block point right after it' : e.action === 'dig_error' ? 'the kill right next to it' : e.action === 'block_point' ? 'the other block point right before it (a double block)' : 'the tag next to it';
     return { text: '+0', cls: 'ev-pt-paired', title: `No point of its own: ${other} scores this rally. Still counts in the player's stats.` };
   }
   const s = scoreOf(e);

@@ -130,3 +130,27 @@ export function scoreBySet(events: Pick<VEvent, 'action' | 'set_no' | 'side' | '
 
 export const pct = (v: number | null) => (v == null ? '–' : `${Math.round(v * 100)}%`);
 export const dec = (v: number | null, d = 2) => (v == null ? '–' : v.toFixed(d));
+
+/**
+ * How each player's kills (or aces) ended on the other side: straight to the floor (tagged "Nobody
+ * touched it"), touched but not kept up (the dig error or receive 0 tagged with it), or not told.
+ */
+export function finishes(players: Player[], events: VEvent[], kind: 'kill' | 'ace') {
+  const touch: ActionCode = kind === 'kill' ? 'dig_error' : 'receive';
+  const all = events.filter((e) => e.status === 'confirmed' && (e.player_id != null || e.action === 'untouched'));
+  const seen = new Set<number>();
+  const rows = new Map<number, { down: number; touched: number; unknown: number }>();
+  for (const k of all) {
+    if (k.action !== kind || k.player_id == null || seen.has(k.id)) continue;
+    seen.add(k.id);
+    const near = all.filter((e) => e.match_id === k.match_id && (e.set_no ?? 1) === (k.set_no ?? 1) && e.id !== k.id && e.t != null && k.t != null && Math.abs(e.t - k.t) <= 1.5);
+    const r = rows.get(k.player_id) ?? { down: 0, touched: 0, unknown: 0 };
+    if (near.some((e) => e.action === 'untouched')) r.down++;
+    else if (near.some((e) => e.action === touch && (kind === 'kill' || e.value === 0) && e.player_id !== k.player_id)) r.touched++;
+    else r.unknown++;
+    rows.set(k.player_id, r);
+  }
+  return [...rows].map(([id, r]) => ({ player: players.find((p) => p.id === id)!, ...r, n: r.down + r.touched + r.unknown }))
+    .filter((r) => r.player && r.down + r.touched > 0)
+    .sort((a, b) => b.n - a.n);
+}

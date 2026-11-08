@@ -9,9 +9,11 @@ export type ActionCode =
   | 'receive' | 'freeball'
   | 'opp_point' | 'opp_error'
   /** A point scored while nobody tagged (live tagging paused): counts for the score only. */
-  | 'gap_us' | 'gap_them';
+  | 'gap_us' | 'gap_them'
+  /** A kill or ace that nobody of the other side touched (straight to the floor): no score of its own. */
+  | 'untouched';
 
-export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team' | 'gap';
+export type Group = 'errors' | 'actions' | 'points' | 'setting' | 'receive' | 'team' | 'gap' | 'marker';
 
 /**
  * Court taps for an action: 'path' = where the ball was played from, then where it
@@ -56,6 +58,7 @@ export const ACTIONS: ActionDef[] = [
   { code: 'opp_point', label: 'Opponent Point', short: 'Opp Pt', group: 'team', needsPlayer: false, score: 'them' },
   { code: 'gap_us', label: 'Our point (not tagged)', short: 'Pt (gap)', group: 'gap', needsPlayer: false, score: 'us' },
   { code: 'gap_them', label: 'Their point (not tagged)', short: 'Opp (gap)', group: 'gap', needsPlayer: false, score: 'them' },
+  { code: 'untouched', label: 'Nobody touched it', short: 'Untouched', group: 'marker', needsPlayer: false },
 ];
 
 /** Action choices in review, grouped serve, pass, set, attack, defence, block: every player action. */
@@ -169,3 +172,9 @@ export function actionLabel(e: { action: ActionCode; value?: number | null }) {
 
 /** A point scored while nobody tagged: counts for the score, but nothing is known about the rally. */
 export const isGap = (e: { action: ActionCode }) => e.action === 'gap_us' || e.action === 'gap_them';
+
+/**
+ * Where a tag goes among tags at the same moment (or without a video time): saved tags by their id,
+ * tags still waiting to be saved (temporary ids -1, -2, …) after them, in the order they were made.
+ */
+export const tagOrder = (id: number) => (id < 0 ? 1e15 - id : id);

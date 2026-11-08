@@ -101,6 +101,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   // block and who of the other side blocked (one or two): their block touches are tagged with it.
   const [blockAsk, setBlockAsk] = useState<{ kind: 'kill' | 'play' | 'recycle'; t: number | null; x: number | null; other: 'a' | 'b'; stage: 'net' | 'who' } | null>(null);
   const [blockers, setBlockers] = useState<number[]>([]);
+  // Practice: the other side's part of a rally ending, asked right after the tag (one tap or skip):
+  // blocked attack → who blocked, block point → whose attack, kill → who could not dig it, ace → who received it.
+  const [chainAsk, setChainAsk] = useState<{ kind: 'blockers' | 'attacker' | 'digger' | 'receiver'; t: number | null; other: 'a' | 'b'; fx: number | null } | null>(null);
   // Practice match: both sides are our players; the sides are set per set.
   const practice = match.practice ?? null;
   const [sidesOpen, setSidesOpen] = useState(false);
@@ -223,7 +226,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const eventsRef = useRef(events);
   eventsRef.current = events;
 
-  function commit(e: Partial<VEvent>) {
+  /** [chained]: a tag made by one of the questions below (it asks nothing itself). */
+  function commit(e: Partial<VEvent>, chained = false) {
     // Practice match: the tag belongs to its player's side (team points say their side themselves).
     const side = practice ? e.side ?? sideOf(practice, setNo, e.player_id) ?? 'a' : undefined;
     const clientId = add({ ...e, set_no: setNo, ...(side ? { side } : {}) });
@@ -235,6 +239,18 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       const recycle = e.value === RECYCLE;
       setBlockAsk({ kind: recycle ? 'recycle' : e.action === 'kill' ? 'kill' : 'play', t: e.t ?? null, other,
         x: recycle && e.x != null && e.y != null ? Math.max(0, Math.min(9, 9 - e.x)) : null, stage: recycle ? 'who' : 'net' });
+    }
+    if (practice && sidesNow && !chained && e.player_id != null) {
+      const other = side === 'b' ? 'a' : 'b';
+      const ask = (kind: NonNullable<typeof chainAsk>['kind']) => { setBlockers([]); setChainAsk({ kind, t: e.t ?? null, other, fx: e.fx ?? null }); };
+      if (e.action === 'attack_blocked') ask('blockers');
+      else if (e.action === 'kill' && e.value !== OFF_BLOCK) ask('digger');
+      else if (e.action === 'ace') ask('receiver');
+      else if (e.action === 'block_point') {
+        // Not when the blocked attack is tagged already (right before, by the other side).
+        const before = eventsRef.current.filter((x) => (x.set_no ?? 1) === setNo && x.t != null && e.t != null && x.t <= e.t && e.t - x.t <= 3);
+        if (!before.some((x) => x.action === 'attack_blocked' && (x.side === 'b' ? 'b' : 'a') === other)) ask('attacker');
+      }
     }
     const p = players.find((x) => x.id === e.player_id);
     const who = p ? `#${p.number} ` : '';
@@ -427,6 +443,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       }}
       sides={practice && sidesNow ? { names: practice.names, a: sidesNow.a, b: sidesNow.b } : null}
       firstSide={practice ? nextSide(events, setNo) : null}
+      receiveNext={!practice && rallyTags.length === 0 && lastPoint >= 0 && scoreOf(setTags[lastPoint]) === 'them'}
     />
   );
 
@@ -469,7 +486,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                         // A kill: just before it (the touch sent it out); in play or a recycle: right after the attack.
                         const t = ask.t == null ? null : ask.kind === 'kill' ? Math.max(0, ask.t - 0.05 - i * 0.01) : ask.t + 0.05 + i * 0.01;
                         commit({ action: 'block_touch', value: ask.kind === 'kill' ? TOUCHED_OUT : null, player_id: id, jersey: p?.number ?? null, side: ask.other,
-                          t, ...(ask.x != null ? { x: ask.x, y: 9 } : {}) });
+                          t, ...(ask.x != null ? { x: ask.x, y: 9 } : {}) }, true);
                       });
                     }}>{blockers.length === 2 ? 'Save both' : 'Save'}</button>
                     <button className="btn" onClick={() => setBlockAsk(null)}>Not sure</button>
@@ -479,6 +496,57 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             </div>
           </BelowVideo>
         );
+  })() : null;
+
+  const chainPanel = chainAsk && practice && sidesNow ? (() => {
+    const ask = chainAsk;
+    const name = practice.names[ask.other];
+    const multi = ask.kind === 'blockers';
+    const title = ask.kind === 'blockers' ? `Blocked: who of ${name} blocked it?`
+      : ask.kind === 'attacker' ? `Block point: whose attack of ${name} was it?`
+      : ask.kind === 'digger' ? `Kill: who of ${name} could not keep it up?` : `Ace: who of ${name} was it served at?`;
+    const sub = ask.kind === 'blockers' ? 'Tap one or two players: each gets a block point (one point for the rally).'
+      : ask.kind === 'attacker' ? 'They get the blocked attack (one point for the rally).'
+      : ask.kind === 'digger' ? 'They get a dig error (one point for the rally).' : 'They get a receive 0 (still one point).';
+    const at = (d: number) => (ask.t == null ? null : Math.max(0, ask.t + d));
+    // Seen from the other side's half: the spot at the net mirrored.
+    const net = ask.fx != null ? Math.max(0, Math.min(9, 9 - ask.fx)) : null;
+    const tag = (id: number, i = 0) => {
+      const p = players.find((x) => x.id === id);
+      const base = { player_id: id, jersey: p?.number ?? null, side: ask.other };
+      if (ask.kind === 'blockers') commit({ ...base, action: 'block_point', t: at(0.3 + i * 0.01), ...(net != null ? { fx: net, fy: 9 } : {}) }, true);
+      else if (ask.kind === 'attacker') commit({ ...base, action: 'attack_blocked', t: at(-0.3) }, true);
+      else if (ask.kind === 'digger') commit({ ...base, action: 'dig_error', t: at(0.3) }, true);
+      else commit({ ...base, action: 'receive', value: 0, t: at(0.3) }, true);
+    };
+    return (
+      <BelowVideo label="The other side's part of the rally">
+        <div className="block-ask-body">
+          <div className="sheet-head"><b>{title}</b><button className="btn-ghost" onClick={() => setChainAsk(null)} aria-label="Close">✕</button></div>
+          <p className="small muted">{sub}</p>
+          <div className="chips">
+            {players.filter((p) => sidesNow[ask.other].includes(p.id))
+              .sort((a, b) => (onCourt?.includes(b.id) ? 1 : 0) - (onCourt?.includes(a.id) ? 1 : 0) || (a.number ?? 99) - (b.number ?? 99))
+              .map((p) => {
+                const on = blockers.includes(p.id);
+                return (
+                  <button key={p.id} className={`chip ${on ? 'on' : ''}`} aria-pressed={multi ? on : undefined}
+                    onClick={() => (multi ? setBlockers((b) => (on ? b.filter((x) => x !== p.id) : [...b, p.id].slice(-2))) : (setChainAsk(null), tag(p.id)))}>
+                    #{p.number ?? '–'} {p.name.split(' ')[0]}
+                  </button>
+                );
+              })}
+          </div>
+          <div className="spot-actions">
+            {multi && <button className="btn btn-primary" disabled={!blockers.length} onClick={() => { setChainAsk(null); blockers.forEach((id, i) => tag(id, i)); }}>{blockers.length === 2 ? 'Save both' : 'Save'}</button>}
+            {(ask.kind === 'digger' || ask.kind === 'receiver') && (
+              <button className="btn" onClick={() => { setChainAsk(null); commit({ action: 'untouched', side: ask.other, t: at(0.01) }, true); }}>Nobody touched it</button>
+            )}
+            <button className="btn" onClick={() => setChainAsk(null)}>Not sure</button>
+          </div>
+        </div>
+      </BelowVideo>
+    );
   })() : null;
 
   return (
@@ -606,7 +674,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <span className="small muted">Back on the bench? Enter the score as it is now and carry on tagging.</span>
                     <button className="btn btn-primary" onClick={() => setResumeOpen(true)}>Resume</button>
                   </div>
-                ) : blockPanel ?? pad}
+                ) : blockPanel ?? chainPanel ?? pad}
                 {!paused && !practice && zeroPass && (
                   <div className="zero-pass small">
                     <span>Pass 0 by {playerLabel(players, zeroPass) || '?'}: was it their ace?</span>

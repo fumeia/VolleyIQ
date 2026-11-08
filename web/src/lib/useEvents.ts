@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type VEvent } from './api';
 
@@ -43,7 +44,7 @@ function saveOutbox(matchId: number, items: Pending[]) {
 
 let tempId = -1;
 const sortEvents = (list: VEvent[]) =>
-  [...list].sort((a, b) => (a.t ?? 1e12) - (b.t ?? 1e12) || Math.abs(a.id) - Math.abs(b.id));
+  [...list].sort((a, b) => (a.t ?? 1e12) - (b.t ?? 1e12) || tagOrder(a.id) - tagOrder(b.id));
 
 export function useEvents(matchId: number, initial: VEvent[]) {
   const [events, setEvents] = useState<VEvent[]>(() => {

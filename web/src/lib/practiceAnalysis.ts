@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { scoreOf } from './actions';
 import type { Match, Player, VEvent } from './api';
 import { rotationAfter, type Lineup } from './rotation';
@@ -69,7 +70,7 @@ function rolesFrom(ids: number[], players: Player[]): Map<number, SlotRole> {
   return out;
 }
 
-const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id;
+const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id);
 
 /**
  * The line-ups of a set, each given to the side whose players it holds (a swap of the sides

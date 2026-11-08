@@ -348,12 +348,20 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
     const sets = new Map();
     // Two tags of one rally ending score once (rules 2+ for blocks, 3+ for kill and dig error; see web/src/lib/pairs.ts).
     const rows = db.prepare("SELECT action, set_no, side, t, id FROM events WHERE match_id = ? AND status = 'confirmed' ORDER BY set_no, COALESCE(t, 1e12), id").all(m.id);
-    const rules = m.final ? JSON.parse(m.final).rules : 3;
+    const rules = m.final ? JSON.parse(m.final).rules : 4;
     if (rules >= 2) {
       for (let i = 0; i + 1 < rows.length; i++) {
         const a = rows[i], b = rows[i + 1];
         if (a.action === 'attack_blocked' && b.action === 'block_point' && a.set_no === b.set_no && (a.side === 'b') !== (b.side === 'b')
           && (a.t == null || b.t == null || b.t - a.t <= 3)) a.action = 'attack_blocked_paired';
+      }
+    }
+    // A double block: two block points of the same side right after each other score once (rules 4+).
+    if (rules >= 4) {
+      for (let i = 0; i + 1 < rows.length; i++) {
+        const a = rows[i], b = rows[i + 1];
+        if (a.action === 'block_point' && b.action === 'block_point' && a.set_no === b.set_no && (a.side === 'b') === (b.side === 'b')
+          && (a.t == null || b.t == null || Math.abs(b.t - a.t) <= 1)) b.action = 'block_point_joint';
       }
     }
     // A kill and the other side's dig error right next to it (either order): one point (rules 3+).

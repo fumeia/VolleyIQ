@@ -477,6 +477,12 @@ test('a blocked attack answered by the block point of the other side is one poin
   await post({ action: 'kill', side: 'a', t: 60.4 });
   const live2 = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
   assert.deepEqual([live2.sets[0].us, live2.sets[0].them], [2, 2]);
+  // A double block: two block points of the same side right after each other are one point; the marker scores nothing.
+  await post({ action: 'block_point', side: 'a', t: 80 });
+  await post({ action: 'block_point', side: 'a', t: 80.01 });
+  await post({ action: 'untouched', side: 'b', t: 80.02 });
+  const live3 = (await app.inject({ url: `/api/share/team/${token}/live` })).json().live;
+  assert.deepEqual([live3.sets[0].us, live3.sets[0].them], [3, 2]);
   // Marked fully tagged: a detection run adds nothing.
   const final = { at: '2026-11-07T12:00:00Z', rules: 2 };
   assert.deepEqual((await app.inject({ method: 'PATCH', url: `/api/matches/${m.id}`, payload: { final } })).json().final, final);

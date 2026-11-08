@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import type { Match, VEvent } from './api';
 
 /**
@@ -7,12 +8,13 @@ import type { Match, VEvent } from './api';
  * 1: every scoring tag is a point.
  * 2: a blocked attack followed by the other side's block point is one point (pairBlocks).
  * 3: a kill and the other side's dig error right next to it are one point (pairBlocks).
+ * 4: two block points of the same side right after each other (a double block) are one point.
  */
-export const RULES = 3;
+export const RULES = 4;
 export const rulesOf = (m?: Pick<Match, 'final'> | null) => m?.final?.rules ?? RULES;
 
 const sideOf = (e: VEvent) => (e.side === 'b' ? 'b' : 'a');
-const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id;
+const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id);
 
 /**
  * Two tags of one rally ending that would otherwise score twice (rules 3+, see RULES above):
@@ -39,6 +41,12 @@ export function pairBlocks(events: VEvent[], rulesFor: (matchId: number) => numb
     const rules = rulesFor(list[0].match_id);
     for (let i = 0; i + 1 < list.length; i++) {
       const a = list[i], b = list[i + 1];
+      // A double block: both blockers keep their block point, the rally scores once.
+      if (rules >= 4 && a.action === 'block_point' && b.action === 'block_point' && sideOf(a) === sideOf(b)
+        && (a.t == null || b.t == null || Math.abs(b.t - a.t) <= 1)) {
+        changed.set(b.id, { ...(changed.get(b.id) ?? b), noPoint: true });
+        continue;
+      }
       // A kill the other side dug but could not keep in play (out, wall, ceiling): the kill scores,
       // the dig error stays the defender's error without a point of its own. Either order, as the
       // two can be tagged a moment apart either way; the dig error is read just before the kill so

@@ -39,6 +39,8 @@ interface Props {
   sides?: { names: { a: string; b: string }; a: number[]; b: number[] } | null;
   /** Practice match: the side that plays the ball next goes first (right under the video). */
   firstSide?: 'a' | 'b' | null;
+  /** The next touch of ours is the pass (the opponent serves: they won the last point). */
+  receiveNext?: boolean;
 }
 
 /** What the other side usually does after a touch (practice matches: both sides are tagged). */
@@ -75,6 +77,8 @@ interface Draft {
   stage?: 'from' | 'to';
   from?: Pt | null;
   resume: boolean;
+  /** Only the likely skill's choices, with "Other actions" for the rest: the pass after their serve, the attack after a set. */
+  focus?: 'receive' | 'attack';
 }
 
 /**
@@ -88,7 +92,7 @@ export const isTyping = (e: KeyboardEvent) => {
   return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 };
 
-export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides, lastSide, sideOf, firstSide }: Props) {
+export function TagPad({ players, settings, getTime, pause, play, isPlaying, onCommit, onCourt, server, lastAction, farAt, sides, lastSide, sideOf, firstSide, receiveNext }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef(draft);
   // The video is sticky at the top; keep it in view. When a player is picked we
@@ -114,7 +118,16 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
   }
 
   function start(player: Player | null) {
-    setDraft(begin(player));
+    const d = begin(player);
+    // Practice: the other side's player right after a serve receives it; a player of the setter's side
+    // right after a set attacks. A real match: the first touch after their point is our pass.
+    const side = player && sideOf ? sideOf(player.id) : null;
+    const other = !!(side && lastSide && side !== lastSide);
+    const same = sides ? !!(side && lastSide && side === lastSide) : true;
+    const focus = (sides ? lastAction === 'serve' && other : receiveNext) ? 'receive'
+      : (lastAction === 'set' || lastAction === 'assist') && same ? 'attack' : undefined;
+    if (focus === 'receive' && settings.receiveMode === 'court') return chooseAction(ACTION_BY_CODE.receive, undefined, { ...d, focus });
+    setDraft({ ...d, focus });
   }
 
   function finish(d: Draft, where: { zone?: number | null; point?: Pt | null } = {}) {
@@ -269,7 +282,10 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
           <span><b>{who(draft.player)}</b> {draft.t != null && <small className="muted">@ {fmtTime(draft.t)}</small>}</span>
           <button className="btn-ghost" onClick={cancel}>Cancel</button>
         </div>
-        {likely.length > 0 && (
+        {draft.focus && (
+          <button className="btn-ghost small other-actions" onClick={() => setDraft({ ...draft, focus: undefined })}>Other actions ▾</button>
+        )}
+        {!draft.focus && likely.length > 0 && (
           <div className="pad-likely">
             {likely.map((code) => (
               <button key={code} className={`act act-${ACTION_BY_CODE[code].group}`} onClick={() => chooseAction(ACTION_BY_CODE[code])}>
@@ -278,7 +294,7 @@ export function TagPad({ players, settings, getTime, pause, play, isPlaying, onC
             ))}
           </div>
         )}
-        {SKILLS.map((row) => (
+        {SKILLS.filter((row) => !draft.focus || row.label === (draft.focus === 'receive' ? 'Receive' : 'Attack')).map((row) => (
           <Fragment key={row.label}>
           <div className="skill-row">
             <span className="skill-label">{row.label}</span>

@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { scoreOf } from './actions';
 import type { Player, VEvent } from './api';
 import { rotationAfter, type Lineups } from './rotation';
@@ -35,7 +36,7 @@ export function coachPayload(players: Player[], events: VEvent[], lineups: Map<n
   };
 }
 
-const byTime = (a: VEvent, b: VEvent) => (a.set_no ?? 1) - (b.set_no ?? 1) || (a.t ?? 1e12) - (b.t ?? 1e12) || a.id - b.id;
+const byTime = (a: VEvent, b: VEvent) => (a.set_no ?? 1) - (b.set_no ?? 1) || (a.t ?? 1e12) - (b.t ?? 1e12) || tagOrder(a.id) - tagOrder(b.id);
 
 export interface RotationRow {
   /** Rotation named by the setter's court position (1..6). */

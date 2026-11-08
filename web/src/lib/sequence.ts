@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { ACTION_BY_CODE, isGap, scoreOf, type ActionCode } from './actions';
 import type { VEvent } from './api';
 import { receiveGrade } from './court';
@@ -29,7 +30,7 @@ export interface Rally {
 }
 
 const isTeam = (e: VEvent) => ACTION_BY_CODE[e.action]?.needsPlayer === false;
-const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id;
+const byTime = (a: VEvent, b: VEvent) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id);
 
 export function buildRallies(events: VEvent[]): Rally[] {
   // A block without a touch is not a ball contact: it takes no place in the rally.

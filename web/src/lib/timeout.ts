@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { ACTION_BY_CODE, isGap, scoreOf } from './actions';
 import type { Player, VEvent } from './api';
 import type { Rates } from './simulate';
@@ -27,7 +28,7 @@ const isError = (e: VEvent) => scoreOf(e) === 'them' && ACTION_BY_CODE[e.action]
 // The last rallies: untagged points are left out (nothing is known about them).
 
 export function timeoutBrief(events: VEvent[], set: number, players: Player[], season?: Rates | null): Brief {
-  const ev = events.filter((e) => e.status === 'confirmed' && (e.set_no ?? 1) === set).sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
+  const ev = events.filter((e) => e.status === 'confirmed' && (e.set_no ?? 1) === set).sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id));
   const ends = ev.filter((e) => scoreOf(e));
   const score = { us: ends.filter((e) => scoreOf(e) === 'us').length, them: ends.filter((e) => scoreOf(e) === 'them').length };
   const last = ends.filter((e) => !isGap(e)).slice(-WINDOW);

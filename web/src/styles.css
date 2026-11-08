@@ -1426,3 +1426,4 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .practice-lineup-hint { flex-basis: 100%; color: var(--warn); }
 .block-ask-body { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
 .block-ask .spot-court { min-height: 120px; }
+.other-actions { align-self: flex-start; margin: 0 0 4px; }

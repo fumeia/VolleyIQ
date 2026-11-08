@@ -8,6 +8,8 @@ export const ACTIONS = [
   'opp_point', 'opp_error',
   // Points scored while nobody tagged (live tagging paused): count for the score only.
   'gap_us', 'gap_them',
+  // A kill or ace that nobody of the other side touched (straight to the floor): no score of its own.
+  'untouched',
 ];
 
 export const ROLES = ['OH', 'OPP', 'MB', 'S', 'L', 'DS'];

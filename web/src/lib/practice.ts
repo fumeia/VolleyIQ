@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { scoreOf, type ActionCode } from './actions';
 import type { Match, Practice, VEvent } from './api';
 import type { Lineups } from './rotation';
@@ -74,13 +75,15 @@ export function seasonScope<M extends Pick<Match, 'id' | 'practice'>, E extends 
  * that ends the rally (point, error, ace) changes nothing, so the order stays as it was.
  */
 export function nextSide(events: Pick<VEvent, 'id' | 'action' | 'value' | 'side' | 't' | 'set_no' | 'status'>[], set: number): Side | null {
-  const list = events.filter((e) => (e.set_no ?? 1) === set && e.status !== 'suggested').sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
+  const list = events.filter((e) => (e.set_no ?? 1) === set && e.status !== 'suggested').sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id));
   for (let i = list.length - 1; i >= 0; i--) {
     const e = list[i];
     const own: Side = e.side === 'b' ? 'b' : 'a';
     const other: Side = own === 'a' ? 'b' : 'a';
     if (e.action === 'serve') return other;
     if (e.action === 'attack') return e.value === 3 ? own : other; // 3: RECYCLE (lib/actions)
+    // The receive 0 tagged with an ace is part of that rally ending: no change.
+    if (e.action === 'receive' && e.value === 0 && list[i - 1]?.action === 'ace') continue;
     if (['receive', 'dig', 'set', 'assist', 'freeball', 'block_touch', 'block_miss'].includes(e.action)) {
       // A block touch that sent the ball out ended the rally: no change.
       if (e.action === 'block_touch' && e.value === 2) continue;

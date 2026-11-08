@@ -1,3 +1,4 @@
+import { finishes } from '../../lib/stats';
 import { More } from './More';
 import { useMemo, useState } from 'react';
 import { GroupedColumns, RAMP, SERIES } from '../../charts/Charts';
@@ -106,6 +107,21 @@ export function ServePassSection({ players: all, events, only }: { players: Play
 
       </>}
       <More id="servepass">
+      {(() => {
+        const rows = finishes(players.filter((p) => only == null || p.id === only), events, 'ace');
+        return rows.length ? (
+          <StatFigure title="How the aces ended" subtitle="Aces nobody touched against those the receiver touched but could not keep up (practice matches, from the receive 0 or Nobody touched it, tagged with the ace)"
+            rows={rows} rowKey={(r) => r.player.id}
+            first={{ h: 'Player', cell: (r) => who(r.player) }}
+            columns={[
+              { h: 'Aces', cell: (r) => r.n },
+              { h: 'Straight down', cell: (r) => r.down },
+              { h: 'Touched', cell: (r) => r.touched },
+              { h: 'Not told', cell: (r) => r.unknown || '·' },
+              { h: 'Down %', cell: (r) => pct(ratio(r.down, r.down + r.touched)) },
+            ]} />
+        ) : null;
+      })()}
       {serves.length > 0 && <>
       <h3 className="section-title">Serve</h3>
       <HalfZones title="Where our serves land" subtitle="Share of our serves per opponent zone (their numbering), with the aces"

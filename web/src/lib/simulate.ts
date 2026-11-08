@@ -1,3 +1,4 @@
+import { tagOrder } from './actions';
 import { lineupsOf } from './practice';
 import { isGap, scoreOf } from './actions';
 import { rotationStats } from './analysis';
@@ -56,7 +57,7 @@ export function teamRates(events: VEvent[], matches: Pick<Match, 'id' | 'lineups
   }
   let rec = 0, so = 0, srv = 0, br = 0;
   for (const list of sets.values()) {
-    list.sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || a.id - b.id);
+    list.sort((a, b) => (a.t ?? Infinity) - (b.t ?? Infinity) || tagOrder(a.id) - tagOrder(b.id));
     for (let i = 1; i < list.length; i++) {
       // Untagged points: their order is made up, so they say nothing about side-out or break.
       if (isGap(list[i]) || isGap(list[i - 1])) continue;

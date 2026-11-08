@@ -67,7 +67,7 @@ export function EventEditor({ event, players, getTime, onSave, onDelete, onClose
           </div>
         )}
         <div className="chips tight">
-          {ACTIONS.filter((a) => a.needsPlayer === false && a.group !== 'gap').map((a) => (
+          {ACTIONS.filter((a) => a.needsPlayer === false && a.group !== 'gap' && a.group !== 'marker').map((a) => (
             <button key={a.code} className={`chip ${d.action === a.code ? 'on' : ''}`}
               onClick={() => set({ action: a.code as ActionCode, value: null })}>{a.label}</button>
           ))}

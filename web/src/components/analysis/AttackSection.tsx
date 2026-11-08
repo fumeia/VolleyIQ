@@ -1,3 +1,4 @@
+import { finishes } from '../../lib/stats';
 import { More } from './More';
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, SERIES, StackedBars } from '../../charts/Charts';
@@ -123,6 +124,21 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
         </figure>
       )}
       <More id="attack">
+      {(() => {
+        const rows = finishes(players.filter((p) => only == null || p.id === only), events, 'kill');
+        return rows.length ? (
+          <StatFigure title="How the kills ended" subtitle="Kills that went straight to the floor against those the other side touched but could not keep up (practice matches, from the dig error or Nobody touched it, tagged with the kill)"
+            rows={rows} rowKey={(r) => r.player.id}
+            first={{ h: 'Player', cell: (r) => who(r.player) }}
+            columns={[
+              { h: 'Kills', cell: (r) => r.n },
+              { h: 'Straight down', cell: (r) => r.down },
+              { h: 'Touched', cell: (r) => r.touched },
+              { h: 'Not told', cell: (r) => r.unknown || '·' },
+              { h: 'Down %', cell: (r) => pct(ratio(r.down, r.down + r.touched)) },
+            ]} />
+        ) : null;
+      })()}
       <GroupedColumns title={`Attack after the first contact${forWho}`}
         subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball): how much the attack depends on the pass"
         categories={PHASES.map(([, l]) => l)}
