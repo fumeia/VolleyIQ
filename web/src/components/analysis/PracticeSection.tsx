@@ -6,9 +6,12 @@ import {
   SLOT_NAMES, who, type KeyNumber, type SideSet, type Tally,
 } from '../../lib/practiceAnalysis';
 import type { Ratio } from '../../lib/sequence';
-import { BarChart } from '../../charts/Charts';
+import { BarChart, LineChart, Scatter, SERIES } from '../../charts/Charts';
+import { scoreFlow } from '../../report/analytics';
+import { playerStats } from '../../lib/stats';
 import { ERROR_KINDS, errorKind } from '../../lib/trajectory';
 import { ERROR_TYPES } from './ErrorsSection';
+import { More } from './More';
 import { avg2, eff3, enough, judge, pct, Val, type Tone } from './ui';
 
 type View = 'sets' | 'combos' | 'players';
@@ -349,48 +352,6 @@ export function PracticeErrors({ match, players, events }: { match: Match; playe
   const label = (s: SideSet) => `Set ${s.set} · ${s.label}`;
   return (
     <div className="charts practice-analysis">
-      <section className="chart">
-        <Head title="Where the points came from" help={<p>Each set's two sides: their points, split into what they won themselves (kills, aces, block points) and what the other side gave away with an error (serve, attack, set, pass, dig, block). <b>Earned</b>: the share won themselves. Not specified: points tagged without saying how.</p>} />
-        <div className="table-wrap">
-          <table className="stat-table">
-            <thead><tr><th>Side</th><th>Points</th><th>Kills</th><th>Aces</th><th>Blocks</th><th>Other side's errors</th><th>Not specified</th><th>Earned</th></tr></thead>
-            <tbody>
-              {sides.map((s) => {
-                const p = pointSources(s);
-                const earned = s.pointsFor ? (p.kills + p.aces + p.blocks) / s.pointsFor : null;
-                return (
-                  <tr key={`${s.set}${s.side}`}>
-                    <td>{label(s)}</td><td>{s.pointsFor}</td><td>{p.kills}</td><td>{p.aces}</td><td>{p.blocks}</td><td>{p.fromErrors}</td><td>{p.other || '·'}</td>
-                    <td><Val tone={earned == null || s.pointsFor < 8 ? null : earned >= 0.6 ? 'good' : earned < 0.4 ? 'bad' : null}>{pct(earned)}</Val></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="chart">
-        <Head title="Errors per side" help={<p>The errors each side made in each set, by kind: serve, attack out or into the net, attacks that got blocked, set errors, passes graded 0, dig errors and block errors. A blocked attack counts here even when the block point already gave the point.</p>} />
-        <div className="table-wrap">
-          <table className="stat-table">
-            <thead><tr><th>Side</th>{ERROR_TYPES.map((t) => <th key={t.key} title={t.label}>{t.short}</th>)}<th>Total</th></tr></thead>
-            <tbody>
-              {sides.map((s) => {
-                const list = errs(s);
-                return (
-                  <tr key={`${s.set}${s.side}`}>
-                    <td>{label(s)}</td>
-                    {ERROR_TYPES.map((t) => <td key={t.key}>{list.filter(t.test).length || '·'}</td>)}
-                    <td><b>{list.length}</b></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
       {rows.length > 0 && (
         <section className="chart">
           <Head title="Errors per player" help={<p>Each player's errors over the whole match by kind, next to the points they scored themselves (kills, aces, block points). +/−: points minus errors.</p>} />
@@ -415,10 +376,114 @@ export function PracticeErrors({ match, players, events }: { match: Match; playe
         </section>
       )}
 
+      <section className="chart">
+        <Head title="Where the points came from" help={<p>Each set's two sides: their points, split into what they won themselves (kills, aces, block points) and what the other side gave away with an error (serve, attack, set, pass, dig, block). <b>Earned</b>: the share won themselves. Not specified: points tagged without saying how.</p>} />
+        <div className="table-wrap">
+          <table className="stat-table">
+            <thead><tr><th>Side</th><th>Points</th><th>Kills</th><th>Aces</th><th>Blocks</th><th>Other side's errors</th><th>Not specified</th><th>Earned</th></tr></thead>
+            <tbody>
+              {sides.map((s) => {
+                const p = pointSources(s);
+                const earned = s.pointsFor ? (p.kills + p.aces + p.blocks) / s.pointsFor : null;
+                return (
+                  <tr key={`${s.set}${s.side}`}>
+                    <td>{label(s)}</td><td>{s.pointsFor}</td><td>{p.kills}</td><td>{p.aces}</td><td>{p.blocks}</td><td>{p.fromErrors}</td><td>{p.other || '·'}</td>
+                    <td><Val tone={earned == null || s.pointsFor < 8 ? null : earned >= 0.6 ? 'good' : earned < 0.4 ? 'bad' : null}>{pct(earned)}</Val></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <More id="practice-errors">
+      <section className="chart">
+        <Head title="Errors per side" help={<p>The errors each side made in each set, by kind: serve, attack out or into the net, attacks that got blocked, set errors, passes graded 0, dig errors and block errors. A blocked attack counts here even when the block point already gave the point.</p>} />
+        <div className="table-wrap">
+          <table className="stat-table">
+            <thead><tr><th>Side</th>{ERROR_TYPES.map((t) => <th key={t.key} title={t.label}>{t.short}</th>)}<th>Total</th></tr></thead>
+            <tbody>
+              {sides.map((s) => {
+                const list = errs(s);
+                return (
+                  <tr key={`${s.set}${s.side}`}>
+                    <td>{label(s)}</td>
+                    {ERROR_TYPES.map((t) => <td key={t.key}>{list.filter(t.test).length || '·'}</td>)}
+                    <td><b>{list.length}</b></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {attackKinds.some((k) => k.n) && <BarChart title="How attacks failed" subtitle="Attack errors and blocked attacks by where the ball went (from the second tap), both sides"
         rows={attackKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Attacks" fmt={(v) => String(Math.round(v))} color="#d03b3b" />}
       {serveKinds.some((k) => k.n) && <BarChart title="How serves failed" subtitle="Serve errors by where the ball went, both sides"
         rows={serveKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Serves" fmt={(v) => String(Math.round(v))} color="#d03b3b" />}
+      </More>
+    </div>
+  );
+}
+
+/**
+ * Overview of a practice match: the score of each set as it went, the sides named after their
+ * setter, and each player's attack volume against efficiency. No "us" and "them".
+ */
+export function PracticeOverview({ match, players, events }: { match: Match; players: Player[]; events: VEvent[] }) {
+  const sides = useMemo(() => sideSets(match, players, events), [match, players, events]);
+  const flow = useMemo(() => scoreFlow(events.filter((e) => e.match_id === match.id)), [events, match.id]);
+  const attackers = useMemo(() => playerStats(players, events).filter((r) => r.stats.attempts > 0), [players, events]);
+  if (!flow.length && !attackers.length) return <p className="muted small">No tags yet.</p>;
+  const nameOf = (set: number, side: 'a' | 'b') => sides.find((s) => s.set === set && s.side === side)?.label ?? (side === 'a' ? match.practice?.names.a : match.practice?.names.b) ?? side;
+  return (
+    <div className="charts">
+      {flow.map(({ set, points }) => {
+        const last = points[points.length - 1];
+        return (
+          <LineChart key={set} title={`Set ${set} · score progression`} subtitle={`${nameOf(set, 'a')} ${last.us} : ${last.them} ${nameOf(set, 'b')}, after ${last.i} rallies`}
+            series={[
+              { name: nameOf(set, 'a'), color: SERIES.blue, points: points.map((p) => ({ x: p.i, y: p.us })) },
+              { name: nameOf(set, 'b'), color: SERIES.orange, points: points.map((p) => ({ x: p.i, y: p.them })) },
+            ]}
+            xTitle="Rally" yTitle="Points" step />
+        );
+      })}
+      {attackers.length > 0 && (
+        <Scatter title="Volume vs efficiency" subtitle="Each dot is a player: how often they attacked and how well, both sides"
+          points={attackers.map((r) => ({ x: r.stats.attempts, y: r.stats.attackEff ?? 0, label: `#${r.player.number ?? '–'}`, name: who(r.player) }))}
+          xTitle="Attempts" yTitle="Efficiency" yFmt={(v) => v.toFixed(2).replace(/^(-?)0\./, '$1.')} />
+      )}
+    </div>
+  );
+}
+
+/** Rotations of a practice match: each side's rallies won per rotation, set by set (needs the line-ups). */
+export function PracticeRotations({ match, players, events }: { match: Match; players: Player[]; events: VEvent[] }) {
+  const sides = useMemo(() => sideSets(match, players, events).filter((s) => s.rotations.some((r) => r.serving + r.receiving > 0)), [match, players, events]);
+  if (!sides.length) return <p className="muted small">Enter both sides' line-ups for a set (Line-up on the tag screen) to see its rotations.</p>;
+  const cell = (r: SideSet['rotations'][number]) => {
+    const n = r.serving + r.receiving, won = r.sideOuts + r.breaks;
+    if (!n) return <span className="muted">·</span>;
+    return <Val tone={n >= 4 ? judge.win(won / n) : null} title={`Side-out ${r.sideOuts}/${r.receiving} · break ${r.breaks}/${r.serving}`}>{won}/{n}</Val>;
+  };
+  return (
+    <div className="charts practice-analysis">
+      <section className="chart">
+        <Head title="Rotations per side" help={<p>For each set and side: the rallies it won in each rotation (won/played). S1 = its setter in position 1 (serving), S2 = setter in position 2, and so on. Tap or hover a number for side-out (won on the other side's serve) and break (won on its own serve). From the starting line-ups and the points as they were tagged.</p>} />
+        <div className="table-wrap">
+          <table className="stat-table">
+            <thead><tr><th>Side</th>{[1, 2, 3, 4, 5, 6].map((k) => <th key={k}>S{k}</th>)}</tr></thead>
+            <tbody>
+              {sides.map((s) => (
+                <tr key={`${s.set}${s.side}`}><td>Set {s.set} · {s.label}</td>{s.rotations.map((r) => <td key={r.pos}>{cell(r)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

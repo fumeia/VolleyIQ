@@ -1,3 +1,4 @@
+import { More } from './More';
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, SERIES, StackedBars } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
@@ -89,15 +90,6 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
         ]}
         play={(r) => r.list} />}
 
-      <GroupedColumns title={`Attack after the first contact${forWho}`}
-        subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball): how much the attack depends on the pass"
-        categories={PHASES.map(([, l]) => l)}
-        series={[
-          { name: 'Kill %', color: SERIES.aqua, values: PHASES.map(([k]) => pointPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.points}/${byPhase.get(k as 'p3')!.n}`) },
-          { name: 'Error %', color: SERIES.orange, values: PHASES.map(([k]) => errorPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.errors}/${byPhase.get(k as 'p3')!.n}`) },
-        ]}
-        yTitle="Share of attacks" fmt={pct} yDomain={[0, 1]} />
-
       <StatFigure title={`Which shots work${forWho}`} subtitle={`From the two tapped spots (${withSpots} of ${attacks.length} attacks have both). Line < 15°, cross up to 50°, sharp cut beyond.`}
         rows={[
           ...DIRECTIONS.map((d) => tRow(d.label, dirs.get(d.key)!)),
@@ -113,6 +105,32 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
           { h: 'Eff', cell: (r) => (r.depth ? '–' : { text: eff3(eff(r.t)), tone: sample(judge.eff(eff(r.t)), r.t.n, 3) }) },
         ]}
         note="Landing rows count balls that came down in the court (errors land out), so they show the kill rate only." />
+
+      {attacks.some((e) => e.fx != null && e.x != null) && (
+        <figure className="chart paper">
+          <figcaption>
+            <div className="chart-title"><b>Shot chart{forWho}</b></div>
+            <span className="chart-sub">Each arrow from where the ball was hit to where it went; the numbers count the shots ending in each zone</span>
+            <span className="chart-legend"><Swatch fill={OUTCOME.point} label="Kill" /><Swatch fill={OUTCOME.play} label="In play" /><Swatch fill={OUTCOME.error} label="Error / blocked" /></span>
+          </figcaption>
+          <div className="chips tight">
+            {([['all', 'All'], ['point', 'Kills'], ['play', 'In play'], ['error', 'Errors']] as const).map(([k, l]) => (
+              <button key={k} className={`chip ${shots === k ? 'on' : ''}`} onClick={() => setShots(k)}>{l}</button>
+            ))}
+            <PlayBtn list={attacks.filter((e) => shots === 'all' || result(e.action) === shots)} label="Watch these" />
+          </div>
+          <div className="plot-wrap paper"><CourtFull paths={paths} yRange={[4, 21]} zoneCounts /></div>
+        </figure>
+      )}
+      <More id="attack">
+      <GroupedColumns title={`Attack after the first contact${forWho}`}
+        subtitle="Kill % and error % by the pass grade before the attack (transition = after a dig or free ball): how much the attack depends on the pass"
+        categories={PHASES.map(([, l]) => l)}
+        series={[
+          { name: 'Kill %', color: SERIES.aqua, values: PHASES.map(([k]) => pointPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.points}/${byPhase.get(k as 'p3')!.n}`) },
+          { name: 'Error %', color: SERIES.orange, values: PHASES.map(([k]) => errorPct(byPhase.get(k as 'p3')!)), notes: PHASES.map(([k]) => `${byPhase.get(k as 'p3')!.errors}/${byPhase.get(k as 'p3')!.n}`) },
+        ]}
+        yTitle="Share of attacks" fmt={pct} yDomain={[0, 1]} />
 
       {attacks.some((e) => shotOf(e) !== 'hit') && (() => {
         const rows = SHOTS.map((sh) => ({ k: sh.key, label: sh.label, t: tally(attacks.filter((e) => shotOf(e) === sh.key)) })).filter((r) => r.t.n > 0);
@@ -171,22 +189,7 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
         half="theirs" values={zoneValues}
         legend={<><Swatch fill={diverge(0.7, 0.35, 0.35)} label="High kill %" /><Swatch fill={diverge(0.35, 0.35, 0.35)} label="~35%" /><Swatch fill={diverge(0, 0.35, 0.35)} label="Low" /></>} />
 
-      {attacks.some((e) => e.fx != null && e.x != null) && (
-        <figure className="chart paper">
-          <figcaption>
-            <div className="chart-title"><b>Shot chart{forWho}</b></div>
-            <span className="chart-sub">Each arrow from where the ball was hit to where it went; the numbers count the shots ending in each zone</span>
-            <span className="chart-legend"><Swatch fill={OUTCOME.point} label="Kill" /><Swatch fill={OUTCOME.play} label="In play" /><Swatch fill={OUTCOME.error} label="Error / blocked" /></span>
-          </figcaption>
-          <div className="chips tight">
-            {([['all', 'All'], ['point', 'Kills'], ['play', 'In play'], ['error', 'Errors']] as const).map(([k, l]) => (
-              <button key={k} className={`chip ${shots === k ? 'on' : ''}`} onClick={() => setShots(k)}>{l}</button>
-            ))}
-            <PlayBtn list={attacks.filter((e) => shots === 'all' || result(e.action) === shots)} label="Watch these" />
-          </div>
-          <div className="plot-wrap paper"><CourtFull paths={paths} yRange={[4, 21]} zoneCounts /></div>
-        </figure>
-      )}
+      </More>
     </div>
   );
 }

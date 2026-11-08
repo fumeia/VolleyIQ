@@ -1,3 +1,4 @@
+import { More } from './More';
 import { useMemo } from 'react';
 import type { Player, VEvent } from '../../lib/api';
 import { buildRallies, contactQuality, transitionConversion, transitionPossessions, type Rally } from '../../lib/sequence';
@@ -71,10 +72,6 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
         ]}
         play={(r) => r.list.filter((e) => e.action === 'dig_error')} playLabel="Errors" />
 
-      <HalfZones title="Digs kept by zone" subtitle="Share of digs kept in play per zone of our court (where the ball was dug)"
-        half="ours" values={zoneValues}
-        legend={<><Swatch fill={diverge(1, 0.75, 0.25)} label="All kept" /><Swatch fill={diverge(0.75, 0.75, 0.25)} label="75%" /><Swatch fill={diverge(0.4, 0.75, 0.25)} label="Many lost" /></>} />
-
       {blockers.length > 0 && (
         <StatFigure title="Blockers" subtitle="Block points end the rally; touches slow the ball down for our defence; no touch = jumped, the ball went past"
           rows={blockers} rowKey={(r) => r.p.id}
@@ -92,7 +89,13 @@ export function DefenseSection({ players, events }: { players: Player[]; events:
       )}
       <NetBlocks players={players} events={events} />
       <NoTouchBlocks players={players} events={events} />
+      <More id="defense">
+      <HalfZones title="Digs kept by zone" subtitle="Share of digs kept in play per zone of our court (where the ball was dug)"
+        half="ours" values={zoneValues}
+        legend={<><Swatch fill={diverge(1, 0.75, 0.25)} label="All kept" /><Swatch fill={diverge(0.75, 0.75, 0.25)} label="75%" /><Swatch fill={diverge(0.4, 0.75, 0.25)} label="Many lost" /></>} />
+
       <BlockLandings players={players} events={events} />
+      </More>
     </div>
   );
 }

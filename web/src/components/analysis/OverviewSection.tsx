@@ -8,6 +8,7 @@ import { eff, tally } from '../../lib/trajectory';
 import { AnalysisCharts } from '../AnalysisCharts';
 import { insightsFor } from './insights';
 import { MomentumBlock, SetsTable } from './Momentum';
+import { More } from './More';
 import { avg2, eff3, judge, pct, ratio, Val, type Tone } from './ui';
 
 export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
@@ -53,6 +54,9 @@ export function OverviewSection({ players, events, matches }: { players: Player[
         </section>
       )}
 
+      <AnalysisCharts players={players} events={events} matches={matches} part="main" />
+
+      <More id="overview">
       <SetsTable events={events} />
       <MomentumBlock players={players} rallies={rallies} />
 
@@ -63,7 +67,8 @@ export function OverviewSection({ players, events, matches }: { players: Player[
           yTitle="Rallies won" fmt={pct} yDomain={[0, 1]} />
       )}
 
-      <AnalysisCharts players={players} events={events} matches={matches} />
+      <AnalysisCharts players={players} events={events} matches={matches} part="more" />
+      </More>
     </div>
   );
 }

@@ -377,4 +377,13 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   await expect(page.locator('.practice-analysis')).toContainText("Set 1 · Ann's side");
   await expect(page.locator('.stats')).not.toContainText('rallies we lost');
   await page.screenshot({ path: info.outputPath('practice-errors.png'), fullPage: true });
+  // Overview: the score of each set with the sides' names, no "us" and "them" tiles.
+  await page.locator('.stats-sections').getByRole('button', { name: 'Overview' }).click();
+  await expect(page.locator('.stats')).toContainText('Set 1 · score progression');
+  await expect(page.locator('.stats')).toContainText("Ann's side 5 : 0 Dot's side");
+  await expect(page.locator('.stats .kpis')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('practice-overview.png'), fullPage: true });
+  // Rotations: each side's rotations per set.
+  await page.locator('.stats-sections').getByRole('button', { name: 'Rotations' }).click();
+  await expect(page.locator('.stats')).toContainText('Rotations per side');
 });

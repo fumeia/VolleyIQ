@@ -1,3 +1,4 @@
+import { More } from './More';
 import { useMemo } from 'react';
 import { GroupedColumns, SERIES } from '../../charts/Charts';
 import type { Match, Player, VEvent } from '../../lib/api';
@@ -48,8 +49,6 @@ export function RotationsSection({ players, events, matches = [] }: { players: P
   const named = table.some((t) => t.label.startsWith('S'));
   return (
     <div className="charts">
-      {fromSheet}
-      {fromSheet && <h3 className="section-title">From the tags</h3>}
       <p className="muted small">
         {named
           ? "From the order our players served in (no line-up needed). S1 = setter in position 1 (serving), S2 = setter in position 2, and so on."
@@ -80,6 +79,7 @@ export function RotationsSection({ players, events, matches = [] }: { players: P
           { name: 'First-ball kill %', color: SERIES.aqua, values: rows.map((r) => pointPct(tally(r.fb))), notes: rows.map((r) => `${r.fb.length} attacks`) },
         ]}
         yTitle="Share" fmt={pct} yDomain={[0, 1]} />
+      <More id="rotations">{fromSheet}</More>
     </div>
   );
 }

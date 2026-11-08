@@ -56,3 +56,14 @@ test('replays: the chosen filters stay after going to another tab and back', asy
   await expect(page.locator('.replay-filters .chips .chip.on')).toHaveText(name);
   await expect(page.locator('.replay-result button.on')).toHaveText('Points');
 });
+
+test('stats topics show their main charts first, the rest behind "More charts"', async ({ page, seed }) => {
+  await page.goto(`/s/t/${seed.share}/stats`);
+  await page.locator('.stats-sections').getByRole('button', { name: 'Attack' }).click();
+  await expect(page.getByText('Attackers', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/Efficiency by where the attack was hit from/)).toHaveCount(0);
+  await page.getByRole('button', { name: /More charts/ }).click();
+  await expect(page.getByText(/Efficiency by where the attack was hit from/).first()).toBeVisible();
+  await page.getByRole('button', { name: /Fewer charts/ }).click();
+  await expect(page.getByText(/Efficiency by where the attack was hit from/)).toHaveCount(0);
+});

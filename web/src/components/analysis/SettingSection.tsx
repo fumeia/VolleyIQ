@@ -1,3 +1,4 @@
+import { More } from './More';
 import { useMemo } from 'react';
 import { BarChart, GroupedColumns, SERIES } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
@@ -77,6 +78,7 @@ export function SettingSection({ players, events }: { players: Player[]; events:
         ]}
         yTitle="Share of attacks" fmt={pct} yDomain={[0, 1]} />
 
+      <More id="setting">
       <BarChart title="Setter set vs bump set" subtitle="Attack efficiency after each kind of set; green = plus, red = minus"
         rows={bySetType.filter((b) => b.list.length).map((b) => {
           const t = tally(b.list.map((c) => c.attack));
@@ -95,6 +97,7 @@ export function SettingSection({ players, events }: { players: Player[]; events:
             { h: 'Eff', cell: (r) => { const t = tally(r.list.map((c) => c.attack)); return { text: eff3(eff(t)), tone: sample(judge.eff(eff(t)), t.n, 3) }; } },
           ]} />
       )}
+      </More>
     </div>
   );
 }

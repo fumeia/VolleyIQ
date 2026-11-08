@@ -1,3 +1,4 @@
+import { More } from './More';
 import { BarChart, SERIES, StackedBars } from '../../charts/Charts';
 import type { ActionCode } from '../../lib/actions';
 import type { Player, VEvent } from '../../lib/api';
@@ -64,17 +65,18 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
         ]}
         play={(r) => r.errs} playLabel="Errors" />
 
+      <BarChart title="How our attacks fail" subtitle="Attack errors and blocks by where the ball went (from the second tap)"
+        rows={attackKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Attacks" fmt={(v) => String(Math.round(v))} color="#d03b3b" />
+      <BarChart title="How our serves fail" subtitle="Serve errors by where the ball went"
+        rows={serveKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Serves" fmt={(v) => String(Math.round(v))} color="#d03b3b" />
+
+      <More id="errors">
       {rows.filter((r) => r.errs.length >= 2).length > 0 && (
         <StackedBars title="Error mix per player" subtitle="Share of each player's errors by kind"
           keys={ERROR_TYPES.map((t) => ({ name: t.label, color: t.color }))}
           rows={rows.filter((r) => r.errs.length >= 2).map((r) => ({ label: who(r.p), parts: ERROR_TYPES.map((t) => r.errs.filter(t.test).length) }))}
           axisTitle="Share of errors" />
       )}
-
-      <BarChart title="How our attacks fail" subtitle="Attack errors and blocks by where the ball went (from the second tap)"
-        rows={attackKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Attacks" fmt={(v) => String(Math.round(v))} color="#d03b3b" />
-      <BarChart title="How our serves fail" subtitle="Serve errors by where the ball went"
-        rows={serveKinds.filter((k) => k.n).map((k) => ({ label: k.label, value: k.n }))} valueTitle="Serves" fmt={(v) => String(Math.round(v))} color="#d03b3b" />
 
       {(() => {
         const kinds = THEIR_POINTS.filter((k) => k.key !== 'unknown' || lost.some((r) => theirPoint(r.end!) === 'unknown'));
@@ -118,6 +120,7 @@ export function ErrorsSection({ players, events }: { players: Player[]; events: 
           </>
         );
       })()}
+      </More>
     </div>
   );
 }

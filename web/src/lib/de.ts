@@ -103,4 +103,6 @@ export const DE: Record<string, string> = {
   'practice': 'Training',
   'Practice': 'Training',
   'Practice match: here "us" is each side seen from itself and "them" the other side; both sides count. The Practice topic compares the two sides set by set.': 'Trainingsspiel: «wir» ist hier jede Seite aus ihrer eigenen Sicht, «sie» die andere Seite; beide Seiten zählen. Das Thema Training vergleicht die zwei Seiten Satz für Satz.',
+  'More charts': 'Mehr Grafiken',
+  'Fewer charts': 'Weniger Grafiken',
 };

@@ -1,3 +1,4 @@
+import { More } from './More';
 import { useMemo, useState } from 'react';
 import { GroupedColumns, RAMP, SERIES } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
@@ -77,20 +78,6 @@ export function ServePassSection({ players: all, events, only }: { players: Play
         ]}
         play={(r) => r.list.filter((e) => e.action !== 'serve')} playLabel="Aces/err" />
 
-      <HalfZones title="Where our serves land" subtitle="Share of our serves per opponent zone (their numbering), with the aces"
-        half="theirs" values={serveZoneValues}
-        legend={<><Swatch fill={sequential(1)} label="Most serves" /><Swatch fill={sequential(0.15)} label="Few" /></>} />
-
-      <StatFigure title="Serve depth" subtitle="How deep the serves landed; short serves pull the passers forward"
-        rows={DEPTHS.filter((d) => d.key !== 'out').map((d) => ({ d, t: serveDepth.get(d.key)! })).filter((r) => r.t.n > 0)}
-        rowKey={(r) => r.d.key}
-        first={{ h: 'Depth', cell: (r) => r.d.label }}
-        columns={[
-          { h: 'Serves', cell: (r) => r.t.n },
-          { h: 'Aces', cell: (r) => r.t.points },
-          { h: 'Ace%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.acePct(pointPct(r.t)), r.t.n) }) },
-        ]} />
-
       </>}
 
       {passes.length > 0 && <>
@@ -117,6 +104,27 @@ export function ServePassSection({ players: all, events, only }: { players: Play
         series={[{ name: 'Points won', color: SERIES.blue, values: soByGrade.map((x) => ratio(x.won, x.n)), notes: soByGrade.map((x) => `${x.won}/${x.n}`) }]}
         yTitle="Side-out %" fmt={pct} yDomain={[0, 1]} />
 
+      </>}
+      <More id="servepass">
+      {serves.length > 0 && <>
+      <h3 className="section-title">Serve</h3>
+      <HalfZones title="Where our serves land" subtitle="Share of our serves per opponent zone (their numbering), with the aces"
+        half="theirs" values={serveZoneValues}
+        legend={<><Swatch fill={sequential(1)} label="Most serves" /><Swatch fill={sequential(0.15)} label="Few" /></>} />
+
+      <StatFigure title="Serve depth" subtitle="How deep the serves landed; short serves pull the passers forward"
+        rows={DEPTHS.filter((d) => d.key !== 'out').map((d) => ({ d, t: serveDepth.get(d.key)! })).filter((r) => r.t.n > 0)}
+        rowKey={(r) => r.d.key}
+        first={{ h: 'Depth', cell: (r) => r.d.label }}
+        columns={[
+          { h: 'Serves', cell: (r) => r.t.n },
+          { h: 'Aces', cell: (r) => r.t.points },
+          { h: 'Ace%', cell: (r) => ({ text: pct(pointPct(r.t)), tone: sample(judge.acePct(pointPct(r.t)), r.t.n) }) },
+        ]} />
+
+      </>}
+      {passes.length > 0 && <>
+      <h3 className="section-title">Serve receive</h3>
       {only == null && (
         <select className="input" value={receiver ?? ''} onChange={(e) => setReceiver(e.target.value ? Number(e.target.value) : null)}>
           <option value="">All receivers</option>
@@ -157,6 +165,7 @@ export function ServePassSection({ players: all, events, only }: { players: Play
         </figure>
       )}
       </>}
+      </More>
     </div>
   );
 }
