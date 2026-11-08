@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Player pages: matches against practice, and the trend over the season**
+- "In matches and in practice": the player's numbers (touches, +/−, attack, pass, serve errors, aces) from real matches next to those from practice matches, to see whether it carries over into games. Shown whenever the player has touches in both, also while practice matches are switched off for the rest of the page.
+- Trend lines per match in date order: attack efficiency, pass average and serve errors, each its own small chart, for the skills the player has in two or more matches.
+
 **Small helpers while tagging**
 - Practice matches: when the current set has no line-up yet for one or both sides, one line under the Line-up buttons says so (the rotations and the analysis per side need them).
 - Events tab: when every set's tagged score matches the official Swiss Volley result, the check offers "Mark as fully tagged" right there.

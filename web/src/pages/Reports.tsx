@@ -107,6 +107,7 @@ export function Reports() {
               {active.map((x) => <button key={x.id} className={`chip ${x.id === p.id ? 'on' : ''}`} onClick={() => setPlayerId(x.id)}>#{x.number ?? '–'} {x.name}</button>)}
             </div>
             <PlayerLearning player={p} players={data.players} events={events}
+              split={matchId === 'all' ? { events: data.events, matches: data.matches } : undefined}
               matches={scoped}
               showTips={showTips}
               tipsToggle={teamId != null && (

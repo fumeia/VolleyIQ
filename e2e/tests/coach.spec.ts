@@ -348,6 +348,7 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   // A normal match too, so the season has something without the practice match.
   const real = await (await page.request.post('/api/matches', { data: { label: 'League game', team_id: team.id, mode: 'live' } })).json();
   await page.request.post(`/api/matches/${real.id}/events`, { data: { action: 'ace', player_id: cay, set_no: 1, t: 1 } });
+  for (const t of [3, 6]) await page.request.post(`/api/matches/${real.id}/events`, { data: { action: 'kill', player_id: bea, set_no: 1, t } });
 
   await page.goto('/reports');
   await page.locator('select').first().selectOption({ label: team.name });
@@ -391,7 +392,12 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   await page.goto(`/s/t/${token}/p/${bea}`);
   const toggle = page.getByLabel(/Include practice matches \(1\)/);
   await expect(toggle).not.toBeChecked();
+  // Matches against practice, side by side, also while practice is switched off.
+  await expect(page.locator('.learning')).toContainText('In matches and in practice');
   await toggle.check();
+  // With practice on: two matches with attacks, so a trend line.
+  await expect(page.locator('.learning')).toContainText('Attack efficiency per match');
+  await page.screenshot({ path: info.outputPath('player-page.png'), fullPage: true });
   await page.goto(`/s/t/${token}/stats`);
   await expect(page.getByLabel(/Include practice matches \(1\)/)).toBeChecked();
 });

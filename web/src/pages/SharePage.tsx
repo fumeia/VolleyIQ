@@ -108,7 +108,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
       <>
         <Link to={`${base}/players`} className="back-link">← {t('All players')}</Link>
         {practiceToggle}
-        <PlayerLearning player={player} players={data.players} events={season.events} matches={season.matches} showTips={tips ?? !!data.team.show_tips}
+        <PlayerLearning player={player} players={data.players} events={season.events} matches={season.matches} split={{ events: data.events, matches: data.matches }} showTips={tips ?? !!data.team.show_tips}
           tipsToggle={
             <label className="toggle small" data-tour="tips">
               <input type="checkbox" checked={tips ?? !!data.team.show_tips} onChange={(e) => {
