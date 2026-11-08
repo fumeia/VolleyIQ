@@ -252,11 +252,11 @@ test('practice line-up: only this side\'s players, any of them in the six, only 
   await login();
   const team = await (await page.request.post('/api/teams', { data: { name: `Lineup team ${Date.now()}` } })).json();
   const ids: Record<string, number> = {};
-  for (const [name, number, role] of [['Nico Las', 2, 'OH'], ['Mat Eo', 9, 'S'], ['Hong Li', 17, 'L'], ['Mark Us', 6, 'MB'], ['Other Side', 11, 'OH']] as const) {
+  for (const [name, number, role] of [['Dan Probe', 21, 'OH'], ['Eli Muster', 22, 'S'], ['Fin Test', 23, 'L'], ['Gus Beispiel', 24, 'MB'], ['Other Side', 11, 'OH']] as const) {
     ids[name] = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
   }
   const match = await (await page.request.post('/api/matches', { data: { label: 'Lineup test', team_id: team.id, mode: 'live' } })).json();
-  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ids['Other Side']], b: [ids['Nico Las'], ids['Mat Eo'], ids['Hong Li'], ids['Mark Us']], near: 'a' } } } } });
+  await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ids['Other Side']], b: [ids['Dan Probe'], ids['Eli Muster'], ids['Fin Test'], ids['Gus Beispiel']], near: 'a' } } } } });
   await page.goto(`/m/${match.id}`);
   await page.locator('.practice-bar').getByRole('button', { name: /Line-up Far/ }).click();
   const sheet = page.locator('.sheet');
@@ -264,14 +264,14 @@ test('practice line-up: only this side\'s players, any of them in the six, only 
   await expect(sheet.locator('.chips').first()).not.toContainText('Other');
   // The OH goes into position 1.
   await sheet.locator('.lineup-slot', { hasText: '1 · serves' }).click();
-  await sheet.locator('.chips').first().getByRole('button', { name: /#2 Nico/ }).click();
-  await expect(sheet.locator('.lineup-slot', { hasText: '1 · serves' })).toContainText('#2 Nico');
+  await sheet.locator('.chips').first().getByRole('button', { name: /#21 Dan/ }).click();
+  await expect(sheet.locator('.lineup-slot', { hasText: '1 · serves' })).toContainText('#21 Dan');
   // Libero choices: the libero and the middle only, no OH or setter.
   const libero = sheet.locator('.chips').nth(1);
-  await expect(libero).toContainText('#17 Hong');
-  await expect(libero).toContainText('#6 Mark');
-  await expect(libero).not.toContainText('#9 Mat');
-  await expect(libero).not.toContainText('#2 Nico');
+  await expect(libero).toContainText('#23 Fin');
+  await expect(libero).toContainText('#24 Gus');
+  await expect(libero).not.toContainText('#22 Eli');
+  await expect(libero).not.toContainText('#21 Dan');
 });
 
 test('practice match: after the near side serves, a far player goes straight to the pass', async ({ page, login }) => {
@@ -301,8 +301,8 @@ test('practice match: after the near side serves, a far player goes straight to 
 test('practice match: blocked attack + block point is one point; off the block asks who touched it', async ({ page, login }) => {
   await login();
   const team = await (await page.request.post('/api/teams', { data: { name: `Block team ${Date.now()}` } })).json();
-  const near = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Ash Win', number: 3, role: 'OH' } })).json()).id;
-  const far = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Kon Stantin', number: 5, role: 'MB' } })).json()).id;
+  const near = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Ari Probe', number: 14, role: 'OH' } })).json()).id;
+  const far = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Ben Muster', number: 15, role: 'MB' } })).json()).id;
   const match = await (await page.request.post('/api/matches', { data: { label: 'Block test', team_id: team.id, mode: 'live' } })).json();
   await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [near], b: [far] } } } } });
   await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'attack_blocked', player_id: near, side: 'a', set_no: 1, t: 10 } });
@@ -310,7 +310,7 @@ test('practice match: blocked attack + block point is one point; off the block a
   await page.goto(`/m/${match.id}`);
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*0 : 1\s*Far/);
   // A kill off the block: who of Far touched it?
-  await page.locator('.pad-side-a .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side-a .jersey', { hasText: 'Ari' }).click();
   await page.locator('.skill-offblock').getByRole('button', { name: 'Kill' }).click();
   for (let i = 0; i < 2; i++) {
     const skip = page.getByRole('button', { name: /^Skip/ });
@@ -320,9 +320,9 @@ test('practice match: blocked attack + block point is one point; off the block a
   // Where along the net, then who: one popup.
   await expect(ask).toContainText('Where along the net did it touch their block?');
   await ask.getByRole('button', { name: '✓ Here' }).click();
-  await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await ask.getByRole('button', { name: /#15 Ben/ }).click();
   await ask.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('.ws-content')).toContainText(/#5 Kon\s*Block touched out/);
+  await expect(page.locator('.ws-content')).toContainText(/#15 Ben\s*Block touched out/);
   // One point for Near (the kill), none for the touch.
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
   // Marked fully tagged.
@@ -347,16 +347,16 @@ test('practice match: blocked attack + block point is one point; off the block a
   await page.reload();
   await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-a/);
   // Off the block, in play: the same popup; Kon gets a plain block touch, no point, Far plays next.
-  await page.locator('.pad-side .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side .jersey', { hasText: 'Ari' }).click();
   await page.locator('.skill-offblock').getByRole('button', { name: 'In play' }).click();
   for (let i = 0; i < 2; i++) {
     const skip = page.getByRole('button', { name: /^Skip/ });
     if (await skip.isVisible().catch(() => false)) await skip.click();
   }
   await ask.getByRole('button', { name: /^Skip: not sure where/ }).click();
-  await ask.getByRole('button', { name: /#5 Kon/ }).click();
+  await ask.getByRole('button', { name: /#15 Ben/ }).click();
   await ask.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('.ws-content')).toContainText(/#5 Kon\s*Block Touch/);
+  await expect(page.locator('.ws-content')).toContainText(/#15 Ben\s*Block Touch/);
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
   await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-b/);
 });
@@ -458,13 +458,13 @@ test('practice match: a recycle asks where it hit the block and who blocked (up 
   await login();
   const team = await (await page.request.post('/api/teams', { data: { name: `Recycle team ${Date.now()}` } })).json();
   const mk = async (name: string, number: number, role: string) => (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
-  const near = await mk('Ash Win', 3, 'OH');
-  const far1 = await mk('Kon Stantin', 5, 'MB');
-  const far2 = await mk('Nic Olas', 2, 'OPP');
+  const near = await mk('Ari Probe', 14, 'OH');
+  const far1 = await mk('Ben Muster', 15, 'MB');
+  const far2 = await mk('Cy Beispiel', 16, 'OPP');
   const match = await (await page.request.post('/api/matches', { data: { label: 'Recycle test', team_id: team.id, mode: 'live' } })).json();
   await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [near], b: [far1, far2] } } } } });
   await page.goto(`/m/${match.id}`);
-  await page.locator('.pad-side-a .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side-a .jersey', { hasText: 'Ari' }).click();
   await page.locator('.skill-offblock').getByRole('button', { name: 'Recycle' }).click();
   // Where from: skipped. Where it hit the block: the net slider.
   const skip = page.getByRole('button', { name: /^Skip: not sure where from/ });
@@ -472,15 +472,15 @@ test('practice match: a recycle asks where it hit the block and who blocked (up 
   await expect(page.getByText('Where along the net did it hit their block?').first()).toBeVisible();
   await page.getByRole('button', { name: '✓ Set here' }).click();
   const ask = page.getByRole('dialog', { name: 'Who touched it on the block' });
-  await ask.getByRole('button', { name: /#5 Kon/ }).click();
-  await ask.getByRole('button', { name: /#2 Nic/ }).click();
+  await ask.getByRole('button', { name: /#15 Ben/ }).click();
+  await ask.getByRole('button', { name: /#16 Cy/ }).click();
   await page.screenshot({ path: test.info().outputPath('block-ask.png') });
   await ask.getByRole('button', { name: 'Save both' }).click();
   await expect(ask).toHaveCount(0);
   const list = page.locator('.ws-content');
-  await expect(list).toContainText(/#3 Ash\s*Recycled off the block/);
-  await expect(list).toContainText(/#5 Kon\s*Block Touch/);
-  await expect(list).toContainText(/#2 Nic\s*Block Touch/);
+  await expect(list).toContainText(/#14 Ari\s*Recycled off the block/);
+  await expect(list).toContainText(/#15 Ben\s*Block Touch/);
+  await expect(list).toContainText(/#16 Cy\s*Block Touch/);
   // The ball is back with Near: Near's players stay on top.
   await expect(page.locator('.pad-side').first()).toHaveClass(/pad-side-a/);
 });
@@ -489,10 +489,10 @@ test('practice match: chained tags (pass after a serve)', async ({ page, login }
   await login();
   const team = await (await page.request.post('/api/teams', { data: { name: `Chain team ${Date.now()}` } })).json();
   const mk = async (name: string, number: number, role: string) => (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
-  const ash = await mk('Ash Win', 3, 'OH');
+  const ash = await mk('Ari Probe', 14, 'OH');
   const sam = await mk('Sam Set', 1, 'S');
-  const kon = await mk('Kon Stantin', 5, 'MB');
-  const nic = await mk('Nic Olas', 2, 'OPP');
+  const kon = await mk('Ben Muster', 15, 'MB');
+  const nic = await mk('Cy Beispiel', 16, 'OPP');
   const match = await (await page.request.post('/api/matches', { data: { label: 'Chain test', team_id: team.id, mode: 'live' } })).json();
   await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ash, sam], b: [kon, nic] } } } } });
   const list = page.locator('.ws-content');
@@ -501,9 +501,9 @@ test('practice match: chained tags (pass after a serve)', async ({ page, login }
   // 4. After Far serves, tapping a Near player goes straight to the pass.
   await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'serve', player_id: kon, side: 'b', set_no: 1, t: 10 } });
   await page.goto(`/m/${match.id}`);
-  await page.locator('.pad-side .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side .jersey', { hasText: 'Ari' }).click();
   await page.locator('.spot-sheet .receive-quick').getByRole('button', { name: '2' }).click();
-  await expect(list).toContainText(/#3 Ash\s*Receive 2/);
+  await expect(list).toContainText(/#14 Ari\s*Receive 2/);
 
 });
 
@@ -511,10 +511,10 @@ test('practice match: chained tags (attack after a set, kill nobody touched, dou
   await login();
   const team = await (await page.request.post('/api/teams', { data: { name: `Chain team B ${Date.now()}` } })).json();
   const mk = async (name: string, number: number, role: string) => (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name, number, role } })).json()).id;
-  const ash = await mk('Ash Win', 3, 'OH');
+  const ash = await mk('Ari Probe', 14, 'OH');
   const sam = await mk('Sam Set', 1, 'S');
-  const kon = await mk('Kon Stantin', 5, 'MB');
-  const nic = await mk('Nic Olas', 2, 'OPP');
+  const kon = await mk('Ben Muster', 15, 'MB');
+  const nic = await mk('Cy Beispiel', 16, 'OPP');
   const match = await (await page.request.post('/api/matches', { data: { label: 'Chain test B', team_id: team.id, mode: 'live' } })).json();
   await page.request.patch(`/api/matches/${match.id}`, { data: { practice: { names: { a: 'Near', b: 'Far' }, sets: { 1: { a: [ash, sam], b: [kon, nic] } } } } });
   const list = page.locator('.ws-content');
@@ -522,7 +522,7 @@ test('practice match: chained tags (attack after a set, kill nobody touched, dou
   // 5. After a set, tapping a player of the same side shows the attack choices first.
   await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'set', player_id: sam, side: 'a', set_no: 1, t: 12 } });
   await page.goto(`/m/${match.id}`);
-  await page.locator('.pad-side .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side .jersey', { hasText: 'Ari' }).click();
   await expect(page.getByRole('button', { name: 'Other actions ▾' })).toBeVisible();
   await expect(page.locator('.skill-label', { hasText: 'Serve' })).toHaveCount(0);
   await page.locator('.skill-row').filter({ hasText: 'Attack' }).first().getByRole('button', { name: /^Kill/ }).click();
@@ -535,14 +535,14 @@ test('practice match: chained tags (attack after a set, kill nobody touched, dou
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 0\s*Far/);
 
   // 1. A blocked attack: two Far blockers, one point for Far.
-  await page.locator('.pad-side .jersey', { hasText: 'Ash' }).click();
+  await page.locator('.pad-side .jersey', { hasText: 'Ari' }).click();
   await page.locator('.skill-row').filter({ hasText: 'Attack' }).first().getByRole('button', { name: /^Blocked/ }).click();
   await skip();
   await expect(panel).toContainText('Blocked: who of Far blocked it?');
-  await panel.getByRole('button', { name: /#5 Kon/ }).click();
-  await panel.getByRole('button', { name: /#2 Nic/ }).click();
+  await panel.getByRole('button', { name: /#15 Ben/ }).click();
+  await panel.getByRole('button', { name: /#16 Cy/ }).click();
   await panel.getByRole('button', { name: 'Save both' }).click();
-  await expect(list).toContainText(/#5 Kon\s*Block Point/);
-  await expect(list).toContainText(/#2 Nic\s*Block Point/);
+  await expect(list).toContainText(/#15 Ben\s*Block Point/);
+  await expect(list).toContainText(/#16 Cy\s*Block Point/);
   await expect(page.locator('.practice-bar')).toContainText(/Near\s*1 : 1\s*Far/);
 });

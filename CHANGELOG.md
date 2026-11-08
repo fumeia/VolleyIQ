@@ -59,7 +59,7 @@
 - On the server, `node src/restore-lineups.js` brings deleted line-ups of the second side back from the nightly backups (only missing ones, only when the players fit the set's sides; backups from before practice matches are skipped; `--apply` to save).
 - Fix: the public team link did not send the line-ups, so its practice analysis showed "No line-up saved" for every side and its rotations had no line-ups to work with.
 - A line-up goes to the side whose players it holds, also after "Swap near and far".
-- Sides are called after their setter ("Tobi's side"); the set table is the whole side's numbers. Sets without tags say so instead of showing zeros.
+- Sides are called after their setter ("Ann's side"); the set table is the whole side's numbers. Sets without tags say so instead of showing zeros.
 - Players are judged by their role on the team page: hitters by attack efficiency, passers and liberos by their passes, setters by how the hitters did after their sets. The points-based pairs are gone.
 - Combinations: Setters (side-out, break, hitters after their sets, after good and after poor passes, who got their sets), Setter and hitter, Passers (with the attack after their pass), and what changed for a player with another setter.
 - A small blue "?" next to each title explains what the table shows and how to read it.

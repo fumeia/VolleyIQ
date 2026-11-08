@@ -150,9 +150,9 @@ test('a club calendar: pick which of the club teams it is', async () => {
 });
 
 test('team numbers are not search words', () => {
-  assert.deepEqual(keyWords('Volley Oerlikon H2'), ['oerlikon']);
+  assert.deepEqual(keyWords('Volley Seefeld H2'), ['seefeld']);
   assert.deepEqual(keyWords('OTA VOLLEY H1'), ['ota']);
-  assert.deepEqual(keyWords('Volley Oerlikon DU23'), ['oerlikon', 'du23']);
+  assert.deepEqual(keyWords('Volley Seefeld DU23'), ['seefeld', 'du23']);
 });
 
 test('public team page: games, confirmed videos only, and video suggestions from visitors', async () => {

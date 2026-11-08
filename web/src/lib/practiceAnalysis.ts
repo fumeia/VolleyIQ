@@ -29,7 +29,7 @@ function count(t: Tally, a: VEvent) {
 
 export interface SideSet {
   set: number; side: Side;
-  /** "Tobi's side", or the side's own name when the coach gave one. */
+  /** "Ann's side", or the side's own name when the coach gave one. */
   label: string;
   players: number[];
   lineup: Lineup | null;
