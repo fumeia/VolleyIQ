@@ -30,7 +30,7 @@ import { PracticeSheet } from '../components/PracticeSheet';
 import { nextSide, sideOf, sideScore } from '../lib/practice';
 import type { Lineups } from '../lib/rotation';
 import { VoiceBar } from '../components/VoiceBar';
-import { FineScrub, Timeline } from '../components/Timeline';
+import { Timeline } from '../components/Timeline';
 import { available, loadQuality, saveQuality, urlFor, type Quality, type VideoLink } from '../lib/videoQuality';
 import { lineupsFromSheet } from '../lib/sheetFlow';
 import { checkAgainstSheet } from '../lib/sheetCheck';
@@ -628,7 +628,6 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   </div>
                 )}
                 <Timeline player={player} events={events} />
-                <FineScrub player={player} events={events} />
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>
                   <button onClick={() => player.current?.seekBy(-2)}>−2</button>

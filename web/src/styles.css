@@ -1372,12 +1372,6 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .practice-choice button { min-width: 56px; }
 
 /* ---------- fine scrubbing: 10 s around now ---------- */
-.fine-scrub { display: flex; align-items: center; gap: 8px; padding: 0 10px 4px; background: var(--surface); }
-.fine-track { position: relative; flex: 1; min-width: 0; height: 30px; display: flex; align-items: center;
-  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--line) calc(10% - 1px) 10%); border-radius: 4px; }
-.fine-track input[type=range] { position: relative; z-index: 2; width: 100%; margin: 0; height: 30px; background: transparent; accent-color: var(--accent); }
-.fine-tick { position: absolute; top: -2px; transform: translateX(-50%); font-size: 9px; color: var(--muted); pointer-events: none; }
-.fine-tag { position: absolute; top: 9px; width: 2px; height: 12px; margin-left: -1px; background: var(--accent); opacity: .7; pointer-events: none; z-index: 1; }
 
 .final-box { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: 420px; }
 
@@ -1434,3 +1428,7 @@ body.video-plain .topbar, body.video-plain .bottombar, body.video-plain .ws-head
 body.video-plain .ws-video > :not(.video-wrap), body.video-plain .video-wrap > :not(.video-box) { display: none !important; }
 body.video-plain .video-box { position: fixed; inset: 0; z-index: 900; aspect-ratio: auto; max-height: none !important; width: 100% !important; }
 .plain-test { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 901; padding: 8px; border-radius: 8px; background: rgba(0,0,0,.75); color: #fff; display: flex; flex-direction: column; gap: 6px; }
+/* The parts that change while the video plays (clock, timeline) are kept to themselves:
+   an update repaints only that strip, not the whole page. In the app's WebView every page repaint
+   competes with the video for drawing, and the video stuttered. */
+.video-clock, .timeline, .video-clock { font-variant-numeric: tabular-nums; }
