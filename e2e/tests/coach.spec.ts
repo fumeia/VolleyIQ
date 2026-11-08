@@ -395,3 +395,19 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   await page.goto(`/s/t/${token}/stats`);
   await expect(page.getByLabel(/Include practice matches \(1\)/)).toBeChecked();
 });
+
+test('every set matches the official result: the Events tab offers "Mark as fully tagged"', async ({ page, login }) => {
+  await login();
+  const team = await (await page.request.post('/api/teams', { data: { name: `Official team ${Date.now()}` } })).json();
+  const p = (await (await page.request.post(`/api/teams/${team.id}/players`, { data: { name: 'Oli Ver', number: 4, role: 'OH' } })).json()).id;
+  const match = await (await page.request.post('/api/matches', { data: { label: 'League game', team_id: team.id, mode: 'live' } })).json();
+  for (const t of [5, 9]) await page.request.post(`/api/matches/${match.id}/events`, { data: { action: 'kill', player_id: p, set_no: 1, t } });
+  await page.route(`**/api/matches/${match.id}/official`, (r) => r.fulfill({ json: { linked: true, game: { result: '1:0' }, sets: [{ set: 1, us: 2, them: 0 }] } }));
+  await page.goto(`/m/${match.id}`);
+  await page.getByRole('button', { name: /^Events/ }).click();
+  const box = page.locator('.official-check');
+  await expect(box).toContainText('Every set matches the official score');
+  await box.getByRole('button', { name: 'Mark as fully tagged' }).click();
+  await expect(page.locator('.final-box')).toContainText('Fully tagged');
+  await expect(box.getByRole('button', { name: 'Mark as fully tagged' })).toHaveCount(0);
+});

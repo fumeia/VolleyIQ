@@ -531,6 +531,11 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                         Line-up {practice.names[k]}{(k === 'a' ? lineup : lineupB) ? ' ✓' : ''}
                       </button>
                     ))}
+                    {sidesNow && (!lineup || !lineupB) && (
+                      <span className="small practice-lineup-hint">
+                        No line-up yet for {[!lineup && practice.names.a, !lineupB && practice.names.b].filter(Boolean).join(' and ')} in set {setNo}: the rotations and the analysis per side need it.
+                      </span>
+                    )}
                   </div>
                 )}
                 {paused ? (
@@ -598,7 +603,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
             {tab === 'events' && (
               <div className="row wrap">
                 <FinalBox match={match} onChanged={setMatch} />
-                <OfficialCheck matchId={match.id} confirmed={confirmed} />
+                <OfficialCheck matchId={match.id} confirmed={confirmed}
+                  onMark={match.final ? undefined : async () => { setMatch(await api.updateMatch(match.id, { final: { at: new Date().toISOString(), rules: RULES } })); flash('Marked as fully tagged'); }} />
                 <SheetBox match={match} players={players} events={events} onSaved={setMatch} onSeek={(t) => player.current?.seek(t)} onEdit={setEditing} />
                 <VersionsBox match={match} pending={pendingCount} onRestored={reload} />
                 <CloudVideoBox match={match} local={local} onChanged={async () => setMatch((await api.match(match.id)).match)}
@@ -1176,7 +1182,9 @@ function lastAdded(events: VEvent[]): VEvent | undefined {
  * The tagged score set by set next to the official one from Swiss Volley (for a match linked
  * to a game of the schedule): where they differ, points are missing or tagged twice.
  */
-function OfficialCheck({ matchId, confirmed }: { matchId: number; confirmed: VEvent[] }) {
+/** [onMark]: offered when every set matches the official score and the match is not marked fully tagged yet. */
+function OfficialCheck({ matchId, confirmed, onMark }: { matchId: number; confirmed: VEvent[]; onMark?: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
   const [data, setData] = useState<Awaited<ReturnType<typeof api.official>> | null>(null);
   useEffect(() => { api.official(matchId).then(setData).catch(() => setData(null)); }, [matchId]);
   if (!data?.linked) return null;
@@ -1209,7 +1217,13 @@ function OfficialCheck({ matchId, confirmed }: { matchId: number; confirmed: VEv
           ))}
         </tbody>
       </table>
-      <span className="small muted">{off.length === 0 ? 'Every set matches the official score.' : 'A point counts for us from a kill, ace, block point or their error; for them from our errors and their points. Missing points are usually a rally without its last tag.'}</span>
+      {off.length === 0 && onMark && (
+        <div className="row wrap">
+          <span className="small">Every set matches the official score: mark the match as fully tagged, so its score and stats stay as they are?</span>
+          <button className="btn small btn-primary" disabled={busy} onClick={async () => { setBusy(true); try { await onMark(); } finally { setBusy(false); } }}>Mark as fully tagged</button>
+        </div>
+      )}
+      <span className="small muted">{off.length === 0 ? (onMark ? '' : 'Every set matches the official score.') : 'A point counts for us from a kill, ace, block point or their error; for them from our errors and their points. Missing points are usually a rally without its last tag.'}</span>
     </div>
   );
 }

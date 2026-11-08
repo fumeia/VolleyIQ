@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Small helpers while tagging**
+- Practice matches: when the current set has no line-up yet for one or both sides, one line under the Line-up buttons says so (the rotations and the analysis per side need them).
+- Events tab: when every set's tagged score matches the official Swiss Volley result, the check offers "Mark as fully tagged" right there.
+
 **Stats: the main charts first**
 - Every Stats topic now opens with its few main charts for a player looking at their own game; the rest are behind "More charts" at the bottom of the topic (kept open for the visit once opened). Overview: score progression (season: attack and pass per match), volume vs efficiency, how we scored. Attack: attackers, which shots work, shot chart. Serve & pass: servers, receivers, side-out by the first pass. Setting: setters, set distribution, in vs out of system. Defence: defenders, blockers. Errors: points given away per player, how attacks and serves failed. Rotations: the rotation report and pass / first ball per rotation.
 - Public player pages have the "Include practice matches" switch too (before, practice matches were left out there without a way to add them). The choice stays for the visit across Overview, Stats, Trends and the player pages.
