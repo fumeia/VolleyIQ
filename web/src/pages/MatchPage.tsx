@@ -158,6 +158,14 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
     playableUrl(local.uri).then((u) => { if (live) setLocalUrl(u); });
     return () => { live = false; };
   }, [local?.uri]);
+  // A 10-bit H.264 file (High 10) has no hardware decoder on phones: it stutters. Say so once.
+  const [tenBit, setTenBit] = useState(false);
+  useEffect(() => {
+    setTenBit(false);
+    if (!local || !isApp()) return;
+    try { if (localStorage.getItem(`viq:10bit-seen:${local.uri}`)) return; } catch { /* storage unavailable */ }
+    Native.videoInfo({ uri: local.uri }).then((i) => setTenBit(i.profile === 16 || (i.profile != null && !i.decoder))).catch(() => {});
+  }, [local?.uri]);
   const source = useMemo(() => {
     if (isLive) return null;
     if (local) return localUrl ? { type: 'file' as const, url: localUrl } : null;
@@ -611,6 +619,13 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                   />
                 ) : tab === 'review' && reviewMode === 'rally' && suggested.length > 0 ? null : (
                 <>
+                {tenBit && local && (
+                  <div className="notice card small">
+                    <span>This video is 10-bit (H.264 High 10). Phones cannot decode that in hardware, so it plays with dropped frames. Convert it once on a computer to the usual 8-bit format and load that file with Change video; the tags stay as they are:</span>
+                    <code className="cmd">ffmpeg -i in.mp4 -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 20 -preset medium -c:a copy -movflags +faststart out.mp4</code>
+                    <button className="btn-ghost small" onClick={() => { try { localStorage.setItem(`viq:10bit-seen:${local.uri}`, '1'); } catch { /* storage unavailable */ } setTenBit(false); }}>Got it</button>
+                  </div>
+                )}
                 <Timeline player={player} events={events} />
                 <FineScrub player={player} events={events} />
                 <div className="transport">

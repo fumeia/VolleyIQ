@@ -1428,3 +1428,4 @@ kbd { font-family: inherit; font-size: 12px; font-weight: 600; padding: 1px 6px;
 .block-ask .spot-court { min-height: 120px; }
 .other-actions { align-self: flex-start; margin: 0 0 4px; }
 .playback-check { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; word-break: break-word; }
+code.cmd { display: block; padding: 6px 8px; border-radius: 6px; background: var(--bg); font-size: 12px; word-break: break-all; user-select: all; }

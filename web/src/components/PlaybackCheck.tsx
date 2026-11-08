@@ -40,6 +40,7 @@ export function PlaybackCheck({ uri }: { uri: string }) {
         <>
           <div><b>File</b> {info.mime} · {info.width}×{info.height} · {info.fps ? `${Math.round(info.fps * 100) / 100} fps` : 'fps not stated'} · {profile}{info.level ? ` level ${info.level}` : ''}{info.bitrate ? ` · ${(info.bitrate / 1e6).toFixed(1)} Mbit/s` : ''}{info.colorTransfer != null ? ` · transfer ${info.colorTransfer}` : ''}</div>
           <div><b>Decoder for it</b> {info.decoder ? `${info.decoder} (${info.hardware === false ? 'software' : info.hardware ? 'hardware' : 'unknown'})` : 'none found for this exact format'}</div>
+          {info.profile === 16 && <div><b>Note</b> 10-bit video: no hardware decoder on this phone plays it smoothly. An 8-bit copy (yuv420p) plays smoothly.</div>}
           <div><b>Hardware decoders</b> {hw.length ? hw.map((d) => `${d.name}${d.profileOk ? '' : ' (not this profile)'}`).join(', ') : 'none'}</div>
         </>
       )}
