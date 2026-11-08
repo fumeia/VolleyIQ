@@ -1432,3 +1432,9 @@ body.video-plain .video-box { position: fixed; inset: 0; z-index: 900; aspect-ra
    an update repaints only that strip, not the whole page. In the app's WebView every page repaint
    competes with the video for drawing, and the video stuttered. */
 .video-clock, .timeline, .video-clock { font-variant-numeric: tabular-nums; }
+/* While the video plays, the timeline shows a bar moved by a transform only (no redraw). */
+.timeline-now { display: none; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: var(--line); overflow: hidden; pointer-events: none; z-index: 1; }
+.timeline-now > i { display: block; height: 100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); will-change: transform; }
+.timeline.playing .timeline-now { display: block; }
+.timeline.playing input[type=range] { opacity: 0; }
+.timeline.playing > .timeline-time:first-child { visibility: hidden; }

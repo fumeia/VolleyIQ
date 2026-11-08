@@ -11,14 +11,24 @@ export function Timeline({ player, events = [] }: { player: React.RefObject<Play
   const [t, setT] = useState(0);
   const [dur, setDur] = useState<number | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const bar = useRef<HTMLElement>(null);
   const lastSeek = useRef(0);
-  // Once a second while playing (each change redraws the bar), quickly while standing.
+  // While the video stands: the slider and the time follow it. While it plays, nothing on the
+  // page changes but a progress bar moved by the graphics chip alone (a transform): any other
+  // change redraws part of the page, and in the app each redraw cost the video a frame.
   useEffect(() => {
     let timer = 0;
     const tick = () => {
       const p = player.current;
-      if (p) { setDur(p.duration()); setT(p.time() ?? 0); }
-      timer = window.setTimeout(tick, p?.isPlaying() ? 1000 : 250);
+      if (p) {
+        const d = p.duration(), now = p.time() ?? 0, on = p.isPlaying();
+        setDur(d);
+        setPlaying(on);
+        if (!on) setT(now);
+        else if (bar.current && d) bar.current.style.transform = `scaleX(${Math.min(1, now / d)})`;
+      }
+      timer = window.setTimeout(tick, 250);
     };
     tick();
     return () => clearTimeout(timer);
@@ -37,7 +47,7 @@ export function Timeline({ player, events = [] }: { player: React.RefObject<Play
     if (final || now - lastSeek.current > 300) { player.current?.seek(v); lastSeek.current = now; }
   };
   return (
-    <div className="timeline">
+    <div className={`timeline${playing && drag == null ? ' playing' : ''}`}>
       <span className="timeline-time">{fmtTime(shown)}</span>
       <div className="timeline-track">
         <svg className="timeline-marks" viewBox="0 0 1000 10" preserveAspectRatio="none" aria-hidden="true">
@@ -46,6 +56,7 @@ export function Timeline({ player, events = [] }: { player: React.RefObject<Play
         {sets.length > 1 && sets.map((s) => (
           <span key={s.set} className="timeline-set" style={{ left: `${(s.t / dur) * 100}%` }}>S{s.set}</span>
         ))}
+        <span className="timeline-now" aria-hidden="true"><i ref={bar} /></span>
         <input type="range" min={0} max={Math.round(dur)} step={1} value={Math.round(shown)} aria-label="Video position"
           onChange={(e) => { const v = Number(e.target.value); setDrag(v); seek(v, false); }}
           onPointerUp={(e) => { const v = Number((e.target as HTMLInputElement).value); seek(v, true); setT(v); setDrag(null); }}
