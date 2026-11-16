@@ -7,14 +7,15 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# --- server dependencies: the database module downloads a ready-made binary, and when that download
-# fails it compiles itself, which needs python, make and a compiler. Only this step has them. ---
+# --- server dependencies: the database module downloads a ready-made binary. Only when that download
+# fails does it compile itself, which needs python, make and a compiler: they are installed then,
+# in this step only (installing them every time made each update half a minute slower). ---
 FROM node:22-bookworm-slim AS deps
 LABEL org.volleyiq.build=1
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev \
+ || (apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/* && npm ci --omit=dev)
 
 # --- API server + static files ---
 FROM node:22-bookworm-slim AS app

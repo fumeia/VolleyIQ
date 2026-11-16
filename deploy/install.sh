@@ -8,7 +8,9 @@
 #   - /opt/volleyiq                      (code, .env, data/)
 #   - the Docker project "volleyiq"      (one container, its image and network)
 #   - one block in /etc/caddy/Caddyfile, between "# >>> volleyiq" / "# <<< volleyiq" markers
-# Your other containers, images, build cache and Caddy sites are never modified.
+# Your other containers, images and Caddy sites are never modified. The Docker build cache is only
+# trimmed when VolleyIQ is the only one using it (then up to 1 GB is kept, so updates reuse what
+# did not change instead of building everything again).
 # Before changing anything it shows the plan and asks for confirmation.
 #
 # Backups:
@@ -137,7 +139,7 @@ else
   echo " - download the code to $DIR and ask for a login password"
 fi
 echo " - build and (re)start the VolleyIQ container on 127.0.0.1:$PORT (memory limit 192 MB)"
-echo " - afterwards delete only VolleyIQ's own leftover build images/cache (nothing of your other projects)"
+echo " - afterwards delete only VolleyIQ's own leftover build images, and keep at most 1 GB of its build cache for faster updates"
 ADD_CADDY=0
 if has_caddy; then
   if grep -qxF "$BEGIN" "$CADDYFILE"; then echo " - Caddy: VolleyIQ block already present, no change"
@@ -194,15 +196,25 @@ if grep -qE '^S3_BUCKET=.+' .env 2>/dev/null; then
 else
   compose rm -sf transcoder >/dev/null 2>&1 || true
 fi
-# Build cache is shared by all projects; only clean it if it was empty before (i.e. it is all ours).
-cache_was_empty=0
-docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | grep -qx 'Build Cache 0B' && cache_was_empty=1
+# Build cache is shared by all projects: it is ours to trim only if it was empty at VolleyIQ's first
+# build (remembered in .build-cache-ours, untracked, so updates keep it). Ours is kept up to 1 GB:
+# the next update then reuses the unchanged steps (installing packages) and takes seconds, not minutes.
+CACHE_MARK="$DIR/.build-cache-ours"
+cache_ours=0
+if [ -f "$CACHE_MARK" ] || docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | grep -qx 'Build Cache 0B'; then cache_ours=1; fi
 compose up -d --build
 new_images=$(our_images)
 # Only VolleyIQ's own images: the previous versions (if replaced) and their untagged build stages.
 for img in $old_images; do echo "$new_images" | grep -qx "$img" || docker rmi "$img" >/dev/null 2>&1 || true; done
 docker image prune -f --filter "label=org.volleyiq.build=1" >/dev/null 2>&1 || true
-if [ $cache_was_empty = 1 ]; then docker builder prune -af >/dev/null 2>&1 || true; else echo "Note: Docker build cache was not empty before, so it was left alone."; fi
+if [ $cache_ours = 1 ]; then
+  touch "$CACHE_MARK"
+  # Newer Docker: --max-used-space; older: --keep-storage. Either keeps the most recently used 1 GB.
+  docker builder prune -af --max-used-space 1gb >/dev/null 2>&1 \
+    || docker builder prune -af --keep-storage 1gb >/dev/null 2>&1 || true
+else
+  echo "Note: Docker build cache is used by other projects too, so it was left alone."
+fi
 
 for i in $(seq 1 60); do
   curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break

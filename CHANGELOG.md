@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Faster server updates**
+- install.sh rebuilt everything on every update, because it deleted Docker's build cache afterwards; and since the build step for the database module it also installed a compiler every time. Now the compiler is only installed when the database module's ready-made download fails, and VolleyIQ keeps up to 1 GB of its own build cache (only when no other project uses the cache), so an update reuses the package installs and mostly just rebuilds the changed code. The first update after this one is still a full build.
+
 **Practice matches count by default**
 - The season stats (app Stats tab, public Overview, Stats, Trends and player pages) now include the practice matches from the start; "Include practice matches" switches them off. The guide on the public page points at that switch (when the team has practice matches).
 
