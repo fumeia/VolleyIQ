@@ -6,6 +6,8 @@ export interface TourStep {
   target?: string;
   title: string;
   text: ReactNode;
+  /** Left out when its part is not on the page (e.g. no practice matches, so no switch). */
+  optional?: boolean;
 }
 
 const seenKey = (id: string) => `viq:tour:${id}`;
@@ -17,7 +19,8 @@ const markSeen = (id: string) => { try { localStorage.setItem(seenKey(id), '1');
  * Opens by itself on the first visit (per tour [id], on this device), can be skipped
  * at any step, and comes back with the "? Guide" button.
  */
-export function Tour({ id, steps }: { id: string; steps: TourStep[] }) {
+export function Tour({ id, steps: all }: { id: string; steps: TourStep[] }) {
+  const steps = all.filter((s) => !s.optional || (s.target && document.querySelector(s.target)));
   const [i, setI] = useState<number | null>(() => (wasSeen(id) ? null : 0));
   const [rect, setRect] = useState<DOMRect | null>(null);
   const step = i != null ? steps[i] : null;

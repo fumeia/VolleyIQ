@@ -452,19 +452,23 @@ test('practice match analysis: the sides of each set, combinations, a player acr
   // Rotations: each side's rotations per set.
   await page.locator('.stats-sections').getByRole('button', { name: 'Rotations' }).click();
   await expect(page.locator('.stats')).toContainText('Rotations per side');
-  // Public player page: the practice matches can be switched on, and that stays for the visit.
+  // Public player page: the practice matches count by default, can be switched off, and that stays for the visit.
   const token = (await (await page.request.post(`/api/teams/${team.id}/share`, { data: {} })).json()).share_token;
   await page.goto(`/s/t/${token}/p/${bea}`);
   const toggle = page.getByLabel(/Include practice matches \(1\)/);
-  await expect(toggle).not.toBeChecked();
-  // Matches against practice, side by side, also while practice is switched off.
-  await expect(page.locator('.learning')).toContainText('In matches and in practice');
-  await toggle.check();
+  await expect(toggle).toBeChecked();
   // With practice on: two matches with attacks, so a trend line.
   await expect(page.locator('.learning')).toContainText('Attack efficiency per match');
   await page.screenshot({ path: info.outputPath('player-page.png'), fullPage: true });
+  await toggle.uncheck();
+  // Matches against practice, side by side, also while practice is switched off.
+  await expect(page.locator('.learning')).toContainText('In matches and in practice');
   await page.goto(`/s/t/${token}/stats`);
-  await expect(page.getByLabel(/Include practice matches \(1\)/)).toBeChecked();
+  await expect(page.getByLabel(/Include practice matches \(1\)/)).not.toBeChecked();
+  // The guide points at the switch.
+  await page.locator('.tour-open').click();
+  await page.locator('.tour').getByRole('button', { name: /Show me|Next/ }).click();
+  await expect(page.locator('.tour')).toContainText('Practice matches');
 });
 
 test('every set matches the official result: the Events tab offers "Mark as fully tagged"', async ({ page, login }) => {

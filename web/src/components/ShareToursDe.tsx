@@ -3,6 +3,13 @@ import type { TourStep } from './Tour';
 
 /** The guided tours of the public links in German (Swiss spelling: ss, no ß). */
 
+const practiceDe: TourStep = {
+  target: '[data-tour="practice"]',
+  optional: true,
+  title: 'Trainingsspiele',
+  text: <>Die Zahlen enthalten die Trainingsspiele (beide Seiten eigene Leute). Hier ausschalten, um nur die echten Spiele zu sehen.</>,
+};
+
 const sections: TourStep = {
   target: '[data-tour="sections"]',
   title: 'Statistik nach Thema',
@@ -38,7 +45,7 @@ export function teamTourDe(team: string): TourStep[] {
       text: (
         <>
           <p>Die Spiele und Resultate des Teams, und Statistiken aus den Matchvideos, Ballkontakt für Ballkontakt erfasst: jeder Aufschlag, jede Annahme, jedes Zuspiel, jeder Angriff, Block und jede Abwehr, wer ihn gespielt hat und wohin der Ball ging.</p>
-          <p>Ein kurzer Rundgang in 6 Schritten.</p>
+          <p>Ein kurzer Rundgang in wenigen Schritten.</p>
         </>
       ),
     },
@@ -60,6 +67,7 @@ export function teamTourDe(team: string): TourStep[] {
       title: 'Spiele und Videos',
       text: <>Kommende Spiele und Resultate. Tippe auf ein Spiel für die Halle, das Video und, sobald erfasst, die Statistik. Du kennst ein Video eines Spiels? Schick den Link dort; er erscheint, sobald das Team ihn geprüft hat.</>,
     },
+    practiceDe,
     {
       target: '[data-tour="tab-players"]',
       title: 'Eine Seite pro Person',
@@ -89,6 +97,7 @@ export function statsTourDe(): TourStep[] {
       title: 'Saison oder ein Spiel',
       text: <>Statistik und Verlauf zeigen zuerst alle Spiele zusammen. Hier ein Spiel wählen, um nur dieses zu sehen.</>,
     },
+    practiceDe,
     sections,
     passes,
     tone,
@@ -103,13 +112,14 @@ export function playerTourDe(name: string): TourStep[] {
   return [
     {
       title: `Seite von ${name}`,
-      text: <>Aus den eigenen erfassten Ballkontakten von {name} in allen Spielen. Ein kurzer Blick in 6 Schritten.</>,
+      text: <>Aus den eigenen erfassten Ballkontakten von {name} in allen Spielen. Ein kurzer Blick in wenigen Schritten.</>,
     },
     {
       target: '[data-tour="learn"]',
       title: 'Stärken und Fehler',
       text: <>Was in den Zahlen auffällt, gut und schlecht, jeweils mit den Zahlen dahinter.</>,
     },
+    practiceDe,
     {
       target: '[data-tour="tips"]',
       title: 'Übungstipps',

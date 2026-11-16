@@ -5,6 +5,13 @@ import { matchTourDe, playerTourDe, statsTourDe, teamTourDe } from './ShareTours
 
 /** The guided tours of the public links: the team link, a player's page and a single match. */
 
+const practiceEn: TourStep = {
+  target: '[data-tour="practice"]',
+  optional: true,
+  title: 'Practice matches',
+  text: <>The numbers include the practice matches (both sides your own players). Switch them off here to see the real matches only.</>,
+};
+
 const sections: TourStep = {
   target: '[data-tour="sections"]',
   title: 'Stats by topic',
@@ -41,7 +48,7 @@ export function teamTour(team: string): TourStep[] {
       text: (
         <>
           <p>The team's games and results, and stats from the match videos, tagged touch by touch: every serve, pass, set, attack, block and dig, who played it and where the ball went.</p>
-          <p>A quick look around, in 6 steps.</p>
+          <p>A quick look around, in a few steps.</p>
         </>
       ),
     },
@@ -63,6 +70,7 @@ export function teamTour(team: string): TourStep[] {
       title: 'Games and videos',
       text: <>Upcoming games and results. Tap a game for the hall, its video and, once tagged, its stats. Know a video of a game? Send the link there; it shows once the team has checked it.</>,
     },
+    practiceEn,
     {
       target: '[data-tour="tab-players"]',
       title: 'A page per player',
@@ -94,6 +102,7 @@ export function statsTour(): TourStep[] {
       title: 'Season or one match',
       text: <>Stats and Trends start with all matches together. Pick a match here to see only that one.</>,
     },
+    practiceEn,
     sections,
     passes,
     tone,
@@ -109,13 +118,14 @@ export function playerTour(name: string): TourStep[] {
   return [
     {
       title: `${name}'s page`,
-      text: <>Built from {name}'s own tagged touches in every match. A quick look in 6 steps.</>,
+      text: <>Built from {name}'s own tagged touches in every match. A quick look in a few steps.</>,
     },
     {
       target: '[data-tour="learn"]',
       title: 'Strengths and faults',
       text: <>What stands out in the numbers, good and bad, each with the figures behind it.</>,
     },
+    practiceEn,
     {
       target: '[data-tour="tips"]',
       title: 'Practice tips',

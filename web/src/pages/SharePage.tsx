@@ -70,8 +70,8 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const [data, setData] = useState<TeamShare | null>(null);
   // The viewer's own choice for the practice tips (remembered on this device); until they pick, the team's setting.
   const [tips, setTips] = useState<boolean | null>(() => { try { const v = localStorage.getItem('viq:showTips'); return v == null ? null : v === '1'; } catch { return null; } });
-  // Practice matches in the season views: off by default, kept for the visit across the public pages.
-  const [withPractice, setWithPractice] = useKept(`viq:withPractice:${token}`, false);
+  // Practice matches in the season views: on by default (switchable), kept for the visit across the public pages.
+  const [withPractice, setWithPractice] = useKept(`viq:withPractice:${token}`, true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function TeamSharePage({ view = 'stats' }: { view?: View }) {
   const tab: View = player ? 'players' : view;
   const scope = match ? `${base}/m/${match.id}` : base;
   const statsLink = match ? scope : `${base}/stats`;
-  // The season (all matches) leaves the practice matches out unless the viewer switches them on.
+  // The season (all matches) includes the practice matches unless the viewer switches them off.
   const season = seasonScope(data.matches, data.events, withPractice);
   const practiceToggle = !match && <PracticeToggle count={season.practiceCount} on={withPractice} set={setWithPractice} />;
   const events = match ? data.events.filter((e) => e.match_id === match.id) : season.events;

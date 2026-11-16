@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Practice matches count by default**
+- The season stats (app Stats tab, public Overview, Stats, Trends and player pages) now include the practice matches from the start; "Include practice matches" switches them off. The guide on the public page points at that switch (when the team has practice matches).
+
 **Public page: live only for live matches**
 - A match tagged from a video showed up as "live" on the public page while it was being tagged. Only matches created as live count as live now.
 

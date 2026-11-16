@@ -31,7 +31,7 @@ export function Reports() {
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [showTips, setShowTips] = useState(false);
-  const [withPractice, setWithPractice] = useState(false);
+  const [withPractice, setWithPractice] = useState(true);
 
   useEffect(() => {
     api.teams().then((t) => {
@@ -49,7 +49,7 @@ export function Reports() {
     api.team(teamId).then((t) => { setToken(t.share_token ?? null); setShowTips(!!t.show_tips); }).catch(() => setToken(null));
   }, [teamId]);
 
-  // All matches: the practice matches only when switched on (both sides ours would skew the team's numbers).
+  // All matches: the practice matches included unless switched off.
   const season = useMemo(() => seasonScope(data?.matches ?? [], data?.events ?? [], withPractice), [data, withPractice]);
   const events = useMemo(
     () => (data ? (matchId === 'all' ? season.events : data.events.filter((e) => e.match_id === matchId)) : []),
