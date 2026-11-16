@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Voice: mishearings**
+- "dig" works again: the phone's speech recognition hides words it takes for swearing behind stars ("dick" arrives as "d***"), and those were not understood. Starred words now count as the likely tag word (dig, ace, set, pass), plus more mishearings ("doug", "sit", "shit").
+- The voice panel (More) lists the words it did not understand, with how often, and a Copy button, so new mishearings can be sent in and added.
+
 **Voice: set calls**
 - "9 set outside", "set opposite", "set pipe", "set alpha", "set middle quick", "set middle shoot" (German: Aussen, Diagonal, Pipe, Alpha, Mitte schnell, Mitte Schuss) tag the set with where it went: outside = zone 4, opposite = zone 2, middle quick right next to the setter, middle shoot between zones 3 and 4, pipe = back row middle, alpha = back row zone 1. The set is drawn from the setter's usual spot, and an attack said right after it in the same phrase ("9 set outside, 5 kill") gets that spot as where it was hit from, so it counts in "Efficiency by where the attack was hit from".
 

@@ -3,12 +3,18 @@ import { actionLabel, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import type { PlayerHandle } from './VideoPlayer';
 import { canListen, listen, type Listener } from '../lib/speech';
-import { parseVoice, SET_CALL_LABEL, SET_SPOTS, type VoiceCommand } from '../lib/voice';
+import { parseVoice, SET_CALL_LABEL, SET_SPOTS, unknownWords, type VoiceCommand } from '../lib/voice';
 import { ATTACK_CODES } from '../lib/actions';
 import { PASS_TARGET } from '../lib/court';
 
 const LANG_KEY = 'viq:voice-lang';
 const HOLD_KEY = 'viq:voice-hold';
+const UNKNOWN_KEY = 'viq:voice-unknown';
+
+/** Words the voice tagging did not know, with how often they came (kept on this device). */
+function readUnknown(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(UNKNOWN_KEY) ?? '{}'); } catch { return {}; }
+}
 /** Seconds between a touch and starting to say it. */
 const SPEECH_LAG = 1;
 const LANGS = [{ code: 'de-DE', label: 'DE' }, { code: 'en-US', label: 'EN' }];
@@ -61,7 +67,20 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
   const handlers = useRef({ onTag, onWon, onLost, onUndo, players });
   handlers.current = { onTag, onWon, onLost, onUndo, players };
 
+  const [unknown, setUnknown] = useState<Record<string, number>>(readUnknown);
+  function noteUnknown(text: string) {
+    const ws = unknownWords(text);
+    if (!ws.length) return;
+    setUnknown((u) => {
+      const next = { ...u };
+      for (const w of ws) next[w] = (next[w] ?? 0) + 1;
+      try { localStorage.setItem(UNKNOWN_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }
+
   function apply(text: string, at: number | null) {
+    noteUnknown(text);
     const { onTag, onWon, onLost, onUndo, players } = handlers.current;
     // Along a video: the first touch about a second before the phrase started, the next ones 0.8 s apart.
     let k = 0;
@@ -155,6 +174,17 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
               <span>«{l.text}»</span> {l.done.length ? <b>→ {l.done.join(', ')}</b> : <span className="error">not understood</span>}
             </div>
           ))}
+          {Object.keys(unknown).length > 0 && (() => {
+            const list = Object.entries(unknown).sort((a, b) => b[1] - a[1]).slice(0, 30);
+            const text = list.map(([w, n]) => `${w} (${n})`).join(', ');
+            return (
+              <div className="voice-line small">
+                <span>Words not understood: {text}</span>{' '}
+                <button className="btn-ghost small" onClick={() => { void navigator.clipboard?.writeText(text).catch(() => {}); }}>Copy</button>
+                <button className="btn-ghost small" onClick={() => { setUnknown({}); try { localStorage.removeItem(UNKNOWN_KEY); } catch { /* storage unavailable */ } }}>Clear</button>
+              </div>
+            );
+          })()}
           <span className="small muted">Along a video, each tag gets the time you started speaking (minus a second). Headphones keep the video's commentary out of the microphone.</span>
         </div>
       )}

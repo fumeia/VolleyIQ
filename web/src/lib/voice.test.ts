@@ -103,4 +103,18 @@ describe('voice tagging', () => {
     // Without a set before it, "outside" is no tag.
     expect(to('5 kill outside')).toEqual(['5:kill']);
   });
+  it('words the phone hides or mishears', () => {
+    const t = (x: string) => parseVoice(x).map((c) => (c.kind === 'tag' ? `${c.jersey}:${c.action}` : c.kind));
+    expect(t('6 d***')).toEqual(['6:dig']);
+    expect(t('6 d**k')).toEqual(['6:dig']);
+    expect(t('6 dick, 9 set, 5 kill')).toEqual(['6:dig', '9:set', '5:kill']);
+    expect(t('number 4 a**')).toEqual(['4:ace']);
+    expect(t('9 s***')).toEqual(['9:set']);
+    expect(t('6 doug')).toEqual(['6:dig']);
+  });
+  it('lists the words it does not know', async () => {
+    const { unknownWords } = await import('./voice');
+    expect(unknownWords('number 7 pass 2, 9 set outside, 5 kill')).toEqual([]);
+    expect(unknownWords('7 banana pass 2')).toEqual(['banana']);
+  });
 });

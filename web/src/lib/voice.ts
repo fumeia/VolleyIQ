@@ -129,7 +129,21 @@ export function words(text: string): string[] {
     .replace(/[#.,;:!?"'()]/g, ' ')
     .replace(/(\d+)(er|te|th|st|nd|rd)\b/g, '$1')
     .split(/\s+/).filter(Boolean)
+    .map(masked)
     .map(soundsLike);
+}
+
+/**
+ * Phone speech recognition hides words it takes for swearing behind stars: "dig" heard as
+ * "dick" arrives as "d***", "ace" as "a**", "set" as "s***". Our word is the likely one.
+ */
+function masked(w: string): string {
+  if (!w.includes('*')) return w;
+  if (/^d[a-z]?\*+[a-z]?s?$/.test(w)) return 'dig';
+  if (/^a\*+$/.test(w)) return 'ace';
+  if (/^s[a-z]?\*+[a-z]?$/.test(w)) return 'set';
+  if (/^p[a-z]?\*+[a-z]?$/.test(w)) return 'pass';
+  return w.replace(/\*/g, '');
 }
 
 /** Words speech engines write for our words ("seven past two" was "seven pass two"). */
@@ -141,7 +155,10 @@ const SOUNDS_LIKE: Record<string, string> = {
   surf: 'serve', serf: 'serve', serv: 'serve', survey: 'serve', served: 'served',
   ice: 'ace', aids: 'ace',
   blog: 'block', bloc: 'block', black: 'block', blocks: 'blocks',
-  deck: 'dig', dick: 'dig',
+  deck: 'dig', dick: 'dig', dicks: 'dig', dig: 'dig', digg: 'dig', doug: 'dig', dug: 'dig', tick: 'dig', dict: 'dig', digit: 'dig', diggs: 'dig',
+  shit: 'set', sit: 'set', set: 'set', suit: 'set', sec: 'set',
+  pipe: 'pipe', pied: 'pipe', piped: 'pipe', type: 'pipe',
+  ask: 'ace', aces: 'ace',
   receipt: 'receive', receives: 'receives',
   era: 'error', arrow: 'error', errors: 'error',
   ate: '8', tree: '3',
@@ -303,4 +320,18 @@ export function parseVoice(text: string): VoiceCommand[] {
     }
   }
   return out;
+}
+
+/** Words that carry no tag but are fine to say ("number 9", "the", "für uns"). */
+const FILLER = new Set(['number', 'nummer', 'no', 'nr', 'the', 'a', 'an', 'and', 'then', 'to', 'too', 'of', 'by', 'from', 'with', 'in', 'on', 'off', 'play', 'ball', 'for', 'us', 'them', 'our', 'their', 'we', 'they', 'won', 'scored',
+  'und', 'dann', 'der', 'die', 'das', 'den', 'dem', 'ein', 'eine', 'einen', 'mit', 'von', 'vom', 'für', 'uns', 'sie', 'gegner', 'unser', 'wir', 'gewonnen', 'auf', 'an', 'zu',
+  'undo', 'zurück', 'rückgängig', 'löschen', 'delete', 'blocked', 'geblockt', 'schlägt', 'middle', 'mitte', 'quick', 'shoot', 'shot', 'outside', 'opposite', 'pipe', 'alpha', 'aussen', 'außen', 'diagonal', 'schnell', 'schuss', 'tool', 'blockout']);
+
+/**
+ * Words of a transcript that the voice tagging does not know, to find more mishearings (the
+ * voice panel lists them so they can be added to SOUNDS_LIKE).
+ */
+export function unknownWords(text: string): string[] {
+  return words(text).filter((w) => !(numberWord(w) != null || FILLER.has(w) || actionOf(w) || ERROR_WORDS.includes(w) || POINT_WORDS.includes(w)
+    || TIP_WORDS.includes(w) || RECYCLE_WORDS.includes(w) || gradeOf(w) != null || setCallAt([w], 0)));
 }
