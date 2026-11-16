@@ -83,6 +83,8 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
   const [settings, setSettings] = useState<TagSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [plainTest, setPlainTest] = useState(false);
+  // Tags said by voice in this sitting, to look over and fix in the voice bar.
+  const [voiceIds, setVoiceIds] = useState<string[]>([]);
   // Clip reel: the filtered events, each from 3 s before to 2 s after.
   const [reel, setReel] = useState<{ list: VEvent[]; i: number } | null>(null);
   useEffect(() => {
@@ -279,6 +281,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       if (ev) remove(ev);
     });
     navigator.vibrate?.(15);
+    return clientId;
   }
 
   // Corrections sent from the public link's Replays tab, waiting for a decision.
@@ -878,7 +881,9 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
       {voice && !paused && (
         <VoiceBar players={players} player={isLive ? undefined : player} onClose={() => setVoice(false)}
           panelHidden={bigVideo} onTogglePanel={isLive ? undefined : () => setBigVideo(!bigVideo)} score={`S${setNo} ${score.us}:${score.them}`}
-          onTag={(e) => { const t = e.t !== undefined ? e.t : getTime(); commit({ ...e, t: t == null ? null : t }); }}
+          onTag={(e) => { const t = e.t !== undefined ? e.t : getTime(); const id = commit({ ...e, t: t == null ? null : t }); if (id) setVoiceIds((l) => [...l, id]); }}
+          session={voiceIds.map((id) => events.find((x) => x.client_id === id)).filter((x): x is VEvent => !!x)}
+          onEdit={setEditing}
           onWon={() => (practice ? practicePoint('a') : settle(true))}
           onLost={() => { if (practice) return practicePoint('b'); const t = getTime(); commit({ action: 'opp_point', value: null, t: t == null ? null : t }); }}
           onUndo={() => { const last = lastAdded(eventsRef.current.filter((e) => e.status === 'confirmed')); if (last) { remove(last); flash(`Removed ${actionLabel(last)}`); } }} />

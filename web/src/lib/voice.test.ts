@@ -117,4 +117,28 @@ describe('voice tagging', () => {
     expect(unknownWords('number 7 pass 2, 9 set outside, 5 kill')).toEqual([]);
     expect(unknownWords('7 banana pass 2')).toEqual(['banana']);
   });
+  it('zones and finer places', async () => {
+    const { voiceSpots } = await import('./voice');
+    const one = (t: string) => parseVoice(t).find((c) => c.kind === 'tag') as Extract<ReturnType<typeof parseVoice>[number], { kind: 'tag' }>;
+    // A pass in zone 5 (our back left) graded 2: where it was played.
+    const pass = one('7 pass 2 zone 5');
+    expect(pass).toMatchObject({ jersey: 7, action: 'receive', value: 2, zone: 5 });
+    expect(voiceSpots(pass)).toMatchObject({ fx: 1.5, fy: 3, zone: 5 });
+    // A dig in 1 deep that went to the setter's left (outside).
+    const dig = one('6 dig in 1 deep outside');
+    expect(dig).toMatchObject({ action: 'dig', zone: 1, depth: 'deep', to: 'outside' });
+    expect(voiceSpots(dig)).toMatchObject({ fx: 7.5, fy: 1, x: 1, y: 8 });
+    // A kill into their zone 5 (their back left = our right side), deep.
+    const kill = one('9 kill zone 5 deep');
+    expect(voiceSpots(kill)).toMatchObject({ x: 7.5, y: 17, zone: 5 });
+    // A serve into 1 short.
+    expect(voiceSpots(one('4 serve zone 1 short'))).toMatchObject({ x: 1.5, y: 13 });
+    // Line and cross from an outside set (hit from x = 1).
+    expect(voiceSpots(one('5 kill line'), { x: 1, y: 8 })).toMatchObject({ fx: 1, x: 1, y: 15 });
+    expect(voiceSpots(one('5 kill cross'), { x: 1, y: 8 })).toMatchObject({ x: 8 });
+    // German.
+    expect(one('sieben Annahme zwei Zone fünf')).toMatchObject({ jersey: 7, value: 2, zone: 5 });
+    // "in play" after off the block is still in play, not a zone.
+    expect(parseVoice('5 off the block in play').map((c) => c.kind === 'tag' && c.action)).toEqual(['attack']);
+  });
 });

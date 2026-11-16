@@ -21,6 +21,9 @@ export const SET_SPOTS: Record<SetCall, { x: number; y: number }> = {
 };
 export const SET_CALL_LABEL: Record<SetCall, string> = { outside: 'outside', opposite: 'opposite', quick: 'middle quick', shoot: 'middle shoot', pipe: 'pipe', alpha: 'alpha' };
 
+const DEPTH_WORDS: Record<string, Depth> = { deep: 'deep', long: 'deep', tief: 'deep', lang: 'deep', hinten: 'deep', short: 'short', kurz: 'short', vorne: 'short' };
+const DIR_WORDS: Record<string, Dir> = { line: 'line', longline: 'line', linie: 'line', cross: 'cross', diagonal: 'cross', kreuz: 'cross', cros: 'cross' };
+
 /** A set call word (and how many words it takes), English and German. */
 function setCallAt(w: string[], i: number): [SetCall, number] | null {
   const x = w[i], next = w[i + 1];
@@ -38,8 +41,12 @@ function setCallAt(w: string[], i: number): [SetCall, number] | null {
   return null;
 }
 
+/** Finer place inside a zone: towards the baseline or the net, and line or cross for an attack. */
+export type Depth = 'deep' | 'short';
+export type Dir = 'line' | 'cross';
+
 export type VoiceCommand =
-  | { kind: 'tag'; jersey: number | null; action: ActionCode; value: number | null; heard: string; to?: SetCall }
+  | { kind: 'tag'; jersey: number | null; action: ActionCode; value: number | null; heard: string; to?: SetCall; zone?: number; depth?: Depth; dir?: Dir }
   | { kind: 'won'; heard: string }
   | { kind: 'lost'; heard: string }
   | { kind: 'undo'; heard: string };
@@ -158,6 +165,7 @@ const SOUNDS_LIKE: Record<string, string> = {
   deck: 'dig', dick: 'dig', dicks: 'dig', dig: 'dig', digg: 'dig', doug: 'dig', dug: 'dig', tick: 'dig', dict: 'dig', digit: 'dig', diggs: 'dig',
   shit: 'set', sit: 'set', set: 'set', suit: 'set', sec: 'set',
   pipe: 'pipe', pied: 'pipe', piped: 'pipe', type: 'pipe',
+  zoom: 'zone', zones: 'zone', sewn: 'zone', zon: 'zone', sone: 'zone', zonen: 'zone',
   ask: 'ace', aces: 'ace',
   receipt: 'receive', receives: 'receives',
   era: 'error', arrow: 'error', errors: 'error',
@@ -197,8 +205,8 @@ export function voiceHints(lang: string): string[] {
   const de = lang.startsWith('de');
   const nums = Array.from({ length: 20 }, (_, i) => String(i + 1));
   return de
-    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Recycle', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block', 'Aussen', 'Diagonal', 'Pipe', 'Alpha', 'Mitte schnell', 'Mitte Schuss']
-    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'recycle', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block', 'outside', 'opposite', 'pipe', 'alpha', 'middle quick', 'middle shoot'];
+    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Recycle', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block', 'Aussen', 'Diagonal', 'Pipe', 'Alpha', 'Mitte schnell', 'Mitte Schuss', 'Zone', 'tief', 'kurz', 'Linie']
+    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'recycle', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block', 'outside', 'opposite', 'pipe', 'alpha', 'middle quick', 'middle shoot', 'zone', 'deep', 'short', 'line', 'cross'];
 }
 
 /**
@@ -227,8 +235,15 @@ export function parseVoice(text: string): VoiceCommand[] {
     }
     if (x === 'punkt' && next === 'gegner') { out.push({ kind: 'lost', heard: 'punkt gegner' }); i++; cur = null; jersey = null; continue; }
 
-    // A set call right after a set: "9 set outside", "1 Zuspiel Pipe", "set middle quick".
-    if (cur && (cur.action === 'set' || cur.action === 'assist') && !cur.to) {
+    // Where it happened: "zone 5" / "in 5" (1-6), then "deep" / "short", "line" / "cross".
+    if (cur && (x === 'zone' || x === 'in') && next != null) {
+      const z = numberWord(next);
+      if (z != null && z >= 1 && z <= 6) { cur.zone = z; cur.heard += ` zone ${z}`; i++; continue; }
+    }
+    if (cur && DEPTH_WORDS[x]) { cur.depth = DEPTH_WORDS[x]; cur.heard += ` ${x}`; continue; }
+    if (cur && DIR_WORDS[x] && (ATTACK_CODES.includes(cur.action) || cur.action === 'serve' || cur.action === 'ace')) { cur.dir = DIR_WORDS[x]; cur.heard += ` ${x}`; continue; }
+    // A set call right after a set, pass or dig: "9 set outside", "1 Zuspiel Pipe", "7 pass middle quick".
+    if (cur && ['set', 'assist', 'receive', 'dig'].includes(cur.action) && !cur.to) {
       const call = setCallAt(w, i);
       if (call) { cur.to = call[0]; cur.heard += ` ${w.slice(i, i + call[1]).join(' ')}`; i += call[1] - 1; continue; }
     }
@@ -323,7 +338,7 @@ export function parseVoice(text: string): VoiceCommand[] {
 }
 
 /** Words that carry no tag but are fine to say ("number 9", "the", "für uns"). */
-const FILLER = new Set(['number', 'nummer', 'no', 'nr', 'the', 'a', 'an', 'and', 'then', 'to', 'too', 'of', 'by', 'from', 'with', 'in', 'on', 'off', 'play', 'ball', 'for', 'us', 'them', 'our', 'their', 'we', 'they', 'won', 'scored',
+const FILLER = new Set(['zone', 'deep', 'long', 'short', 'line', 'cross', 'tief', 'lang', 'kurz', 'linie', 'kreuz', 'hinten', 'vorne', 'number', 'nummer', 'no', 'nr', 'the', 'a', 'an', 'and', 'then', 'to', 'too', 'of', 'by', 'from', 'with', 'in', 'on', 'off', 'play', 'ball', 'for', 'us', 'them', 'our', 'their', 'we', 'they', 'won', 'scored',
   'und', 'dann', 'der', 'die', 'das', 'den', 'dem', 'ein', 'eine', 'einen', 'mit', 'von', 'vom', 'für', 'uns', 'sie', 'gegner', 'unser', 'wir', 'gewonnen', 'auf', 'an', 'zu',
   'undo', 'zurück', 'rückgängig', 'löschen', 'delete', 'blocked', 'geblockt', 'schlägt', 'middle', 'mitte', 'quick', 'shoot', 'shot', 'outside', 'opposite', 'pipe', 'alpha', 'aussen', 'außen', 'diagonal', 'schnell', 'schuss', 'tool', 'blockout']);
 
@@ -334,4 +349,50 @@ const FILLER = new Set(['number', 'nummer', 'no', 'nr', 'the', 'a', 'an', 'and',
 export function unknownWords(text: string): string[] {
   return words(text).filter((w) => !(numberWord(w) != null || FILLER.has(w) || actionOf(w) || ERROR_WORDS.includes(w) || POINT_WORDS.includes(w)
     || TIP_WORDS.includes(w) || RECYCLE_WORDS.includes(w) || gradeOf(w) != null || setCallAt([w], 0)));
+}
+
+/** Our half (y < 9) or the opponent's half; see court.ts. Zone columns as each team sees them. */
+function zonePoint(zone: number, half: 'ours' | 'theirs', depth?: Depth): { x: number; y: number } {
+  const front = zone === 2 || zone === 3 || zone === 4;
+  // Columns from our left: our 4/5 left, 3/6 middle, 2/1 right; the opponent faces us, so mirrored.
+  const col = zone === 4 || zone === 5 ? 0 : zone === 3 || zone === 6 ? 1 : 2;
+  const x = (half === 'ours' ? col : 2 - col) * 3 + 1.5;
+  // Distance from the net (m): front zones 0-3, back zones 3-9; deep = towards the baseline.
+  const fromNet = front ? (depth === 'deep' ? 2.5 : depth === 'short' ? 0.5 : 1.5) : (depth === 'deep' ? 8 : depth === 'short' ? 4 : 6);
+  return { x, y: half === 'ours' ? 9 - fromNet : 9 + fromNet };
+}
+
+/** Actions whose zone is where our player played the ball; the others' zone is where it landed. */
+const PLAYED_AT: ActionCode[] = ['receive', 'dig', 'set', 'assist', 'set_error', 'assist_error', 'dig_error', 'block_touch', 'block_point', 'block_error', 'freeball'];
+const LANDED: ActionCode[] = ['serve', 'ace', 'attack', 'kill'];
+
+/**
+ * Court spots for a spoken tag: fx/fy = where it was played, x/y = where it went. [hitFrom]: where
+ * the attack was hit from (the spot of a set called just before it).
+ */
+export function voiceSpots(c: Extract<VoiceCommand, { kind: 'tag' }>, hitFrom: { x: number; y: number } | null = null): { fx?: number; fy?: number; x?: number; y?: number; zone?: number } {
+  const out: { fx?: number; fy?: number; x?: number; y?: number; zone?: number } = c.zone ? { zone: c.zone } : {};
+  if (PLAYED_AT.includes(c.action)) {
+    if (c.zone) { const p = zonePoint(c.zone, 'ours', c.depth); out.fx = p.x; out.fy = p.y; }
+    if (c.to) {
+      const t = SET_SPOTS[c.to];
+      out.x = t.x; out.y = t.y;
+      // A set comes from the usual setter's spot unless its zone was said.
+      if ((c.action === 'set' || c.action === 'assist') && out.fx == null) { out.fx = 6; out.fy = 8; }
+    }
+    return out;
+  }
+  if (!LANDED.includes(c.action)) return out;
+  if (hitFrom && c.action !== 'serve' && c.action !== 'ace') { out.fx = hitFrom.x; out.fy = hitFrom.y; }
+  if (c.zone) {
+    const p = zonePoint(c.zone, 'theirs', c.depth);
+    out.x = p.x; out.y = p.y;
+  }
+  // Line: straight ahead of where it was hit; cross: to the other side. Inside the zone if one was said.
+  if (c.dir && out.fx != null) {
+    const want = c.dir === 'line' ? out.fx : 9 - out.fx + (out.fx > 3 && out.fx < 6 ? 2 : 0);
+    if (out.x != null) { const lo = Math.floor(out.x / 3) * 3; out.x = Math.min(lo + 2.7, Math.max(lo + 0.3, want)); }
+    else { out.x = Math.min(8.7, Math.max(0.3, want)); out.y = c.depth === 'short' ? 11 : 15; }
+  }
+  return out;
 }

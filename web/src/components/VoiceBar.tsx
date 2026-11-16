@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { actionLabel, type ActionCode } from '../lib/actions';
+import { fmtTime } from './TagPad';
 import type { Player, VEvent } from '../lib/api';
 import type { PlayerHandle } from './VideoPlayer';
 import { canListen, listen, type Listener } from '../lib/speech';
-import { parseVoice, SET_CALL_LABEL, SET_SPOTS, unknownWords, type VoiceCommand } from '../lib/voice';
+import { parseVoice, SET_CALL_LABEL, SET_SPOTS, unknownWords, voiceSpots, type VoiceCommand } from '../lib/voice';
 import { ATTACK_CODES } from '../lib/actions';
-import { PASS_TARGET } from '../lib/court';
 
 const LANG_KEY = 'viq:voice-lang';
 const HOLD_KEY = 'viq:voice-hold';
@@ -24,11 +24,13 @@ const POINT: Partial<Record<ActionCode, ActionCode>> = { attack: 'kill', serve: 
  * Voice tagging: say who did what ("7 pass 2, 1 set, 5 kill", "our point", "their point", "undo"),
  * with or without video. Each phrase is turned into tags as soon as it is complete.
  */
-export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClose, panelHidden, onTogglePanel, score }: {
+export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClose, panelHidden, onTogglePanel, score, session = [], onEdit }: {
   players: Player[];
   /** The video (when tagging along one): tags get the time the phrase started, and it can pause while you speak. */
   player?: React.RefObject<PlayerHandle | null>;
   onTag: (e: Partial<VEvent>) => void; onWon: () => void; onLost: () => void; onUndo: () => void; onClose: () => void;
+  /** The tags said by voice while this bar was open (newest last), and how to open one for editing. */
+  session?: VEvent[]; onEdit?: (e: VEvent) => void;
   /** Landscape: the tagging panel is hidden so the video is bigger. */
   panelHidden?: boolean; onTogglePanel?: () => void;
   /** Shown in the strip (the header is hidden for a bigger video in landscape). */
@@ -96,13 +98,13 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
       if (!held) return;
       const p = held.jersey != null ? players.find((x) => x.active && x.number === held!.jersey) : undefined;
       const t = timeOf();
-      const spot = held.to ? SET_SPOTS[held.to] : null;
+      const isSet = held.action === 'set' || held.action === 'assist';
+      const spot = held.to && isSet ? SET_SPOTS[held.to] : null;
       const hitFrom = !held.to && setTo && ATTACK_CODES.includes(held.action) ? setTo : null;
-      onTag({ action: held.action, value: held.value, ...(t !== undefined ? { t } : {}), ...(p ? { player_id: p.id } : held.jersey != null ? { jersey: held.jersey } : {}),
-        ...(spot ? { fx: PASS_TARGET.x, fy: PASS_TARGET.y, x: spot.x, y: spot.y } : {}),
-        ...(hitFrom ? { fx: hitFrom.x, fy: hitFrom.y } : {}) });
+      const spots = voiceSpots(held, hitFrom);
+      onTag({ action: held.action, value: held.value, ...(t !== undefined ? { t } : {}), ...(p ? { player_id: p.id } : held.jersey != null ? { jersey: held.jersey } : {}), ...spots });
       if (spot) setTo = spot; else if (hitFrom) setTo = null;
-      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${actionLabel({ action: held.action, value: held.value })}${held.to ? ` ${SET_CALL_LABEL[held.to]}` : ''}`);
+      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${actionLabel({ action: held.action, value: held.value })}${held.to ? ` ${SET_CALL_LABEL[held.to]}` : ''}${held.zone ? ` zone ${held.zone}` : ''}${held.depth ? ` ${held.depth}` : ''}${held.dir ? ` ${held.dir}` : ''}`);
       held = null;
     };
     for (const c of cmds) {
@@ -143,6 +145,7 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
   }
 
   const [open, setOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   if (!canListen()) return <div className="voice-bar"><span className="small error">This browser cannot listen: use Chrome, Edge or Safari, or the Android app.</span><button className="btn-ghost small" onClick={onClose}>Close</button></div>;
   const lastLine = log[0];
   return (
@@ -157,10 +160,29 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
         </span>
         {!state.listening && <button className="btn small" onClick={() => start()}>Start</button>}
         {onTogglePanel && <button className="btn-ghost small voice-panel-btn" onClick={onTogglePanel}>{panelHidden ? 'Panel' : 'Bigger video'}</button>}
+        {onEdit && session.length > 0 && <button className="btn-ghost small" onClick={() => setListOpen(!listOpen)} aria-expanded={listOpen}>Tags {session.length}</button>}
         <button className="btn-ghost small" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Less' : 'More'}</button>
         <button className="btn-ghost small" onClick={() => { listener.current?.stop(); onClose(); }}>Stop</button>
       </div>
       {state.error && <span className="small error">{state.error}</span>}
+      {listOpen && onEdit && (
+        <ol className="voice-tags small" reversed>
+          {[...session].reverse().map((e) => {
+            const p = players.find((x) => x.id === e.player_id);
+            const where = [e.zone ? `zone ${e.zone}` : null, e.x != null ? 'spot' : null].filter(Boolean).join(', ');
+            return (
+              <li key={e.client_id ?? e.id}>
+                <button className="voice-tag" onClick={() => onEdit(e)}>
+                  <span className="muted tnum">{e.t != null ? fmtTime(e.t) : ''}</span>
+                  <b>{p ? `#${p.number} ` : e.jersey != null ? `#${e.jersey} ` : ''}{actionLabel(e)}</b>
+                  {where && <span className="muted">{where}</span>}
+                  <span className="voice-tag-edit">Edit</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
       {open && (
         <div className="voice-more">
           <div className="row wrap">

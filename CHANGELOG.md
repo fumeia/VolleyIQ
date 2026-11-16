@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Voice: where it happened, and a list to fix tags**
+- Say the zone after any tag: "zone 5" or "in 5" (Zone 5), optionally "deep" / "short" (tief / kurz) and, for serves and attacks, "line" / "cross" (Linie / Kreuz). Passes, digs, sets and blocks get where our player played the ball ("7 pass 2 zone 5"); serves and attacks where they landed in the opponent's court, in their zone numbers ("9 kill zone 5 deep"). Line and cross use where the attack was hit from (after a called set). The tags show on the court charts and zone tables like tapped spots, placed in the middle of the zone or its deep / short end.
+- Passes and digs take the same destination calls as sets: "7 pass middle quick", "6 dig outside" (where the ball went). The pass grade 0-3 stays as before ("7 pass 2").
+- "Tags" in the voice bar lists every tag said by voice while it is open, newest first; tap one to open it in the editor and fix the player, action, spot or time.
+
 **Voice: mishearings**
 - "dig" works again: the phone's speech recognition hides words it takes for swearing behind stars ("dick" arrives as "d***"), and those were not understood. Starred words now count as the likely tag word (dig, ace, set, pass), plus more mishearings ("doug", "sit", "shit").
 - The voice panel (More) lists the words it did not understand, with how often, and a Copy button, so new mishearings can be sent in and added.
