@@ -1,11 +1,19 @@
 import { expect, test } from './fixtures';
 
-test('public overview shows the team and the live score', async ({ page, seed }) => {
+test('public overview shows the team; only a live match shows a live score', async ({ page, seed, login }) => {
   await page.goto(`/s/t/${seed.share}`);
   await expect(page.getByText('Testers Nord').first()).toBeVisible();
-  // The tags were made a moment ago: the match counts as live.
+  // The seeded match is tagged from a video a moment ago: not live.
+  await expect(page.locator('.public-sub').first()).toBeVisible();
+  await expect(page.locator('.live-sets')).toHaveCount(0);
+  // A match created as live, with tags coming in, is.
+  await login();
+  const live = await (await page.request.post('/api/matches', { data: { label: 'Live now', opponent: 'Sample VC', team_id: seed.teamId, mode: 'live' } })).json();
+  for (const action of ['kill', 'kill', 'opp_point']) await page.request.post(`/api/matches/${live.id}/events`, { data: { action, set_no: 1 } });
+  await page.reload();
   await expect(page.locator('.live-sets')).toBeVisible();
-  await expect(page.locator('.live-score')).toContainText('9 : 5');
+  await expect(page.locator('.live-score')).toContainText('2 : 1');
+  await page.request.delete(`/api/matches/${live.id}`);
 });
 
 test('public tabs open', async ({ page, seed }) => {

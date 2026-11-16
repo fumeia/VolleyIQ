@@ -336,14 +336,15 @@ export function registerRoutes(app, { db, vision, numbers = null, lineupReader =
   registerPlaylists(app, { db });
 
   // ---------- live score for the public team page ----------
-  // A match counts as live while its tags keep coming (the newest under 15 minutes old).
+  // A live match (created as live, not tagged from a video afterwards) counts as live while its
+  // tags keep coming (the newest under 15 minutes old).
   const US = new Set(['kill', 'ace', 'block_point', 'opp_error', 'gap_us']);
   const THEM = new Set(['attack_error', 'serve_error', 'dig_error', 'attack_blocked', 'block_error', 'assist_error', 'set_error', 'opp_point', 'gap_them']);
   app.get('/api/share/team/:token/live', async (req, reply) => {
     const team = db.prepare('SELECT id FROM teams WHERE share_token = ?').get(req.params.token);
     if (!team) return bad(reply, 'Not found', 404);
     const m = db.prepare(`SELECT m.id, m.label, m.opponent, m.mode, m.practice, m.final, MAX(e.created_at) AS last FROM matches m JOIN events e ON e.match_id = m.id
-      WHERE m.team_id = ? AND e.status = 'confirmed' GROUP BY m.id HAVING last >= datetime('now', '-15 minutes') ORDER BY last DESC LIMIT 1`).get(team.id);
+      WHERE m.team_id = ? AND m.mode = 'live' AND e.status = 'confirmed' GROUP BY m.id HAVING last >= datetime('now', '-15 minutes') ORDER BY last DESC LIMIT 1`).get(team.id);
     if (!m) return { live: null };
     const sets = new Map();
     // Two tags of one rally ending score once (rules 2+ for blocks, 3+ for kill and dig error; see web/src/lib/pairs.ts).

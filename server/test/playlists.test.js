@@ -89,3 +89,14 @@ test('live score on the public page while tags come in', async () => {
   assert.deepEqual([live.won, live.lost], [1, 0]);
   await app.close();
 });
+
+test('a match tagged from a video is never shown as live', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viq-live-'));
+  const app = await buildApp({ NODE_ENV: 'test', DATA_DIR: dir, WEB_DIST: path.join(dir, 'none') });
+  const team = (await app.inject({ method: 'POST', url: '/api/teams', payload: { name: 'Herren 2' } })).json();
+  const token = (await app.inject({ method: 'POST', url: `/api/teams/${team.id}/share`, payload: {} })).json().share_token;
+  const m = (await app.inject({ method: 'POST', url: '/api/matches', payload: { label: 'From video', team_id: team.id } })).json();
+  for (let i = 0; i < 3; i++) await app.inject({ method: 'POST', url: `/api/matches/${m.id}/events`, payload: { action: 'kill', set_no: 1, t: 10 + i } });
+  assert.deepEqual((await app.inject({ url: `/api/share/team/${token}/live` })).json(), { live: null });
+  await app.close();
+});
