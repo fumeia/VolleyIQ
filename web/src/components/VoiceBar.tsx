@@ -3,7 +3,9 @@ import { actionLabel, type ActionCode } from '../lib/actions';
 import type { Player, VEvent } from '../lib/api';
 import type { PlayerHandle } from './VideoPlayer';
 import { canListen, listen, type Listener } from '../lib/speech';
-import { parseVoice, type VoiceCommand } from '../lib/voice';
+import { parseVoice, SET_CALL_LABEL, SET_SPOTS, type VoiceCommand } from '../lib/voice';
+import { ATTACK_CODES } from '../lib/actions';
+import { PASS_TARGET } from '../lib/court';
 
 const LANG_KEY = 'viq:voice-lang';
 const HOLD_KEY = 'viq:voice-hold';
@@ -68,12 +70,20 @@ export function VoiceBar({ players, player, onTag, onWon, onLost, onUndo, onClos
     const done: string[] = [];
     // Tags of this phrase are held until its end, so "5 attack, our point" makes the attack a kill.
     let held: Extract<VoiceCommand, { kind: 'tag' }> | null = null;
+    // A called set ("9 set outside") goes to that spot from the usual setter's spot, and the next
+    // attack of the same phrase was hit from there.
+    let setTo: { x: number; y: number } | null = null;
     const flush = () => {
       if (!held) return;
       const p = held.jersey != null ? players.find((x) => x.active && x.number === held!.jersey) : undefined;
       const t = timeOf();
-      onTag({ action: held.action, value: held.value, ...(t !== undefined ? { t } : {}), ...(p ? { player_id: p.id } : held.jersey != null ? { jersey: held.jersey } : {}) });
-      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${actionLabel({ action: held.action, value: held.value })}`);
+      const spot = held.to ? SET_SPOTS[held.to] : null;
+      const hitFrom = !held.to && setTo && ATTACK_CODES.includes(held.action) ? setTo : null;
+      onTag({ action: held.action, value: held.value, ...(t !== undefined ? { t } : {}), ...(p ? { player_id: p.id } : held.jersey != null ? { jersey: held.jersey } : {}),
+        ...(spot ? { fx: PASS_TARGET.x, fy: PASS_TARGET.y, x: spot.x, y: spot.y } : {}),
+        ...(hitFrom ? { fx: hitFrom.x, fy: hitFrom.y } : {}) });
+      if (spot) setTo = spot; else if (hitFrom) setTo = null;
+      done.push(`${held.jersey != null ? `#${held.jersey} ` : ''}${actionLabel({ action: held.action, value: held.value })}${held.to ? ` ${SET_CALL_LABEL[held.to]}` : ''}`);
       held = null;
     };
     for (const c of cmds) {

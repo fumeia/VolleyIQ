@@ -90,5 +90,17 @@ describe('voice tagging', () => {
     expect(tags('four serwe error')).toEqual(['4:serve_error']);
     expect(tags('Sieben Anname zwei')).toEqual(['7:receive=2']);
   });
+  it('set calls: where the set went', () => {
+    const to = (t: string) => parseVoice(t).map((c) => (c.kind === 'tag' ? `${c.jersey}:${c.action}${c.to ? '>' + c.to : ''}` : c.kind));
+    expect(to('number 9 set outside')).toEqual(['9:set>outside']);
+    expect(to('9 set opposite, 7 kill')).toEqual(['9:set>opposite', '7:kill']);
+    expect(to('nine set alpha')).toEqual(['9:set>alpha']);
+    expect(to('9 set pipe 12 attack')).toEqual(['9:set>pipe', '12:attack']);
+    expect(to('9 set middle quick')).toEqual(['9:set>quick']);
+    expect(to('9 set middle shoot, 3 kill')).toEqual(['9:set>shoot', '3:kill']);
+    expect(to('7 pass 2, 9 set outside, 5 kill')).toEqual(['7:receive', '9:set>outside', '5:kill']);
+    expect(to('neun Zuspiel aussen')).toEqual(['9:set>outside']);
+    // Without a set before it, "outside" is no tag.
+    expect(to('5 kill outside')).toEqual(['5:kill']);
+  });
 });
-

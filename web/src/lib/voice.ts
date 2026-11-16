@@ -8,8 +8,38 @@ import { ATTACK_CODES, OFF_BLOCK, RECYCLE, TIP, type ActionCode } from './action
  * number words work too. Words that mean nothing here are skipped.
  */
 
+/** Where a called set goes ("set outside", "middle quick"). */
+export type SetCall = 'outside' | 'opposite' | 'quick' | 'shoot' | 'pipe' | 'alpha';
+
+/**
+ * Court spots (our half, m, see court.ts) of the set calls: outside = zone 4, opposite = zone 2,
+ * middle quick right next to the setter, middle shoot between zones 3 and 4, pipe = back row
+ * middle, alpha = back row zone 1.
+ */
+export const SET_SPOTS: Record<SetCall, { x: number; y: number }> = {
+  outside: { x: 1, y: 8 }, opposite: { x: 8.3, y: 8 }, quick: { x: 5, y: 8.3 }, shoot: { x: 3, y: 8.3 }, pipe: { x: 4.5, y: 5 }, alpha: { x: 7.5, y: 5 },
+};
+export const SET_CALL_LABEL: Record<SetCall, string> = { outside: 'outside', opposite: 'opposite', quick: 'middle quick', shoot: 'middle shoot', pipe: 'pipe', alpha: 'alpha' };
+
+/** A set call word (and how many words it takes), English and German. */
+function setCallAt(w: string[], i: number): [SetCall, number] | null {
+  const x = w[i], next = w[i + 1];
+  if (x === 'middle' || x === 'mitte' || x === 'mittelblock') {
+    if (next === 'quick' || next === 'schnell' || next === 'schnelle') return ['quick', 2];
+    if (next === 'shoot' || next === 'shot' || next === 'shut' || next === 'schuss') return ['shoot', 2];
+    return null;
+  }
+  if (['outside', 'outsides', 'aussen', 'außen', 'aussenangriff'].includes(x)) return ['outside', 1];
+  if (['opposite', 'oppo', 'diagonal', 'dia'].includes(x)) return ['opposite', 1];
+  if (['quick', 'schnell', 'schnelle'].includes(x)) return ['quick', 1];
+  if (['shoot', 'schuss'].includes(x)) return ['shoot', 1];
+  if (['pipe', 'pipes', 'peip', 'type'].includes(x)) return ['pipe', 1];
+  if (['alpha', 'alfa', 'alfa', 'alpher'].includes(x)) return ['alpha', 1];
+  return null;
+}
+
 export type VoiceCommand =
-  | { kind: 'tag'; jersey: number | null; action: ActionCode; value: number | null; heard: string }
+  | { kind: 'tag'; jersey: number | null; action: ActionCode; value: number | null; heard: string; to?: SetCall }
   | { kind: 'won'; heard: string }
   | { kind: 'lost'; heard: string }
   | { kind: 'undo'; heard: string };
@@ -150,8 +180,8 @@ export function voiceHints(lang: string): string[] {
   const de = lang.startsWith('de');
   const nums = Array.from({ length: 20 }, (_, i) => String(i + 1));
   return de
-    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Recycle', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block']
-    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'recycle', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block'];
+    ? [...nums, 'Annahme', 'Zuspiel', 'Angriff', 'Aufschlag', 'Ass', 'Block', 'Abwehr', 'Fehler', 'Punkt', 'Finte', 'Recycle', 'Punkt für uns', 'Punkt Gegner', 'zurück', 'perfekt', 'gut', 'schlecht', 'vom Block', 'Aussen', 'Diagonal', 'Pipe', 'Alpha', 'Mitte schnell', 'Mitte Schuss']
+    : [...nums, 'pass', 'set', 'attack', 'kill', 'serve', 'ace', 'block', 'dig', 'error', 'out', 'tip', 'recycle', 'free ball', 'our point', 'their point', 'undo', 'perfect', 'good', 'bad', 'off the block', 'outside', 'opposite', 'pipe', 'alpha', 'middle quick', 'middle shoot'];
 }
 
 /**
@@ -180,6 +210,11 @@ export function parseVoice(text: string): VoiceCommand[] {
     }
     if (x === 'punkt' && next === 'gegner') { out.push({ kind: 'lost', heard: 'punkt gegner' }); i++; cur = null; jersey = null; continue; }
 
+    // A set call right after a set: "9 set outside", "1 Zuspiel Pipe", "set middle quick".
+    if (cur && (cur.action === 'set' || cur.action === 'assist') && !cur.to) {
+      const call = setCallAt(w, i);
+      if (call) { cur.to = call[0]; cur.heard += ` ${w.slice(i, i + call[1]).join(' ')}`; i += call[1] - 1; continue; }
+    }
     // Speech engines write a spoken "two" after a pass as "to" or "too".
     const open = cur as Extract<VoiceCommand, { kind: 'tag' }> | null;
     const n: number | null = (x === 'to' || x === 'too') && open?.action === 'receive' && open.value == null ? 2 : numberWord(x);

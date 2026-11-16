@@ -3,7 +3,7 @@ import { More } from './More';
 import { useMemo, useState } from 'react';
 import { BarChart, GroupedColumns, SERIES, StackedBars } from '../../charts/Charts';
 import type { Player, VEvent } from '../../lib/api';
-import { isOffBlock, isTip, SHOTS, shotOf } from '../../lib/actions';
+import { isOffBlock, isRecycle, isTip, SHOTS, shotOf } from '../../lib/actions';
 import { ATTACKS, attackContexts, buildRallies, type AttackContext } from '../../lib/sequence';
 import {
   attackOrigin, isBackRow, ORIGINS, DEPTHS, depth, DIRECTIONS, direction, eff, errorPct, pointPct, result, splitBy, tally, theirZone, type Tally,
@@ -21,6 +21,19 @@ const phaseKey = (c: AttackContext | undefined) => {
   if (c.phase === 'transition') return 'trans';
   return c.quality === 3 ? 'p3' : c.quality === 2 ? 'p2' : c.quality != null && c.quality <= 1 ? 'p1' : null;
 };
+
+/** Kind of shot, with the recycle (off the block on purpose, played again by us) on its own. */
+type Kind = 'hit' | 'tip' | 'block' | 'recycle';
+const KINDS: { key: Kind; label: string }[] = [
+  { key: 'hit', label: 'Hit' }, { key: 'tip', label: 'Tip / feint' }, { key: 'block', label: 'Off the block' }, { key: 'recycle', label: 'Recycle' },
+];
+const kindOf = (e: VEvent): Kind => (isRecycle(e) ? 'recycle' : shotOf(e));
+const ENDS = [
+  { key: 'kill', name: 'Kill', color: OUTCOME.point },
+  { key: 'attack', name: 'In play', color: OUTCOME.play },
+  { key: 'attack_error', name: 'Error', color: OUTCOME.error },
+  { key: 'attack_blocked', name: 'Blocked', color: '#8a5ab0' },
+] as const;
 
 /** Attack: who scores, from which first contact, which shots work, where. [only]: one player's attacks (player pages). */
 export function AttackSection({ players, events, only }: { players: Player[]; events: VEvent[]; only?: number }) {
@@ -90,6 +103,37 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
           } },
         ]}
         play={(r) => r.list} />}
+
+      {attacks.some((e) => kindOf(e) !== 'hit') && (
+        <StackedBars title={`How tips and off-the-block attacks end${forWho}`}
+          subtitle="Each kind of attack split by how it ended: kill, kept in play, error, blocked. Off the block = played off the opponent's block (block-out, tool); recycle = off the block on purpose, played again by us"
+          keys={ENDS.map((x) => ({ name: x.name, color: x.color }))}
+          rows={KINDS.map((k) => ({ k, list: attacks.filter((e) => kindOf(e) === k.key) }))
+            .filter((r) => r.list.length > 0)
+            .map((r) => ({ label: `${r.k.label} (${r.list.length})`, parts: ENDS.map((x) => r.list.filter((e) => e.action === x.key).length) }))}
+          axisTitle="Share of these attacks" />
+      )}
+
+      {only == null && (() => {
+        const rows = attackers.map(({ p, list }) => ({ p, tips: list.filter(isTip), ob: list.filter((e) => isOffBlock(e) && !isRecycle(e)) }))
+          .filter((r) => r.tips.length + r.ob.length > 0);
+        const bad = (l: VEvent[]) => l.filter((e) => e.action === 'attack_error' || e.action === 'attack_blocked').length;
+        return rows.length ? (
+          <StatFigure title="Tips and off the block per player" subtitle="Kills and errors (out, net or blocked) from tips / feints and from attacks played off the opponent's block"
+            rows={rows} rowKey={(r) => r.p.id}
+            first={{ h: 'Player', cell: (r) => who(r.p) }}
+            columns={[
+              { h: 'Tips', cell: (r) => r.tips.length || '–' },
+              { h: 'Tip K', cell: (r) => r.tips.filter((e) => e.action === 'kill').length || '–' },
+              { h: 'Tip E', title: 'Tip errors and blocked tips', cell: (r) => bad(r.tips) || '–' },
+              { h: 'Tip K%', cell: (r) => (r.tips.length ? { text: pct(ratio(r.tips.filter((e) => e.action === 'kill').length, r.tips.length)), tone: sample(judge.killPct(ratio(r.tips.filter((e) => e.action === 'kill').length, r.tips.length)), r.tips.length) } : '–') },
+              { h: 'Off bl.', cell: (r) => r.ob.length || '–' },
+              { h: 'OB K', cell: (r) => r.ob.filter((e) => e.action === 'kill').length || '–' },
+              { h: 'OB E', title: 'Errors off the block', cell: (r) => bad(r.ob) || '–' },
+            ]}
+            play={(r) => [...r.tips, ...r.ob]} />
+        ) : null;
+      })()}
 
       <StatFigure title={`Which shots work${forWho}`} subtitle={`From the two tapped spots (${withSpots} of ${attacks.length} attacks have both). Line < 15°, cross up to 50°, sharp cut beyond.`}
         rows={[

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Voice: set calls**
+- "9 set outside", "set opposite", "set pipe", "set alpha", "set middle quick", "set middle shoot" (German: Aussen, Diagonal, Pipe, Alpha, Mitte schnell, Mitte Schuss) tag the set with where it went: outside = zone 4, opposite = zone 2, middle quick right next to the setter, middle shoot between zones 3 and 4, pipe = back row middle, alpha = back row zone 1. The set is drawn from the setter's usual spot, and an attack said right after it in the same phrase ("9 set outside, 5 kill") gets that spot as where it was hit from, so it counts in "Efficiency by where the attack was hit from".
+
+**Stats: tips and off the block**
+- Attack topic (team stats, public link and player pages): a chart of how hits, tips / feints, attacks off the block and recycles end (kill, in play, error, blocked), and a table per player with tip kills and errors and off-the-block kills and errors.
+
 **Smooth video from the phone**
 - The match page redrew itself about ten times a second while the video played (the clock, the timeline and the fine scrub bar), and in the app every redraw competed with the video: on a phone only about 13 of 50 frames a second reached the screen. The fine scrub bar under the timeline is gone (frame by frame stepping does that job better); the clock and the timeline now update twice and once a second while playing, still instantly when paused, and only redraw their own strip.
 - While the video plays, nothing on the match page is redrawn any more: the timeline shows a progress bar moved by the graphics chip alone, and the time on the video shows when it is paused (as soon as you stop to tag).
