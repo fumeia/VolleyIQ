@@ -1,6 +1,7 @@
 import { tagOrder } from './actions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type VEvent } from './api';
+import { keep, read } from './safeStorage';
 
 /**
  * Event list with optimistic writes and an offline outbox, so courtside
@@ -15,10 +16,10 @@ const key = (matchId: number) => `viq:outbox:${matchId}`;
 type Edit = { id: number; patch?: Partial<VEvent>; del?: true };
 const editsKey = (matchId: number) => `viq:edits:${matchId}`;
 function loadEdits(matchId: number): Edit[] {
-  try { return JSON.parse(localStorage.getItem(editsKey(matchId)) ?? '[]'); } catch { return []; }
+  try { return JSON.parse(read(editsKey(matchId)) ?? '[]'); } catch { return []; }
 }
 function saveEdits(matchId: number, items: Edit[]) {
-  try { localStorage.setItem(editsKey(matchId), JSON.stringify(items)); } catch { /* storage full or blocked */ }
+  keep(editsKey(matchId), JSON.stringify(items));
 }
 function queueEdit(matchId: number, edit: Edit) {
   const list = loadEdits(matchId);
@@ -36,10 +37,11 @@ function withEdits(matchId: number, list: VEvent[]): VEvent[] {
 const offline = (err: unknown) => err instanceof ApiError && err.status === 0;
 
 function loadOutbox(matchId: number): Pending[] {
-  try { return JSON.parse(localStorage.getItem(key(matchId)) ?? '[]'); } catch { return []; }
+  try { return JSON.parse(read(key(matchId)) ?? '[]'); } catch { return []; }
 }
 function saveOutbox(matchId: number, items: Pending[]) {
-  try { localStorage.setItem(key(matchId), JSON.stringify(items)); } catch { /* storage full or blocked */ }
+  // A full storage drops the offline copies first; tags never go missing silently.
+  keep(key(matchId), JSON.stringify(items));
 }
 
 let tempId = -1;

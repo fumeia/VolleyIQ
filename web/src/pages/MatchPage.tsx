@@ -42,6 +42,7 @@ import { useEvents } from '../lib/useEvents';
 import { pointsOfSet, rotationAfter } from '../lib/rotation';
 import { ourHalfAt, type Calibration } from '../lib/calibration';
 import { useWorkTimer } from '../lib/useWorkTimer';
+import { storageFull } from '../lib/safeStorage';
 import { PlainVideoTest, PlaybackCheck } from '../components/PlaybackCheck';
 
 type Tab = 'tag' | 'events' | 'review' | 'ai' | 'edits';
@@ -578,7 +579,7 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
         <Link to="/" className="btn-ghost" aria-label="Back">‹</Link>
         <div className="ws-title">
           <b>{match.label}</b>
-          <small className="muted">{match.team_name ?? 'No team'}{pendingCount ? ` · ${pendingCount} offline` : ''}</small>
+          <small className="muted">{match.team_name ?? 'No team'}{pendingCount ? ` · ${pendingCount} not sent yet` : ''}{pendingCount && storageFull() ? ' (phone storage full: keep the app open until they are sent)' : ''}</small>
         </div>
         <div className="scorebox">
           <button className="set-btn" onClick={() => setSetNo((s) => Math.max(1, s - 1))}>‹</button>

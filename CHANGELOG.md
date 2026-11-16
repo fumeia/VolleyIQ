@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Tags that do not reach the server**
+- Tags could get lost in the app: it kept an offline copy of every server answer (each match, the whole season's events) in the same small phone storage that holds the tags waiting to be sent. Once that storage was full, new tags were not stored, never sent and gone after a restart. Offline copies are now kept small (large answers not at all), the old ones are trimmed at start, and a waiting tag always wins over them. If something still does not fit, it is kept while the app is open and the match page says so.
 - One tag the server refused (for example an action an older server does not know yet) held back every tag after it, and all of them showed "offline" although the connection was fine. A refused tag now waits on its own with "not saved:" and the server's reason (edit or delete it), and the tags after it are saved. Tags that wait for a connection say "not sent yet", and tags added while others are being sent go out in the same go instead of 10 seconds later.
 
 **Voice: where it happened, and a list to fix tags**

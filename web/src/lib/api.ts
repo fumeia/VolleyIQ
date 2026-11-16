@@ -5,6 +5,7 @@ import type { Calibration } from './calibration';
 import type { Lineups } from './rotation';
 import type { MatchSheetFlow, SheetSet } from './sheetFlow';
 import type { VideoLink } from './videoQuality';
+import { CACHE_PREFIX, trimCache } from './safeStorage';
 
 export interface VideoJob { state: 'queued' | 'running' | 'paused' | 'done' | 'failed' | 'stopped'; progress: number; error: string | null; updated_at: string; ahead: number }
 
@@ -186,6 +187,21 @@ export class ApiError extends Error {
 const SERVER_KEY = 'viq:server';
 const TOKEN_KEY = 'viq:token';
 
+/**
+ * The app keeps the last answer of each page's request for offline use. Large answers (a season's
+ * events) are left out and the copies together stay small: the same storage holds the tags that
+ * wait to be sent, and once it was full they were lost.
+ */
+const CACHE_MAX_ONE = 400_000, CACHE_MAX_ALL = 1_500_000;
+function cacheAnswer(url: string, json: string) {
+  const k = `${CACHE_PREFIX}${url}`;
+  if (json.length > CACHE_MAX_ONE) { try { localStorage.removeItem(k); } catch { /* storage unavailable */ } return; }
+  try { localStorage.setItem(k, json); } catch { /* full: never at the cost of anything else */ }
+  trimCache(CACHE_MAX_ALL);
+}
+// Copies saved by older versions could fill the storage: bring them down once at start.
+try { trimCache(CACHE_MAX_ALL); } catch { /* storage unavailable */ }
+
 function store(key: string, value?: string | null) {
   try {
     if (value === undefined) return localStorage.getItem(key);
@@ -218,7 +234,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
     });
   } catch (err) {
     // Offline: show the last copy we saw, so the app still opens courtside.
-    const cached = method === 'GET' ? store(`viq:cache:${url}`) : null;
+    const cached = method === 'GET' ? store(`${CACHE_PREFIX}${url}`) : null;
     if (cached) return JSON.parse(cached);
     throw new ApiError(0, 'No connection to the server');
   }
@@ -228,9 +244,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
   const data = await res.json();
-  if (method === 'GET' && isApp()) {
-    try { localStorage.setItem(`viq:cache:${url}`, JSON.stringify(data)); } catch { /* full */ }
-  }
+  if (method === 'GET' && isApp()) cacheAnswer(url, JSON.stringify(data));
   return data;
 }
 
