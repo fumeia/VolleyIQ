@@ -129,6 +129,35 @@ test('voice tagging turns a spoken rally into tags', async ({ page, login }) => 
   for (const t of [/#7 Noa\s*Receive 2/, /#1 Alex\s*Set/, /#5 Kim\s*Kill/]) await expect(page.locator('.ws-content')).toContainText(t);
 });
 
+test('a tag the server refuses does not hold back the next ones', async ({ page, login }) => {
+  await login();
+  await page.addInitScript(() => {
+    class FakeRecognition {
+      lang = ''; continuous = false; interimResults = false;
+      onresult: ((e: unknown) => void) | null = null; onerror = null; onend = null;
+      start() { (window as unknown as { say: (t: string) => void }).say = (t: string) => this.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript: t }], { isFinal: true })] }); }
+      stop() {} abort() {}
+    }
+    Object.assign(window, { webkitSpeechRecognition: FakeRecognition, SpeechRecognition: FakeRecognition });
+  });
+  const match = await liveMatch(page, 'Refused test');
+  // The server refuses the first tag (as an older server refuses an action it does not know).
+  let first = true;
+  await page.route(`**/api/matches/${match.id}/events`, async (route) => {
+    if (route.request().method() === 'POST' && first) { first = false; return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Unknown action dig' }) }); }
+    return route.continue();
+  });
+  await page.goto(`/m/${match.id}`);
+  await page.getByRole('button', { name: 'Voice tagging' }).click();
+  await page.evaluate(() => (window as unknown as { say: (t: string) => void }).say('7 dig, 1 set, 5 kill'));
+  await page.getByRole('button', { name: 'Events' }).click();
+  await expect(page.locator('.badge-refused')).toContainText('Unknown action dig');
+  await expect(page.locator('.badge-pending')).toHaveCount(0);
+  // The two after it are on the server.
+  const saved = await (await page.request.get(`/api/matches/${match.id}`)).json();
+  expect(saved.events.map((e: { action: string }) => e.action).sort()).toEqual(['kill', 'set']);
+});
+
 test('voice tagging along a video in landscape gives the video the screen', async ({ page, seed, login }) => {
   await login();
   await page.setViewportSize({ width: 844, height: 390 });

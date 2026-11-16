@@ -7,7 +7,7 @@ import { api, ApiError, type VEvent } from './api';
  * tagging keeps working when the gym Wi-Fi drops. Pending events live in
  * localStorage until the server acknowledges them (POST is idempotent per client_id).
  */
-type Pending = Partial<VEvent> & { client_id: string };
+type Pending = Partial<VEvent> & { client_id: string; refused?: string };
 
 const key = (matchId: number) => `viq:outbox:${matchId}`;
 
@@ -59,8 +59,22 @@ export function useEvents(matchId: number, initial: VEvent[]) {
     if (flushing.current) return;
     flushing.current = true;
     try {
-      for (const item of loadOutbox(matchId)) {
-        const saved = await api.addEvent(matchId, item);
+      // Tags added while sending are sent in the same go, not 10 s later.
+      const tried = new Set<string>();
+      for (let item = loadOutbox(matchId).find((p) => !p.refused); item && !tried.has(item.client_id); item = loadOutbox(matchId).find((p) => !p.refused && !tried.has(p.client_id))) {
+        tried.add(item.client_id);
+        let saved: VEvent;
+        try {
+          const { refused: _r, ...body } = item;
+          saved = await api.addEvent(matchId, body);
+        } catch (err) {
+          // Offline, signed out or a server fault: try again later, in order.
+          if (!(err instanceof ApiError) || err.status === 0 || err.status === 401 || err.status === 403 || err.status >= 500) throw err;
+          const reason = err.message || `refused (${err.status})`;
+          saveOutbox(matchId, loadOutbox(matchId).map((p) => (p.client_id === item.client_id ? { ...p, refused: reason } : p)));
+          setEvents((list) => list.map((e) => (e.client_id === item.client_id ? ({ ...e, refused: reason } as VEvent) : e)));
+          continue;
+        }
         const current = loadOutbox(matchId).find((p) => p.client_id === item.client_id);
         if (!current) { await api.deleteEvent(saved.id); continue; } // undone while in flight
         saveOutbox(matchId, loadOutbox(matchId).filter((p) => p.client_id !== item.client_id));
@@ -104,7 +118,9 @@ export function useEvents(matchId: number, initial: VEvent[]) {
   const update = useCallback(async (ev: VEvent, patch: Partial<VEvent>) => {
     setEvents((list) => sortEvents(list.map((e) => (e === ev || e.id === ev.id ? { ...e, ...patch } : e))));
     if (ev.id < 0) {
-      saveOutbox(matchId, loadOutbox(matchId).map((p) => (p.client_id === ev.client_id ? { ...p, ...patch, client_id: p.client_id } : p)));
+      saveOutbox(matchId, loadOutbox(matchId).map((p) => (p.client_id === ev.client_id ? { ...p, ...patch, client_id: p.client_id, refused: undefined } : p)));
+      setEvents((list) => list.map((e) => (e.client_id === ev.client_id ? ({ ...e, refused: undefined } as VEvent) : e)));
+      flush();
       return;
     }
     try {
@@ -115,7 +131,7 @@ export function useEvents(matchId: number, initial: VEvent[]) {
       queueEdit(matchId, { id: ev.id, patch });
       setPendingCount(countPending());
     }
-  }, [matchId]);
+  }, [matchId, flush]);
 
   const remove = useCallback(async (ev: VEvent) => {
     setEvents((list) => list.filter((e) => e.id !== ev.id));

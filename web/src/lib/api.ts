@@ -106,6 +106,8 @@ export interface VEvent {
   /** Where the ball was played from (x, y: where it went). */
   fx?: number | null; fy?: number | null; rally?: number | null; poss?: number | null; t: number | null; set_no: number | null;
   source: 'manual' | 'auto'; status: 'confirmed' | 'suggested'; confidence: number | null; client_id?: string | null;
+  /** App only: the server refused this unsaved tag, and why (it waits for an edit). */
+  refused?: string;
   /** Auto suggestions only: 'quiet' = faint sound in a hole of the rally, 'gap' = guessed from the rally rhythm. */
   hint?: 'quiet' | 'gap' | null;
   /** The AI check's answer for this suggestion, kept until the rally is reviewed. */

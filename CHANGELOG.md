@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Tags that do not reach the server**
+- One tag the server refused (for example an action an older server does not know yet) held back every tag after it, and all of them showed "offline" although the connection was fine. A refused tag now waits on its own with "not saved:" and the server's reason (edit or delete it), and the tags after it are saved. Tags that wait for a connection say "not sent yet", and tags added while others are being sent go out in the same go instead of 10 seconds later.
+
 **Voice: where it happened, and a list to fix tags**
 - Say the zone after any tag: "zone 5" or "in 5" (Zone 5), optionally "deep" / "short" (tief / kurz) and, for serves and attacks, "line" / "cross" (Linie / Kreuz). Passes, digs, sets and blocks get where our player played the ball ("7 pass 2 zone 5"); serves and attacks where they landed in the opponent's court, in their zone numbers ("9 kill zone 5 deep"). Line and cross use where the attack was hit from (after a called set). The tags show on the court charts and zone tables like tapped spots, placed in the middle of the zone or its deep / short end.
 - Passes and digs take the same destination calls as sets: "7 pass middle quick", "6 dig outside" (where the ball went). The pass grade 0-3 stays as before ("7 pass 2").

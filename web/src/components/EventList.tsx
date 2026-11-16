@@ -199,7 +199,9 @@ export function EventList({ events, players, onSeek, onEdit, activeId, limit, on
             {points && (() => { const pt = pointOf(e, points.sides); return <span className={`ev-pt ${pt.cls}`} title={pt.title}>{pt.text}</span>; })()}
             {issues.has(e.id) && <span className="ev-warn" title={issues.get(e.id)}>⚠</span>}
             {e.status === 'suggested' && <span className="badge">AI {e.confidence != null ? Math.round(e.confidence * 100) + '%' : ''}</span>}
-            {e.id < 0 && <span className="badge badge-pending" title="Waiting for connection">offline</span>}
+            {e.id < 0 && (e.refused
+              ? <span className="badge badge-refused" title={`The server did not take this tag: ${e.refused}. Edit or delete it.`}>not saved: {e.refused}</span>
+              : <span className="badge badge-pending" title="Waiting to be sent to the server">not sent yet</span>)}
             {onEdit && <button className="ev-edit" onClick={() => onEdit(e)} aria-label="Edit">✎</button>}
           </li>
         );

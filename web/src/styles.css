@@ -157,6 +157,7 @@ small, .small { font-size: 12.5px; }
 .file-btn { cursor: pointer; }
 .badge { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--warn); white-space: nowrap; font-weight: 600; }
 .badge-pending { background: var(--accent-soft); color: var(--accent); }
+.badge-refused { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); white-space: normal; }
 .toggle { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
 input[type='range'] { width: 100%; accent-color: var(--accent); }
