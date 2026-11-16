@@ -104,7 +104,7 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
         ]}
         play={(r) => r.list} />}
 
-      {attacks.some((e) => kindOf(e) !== 'hit') && (
+      {attacks.some((e) => kindOf(e) !== 'hit') ? (
         <StackedBars title={`How tips and off-the-block attacks end${forWho}`}
           subtitle="Each kind of attack split by how it ended: kill, kept in play, error, blocked. Off the block = played off the opponent's block (block-out, tool); recycle = off the block on purpose, played again by us"
           keys={ENDS.map((x) => ({ name: x.name, color: x.color }))}
@@ -112,6 +112,11 @@ export function AttackSection({ players, events, only }: { players: Player[]; ev
             .filter((r) => r.list.length > 0)
             .map((r) => ({ label: `${r.k.label} (${r.list.length})`, parts: ENDS.map((x) => r.list.filter((e) => e.action === x.key).length) }))}
           axisTitle="Share of these attacks" />
+      ) : (
+        <figure className="chart paper">
+          <figcaption><div className="chart-title"><b>How tips and off-the-block attacks end{forWho}</b></div>
+            <span className="chart-sub">No tips, attacks off the block or recycles tagged in these matches yet (tag pad: Tip, Off block; voice: "5 tip kill", "5 off the block", "5 recycle").</span></figcaption>
+        </figure>
       )}
 
       {only == null && (() => {
