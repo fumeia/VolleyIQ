@@ -631,6 +631,15 @@ function MatchWorkspace({ initial }: { initial: MatchBundle }) {
                     <button className="btn-ghost small" onClick={() => { try { localStorage.setItem(`viq:10bit-seen:${local.uri}`, '1'); } catch { /* storage unavailable */ } setTenBit(false); }}>Got it</button>
                   </div>
                 )}
+                {isApp() && !local && source.type === 'file' && source.remote && (
+                  <div className="video-from-net small">
+                    <span>Playing the team video over the internet.</span>
+                    <button className="btn-ghost small" onClick={async () => {
+                      try { const v = await Native.pickVideo(); setLocalVideo(match.id, v); setLocal(v); }
+                      catch (e) { if ((e as { code?: string }).code !== 'CANCELLED') flash((e as Error).message); }
+                    }}>Use the file on this phone</button>
+                  </div>
+                )}
                 <Timeline player={player} events={events} />
                 <div className="transport">
                   <button onClick={() => player.current?.seekBy(-10)}>−10</button>

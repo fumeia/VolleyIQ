@@ -1443,3 +1443,5 @@ body.video-plain .video-box { position: fixed; inset: 0; z-index: 900; aspect-ra
 .voice-tags { list-style: none; margin: 6px 0 0; padding: 0; max-height: 34dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .voice-tag { width: 100%; display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); text-align: left; font: inherit; }
 .voice-tag .voice-tag-edit { margin-left: auto; color: var(--accent); font-weight: 600; }
+/* In the app, when the team video streams instead of the phone's own file. */
+.video-from-net { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }

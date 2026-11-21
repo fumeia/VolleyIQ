@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isApp } from './api';
 import type { Segment } from './calibration';
+import { keep, read } from './safeStorage';
 
 /** Native side of the Android app (web/android/.../VolleyIQPlugin.kt). */
 export interface WorkState {
@@ -99,14 +100,13 @@ export const hookedUrl = (uri: string) =>
 export interface LocalVideo { uri: string; name: string }
 
 export function localVideo(matchId: number): LocalVideo | null {
-  try { return JSON.parse(localStorage.getItem(`viq:video:${matchId}`) ?? 'null'); } catch { return null; }
+  try { return JSON.parse(read(`viq:video:${matchId}`) ?? 'null'); } catch { return null; }
 }
 
+/** Remembers the phone's file for a match. With a full storage the offline copies make room (once that failed silently and the app streamed the team video instead). */
 export function setLocalVideo(matchId: number, v: LocalVideo | null) {
-  try {
-    if (v) localStorage.setItem(`viq:video:${matchId}`, JSON.stringify(v));
-    else localStorage.removeItem(`viq:video:${matchId}`);
-  } catch { /* storage unavailable */ }
+  if (v) { keep(`viq:video:${matchId}`, JSON.stringify(v)); return; }
+  try { localStorage.removeItem(`viq:video:${matchId}`); } catch { /* storage unavailable */ }
 }
 
 /** Links we can import on the phone (anything yt-dlp knows plus file-sharing services). */
